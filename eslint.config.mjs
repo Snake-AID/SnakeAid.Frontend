@@ -29,6 +29,7 @@ export default antfu(
     // Ignored paths
     ignores: [
       'migrations/**/*',
+      'docs/**', // documentation markdown and similar
     ],
   },
   // --- Accessibility Rules ---
@@ -55,9 +56,9 @@ export default antfu(
   // --- Custom Rule Overrides ---
   {
     rules: {
-      'antfu/no-top-level-await': 'off', // Allow top-level await
+      // 'antfu/no-top-level-await': 'off', // Allow top-level await
       'style/brace-style': ['error', '1tbs'], // Use the default brace style
-      'ts/consistent-type-definitions': ['error', 'type'], // Use `type` instead of `interface`
+      // 'ts/consistent-type-definitions': ['error', 'type'], // Use `type` instead of `interface`
       'react/prefer-destructuring-assignment': 'off', // Vscode doesn't support automatically destructuring, it's a pain to add a new variable
       'node/prefer-global/process': 'off', // Allow using `process.env`
       'test/padding-around-all': 'error', // Add padding in test files

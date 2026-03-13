@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import AdminSidebar from '@/components/admin/AdminSidebar';
 
-type UnderDevelopmentPageProps = {
+interface UnderDevelopmentPageProps {
   title: string;
   description: string;
   activeMenu: string;

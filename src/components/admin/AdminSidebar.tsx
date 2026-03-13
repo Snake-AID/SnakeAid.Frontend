@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
-type AdminSidebarProps = {
+interface AdminSidebarProps {
   activeMenu?: string;
   adminEmail?: string;
   onLogout?: () => void;
