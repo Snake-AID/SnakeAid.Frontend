@@ -1,8 +1,8 @@
 import { redirect } from 'next/navigation';
 
-export default async function LegacyAdminLoginPage(props: {
+export default async function OperatorIndex(props: {
   params: Promise<{ locale: string }>;
 }) {
   const { locale } = await props.params;
-  redirect(`/${locale}/login`);
+  redirect(`/${locale}/operator/dashboard`);
 }

@@ -9,6 +9,19 @@ const TOKEN_KEY = 'access_token';
 const REFRESH_TOKEN_KEY = 'refresh_token';
 const USER_INFO_KEY = 'user_info';
 
+const isAuthEndpoint = (url?: string) => {
+  if (!url) {
+    return false;
+  }
+
+  return [
+    '/auth/login',
+    '/auth/login/v2',
+    '/auth/refresh',
+    '/auth/logout',
+  ].some(endpoint => url.includes(endpoint));
+};
+
 // Token refresh state management
 let isRefreshing = false;
 let failedQueue: Array<{
@@ -75,12 +88,14 @@ apiClient.interceptors.response.use(
   },
   async (error) => {
     const originalRequest = error.config;
+    const requestUrl = originalRequest?.url as string | undefined;
+    const requestIsAuthEndpoint = isAuthEndpoint(requestUrl);
 
     if (error.response) {
       const { status, data }: { status: number; data: ApiResponse<unknown> } = error.response;
 
       // Handle 401 Unauthorized - attempt token refresh
-      if (status === 401 && !originalRequest._retry) {
+      if (status === 401 && !requestIsAuthEndpoint && !originalRequest._retry) {
         if (isRefreshing) {
           // If refresh is already in progress, queue this request
           return new Promise((resolve, reject) => {
@@ -132,7 +147,7 @@ apiClient.interceptors.response.use(
             isRefreshing = false;
           }
         } else {
-          // No refresh token available - redirect to login
+          // No refresh token available for protected request - redirect to login
           storage.remove(TOKEN_KEY);
           storage.remove(REFRESH_TOKEN_KEY);
           storage.remove(USER_INFO_KEY);

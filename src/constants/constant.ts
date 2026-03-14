@@ -8,10 +8,15 @@ export const APP_CONFIG = {
   address: '123 Snake Aid Street, City, State 12345',
 } as const;
 
+const publicApiBaseUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.trim();
+const normalizedApiBaseUrl = publicApiBaseUrl?.replace(/\/+$/, '');
+
 // API configuration
 export const API_CONFIG = {
-  baseURL: process.env.BASE_URL
-    ? `${process.env.BASE_URL}/api`
+  baseURL: normalizedApiBaseUrl
+    ? (normalizedApiBaseUrl.endsWith('/api')
+        ? normalizedApiBaseUrl
+        : `${normalizedApiBaseUrl}/api`)
     : '/api',
   timeout: 30000,
   retries: 3,
