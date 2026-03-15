@@ -31,7 +31,7 @@ export default function OperatorUnderDevelopment({ title, description }: Operato
             className="inline-flex items-center gap-2 rounded-xl bg-teal-700 px-6 py-3 font-semibold text-white transition-all hover:bg-teal-800 hover:shadow-lg"
           >
             <ArrowLeft className="size-5" />
-            <span>Quay ve Dashboard</span>
+            <span>Quay về tổng quan</span>
           </button>
         </div>
       </div>

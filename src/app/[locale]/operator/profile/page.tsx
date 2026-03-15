@@ -3,8 +3,8 @@ import OperatorUnderDevelopment from '@/components/operator/UnderDevelopment';
 export default function OperatorProfilePage() {
   return (
     <OperatorUnderDevelopment
-      title="Operator Profile"
-      description="Thong tin ca truc, cau hinh tai khoan va tuy chinh uu tien thong bao."
+      title="Hồ sơ điều phối viên"
+      description="Thông tin ca trực, cấu hình tài khoản và tuỳ chỉnh ưu tiên thông báo."
     />
   );
 }

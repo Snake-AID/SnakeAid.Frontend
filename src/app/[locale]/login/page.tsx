@@ -11,15 +11,17 @@ import {
   UserCog,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { authApi } from '@/apis/auth.api';
 import { cn } from '@/utils';
 import {
+  bootstrapAuthSession,
   clearAuthSession,
+  getAuthSessionServerSnapshot,
+  getAuthSessionSnapshot,
   getRoleHomePath,
-  getStoredRole,
-  isAuthenticated,
   isRoleAllowed,
+  subscribeAuthSession,
   syncLegacyAdminKeys,
 } from '@/utils/auth-session';
 
@@ -45,6 +47,11 @@ const roleConfig: Record<UserRole, {
 
 export default function LoginPage() {
   const router = useRouter();
+  const session = useSyncExternalStore(
+    subscribeAuthSession,
+    getAuthSessionSnapshot,
+    getAuthSessionServerSnapshot,
+  );
   const [selectedRole, setSelectedRole] = useState<UserRole | null>(null);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -62,13 +69,29 @@ export default function LoginPage() {
   }, [selectedRole]);
 
   useEffect(() => {
-    if (isAuthenticated()) {
-      const role = getStoredRole();
-      if (role) {
-        router.replace(getRoleHomePath(role));
-      }
+    void bootstrapAuthSession();
+  }, []);
+
+  useEffect(() => {
+    if (session.isBootstrapping) {
+      return;
     }
-  }, [router]);
+
+    if (session.isAuthenticated && session.role) {
+      router.replace(getRoleHomePath(session.role));
+    }
+  }, [router, session.isAuthenticated, session.isBootstrapping, session.role]);
+
+  if (session.isBootstrapping) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-100">
+        <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
+          <Loader2 className="size-5 animate-spin text-slate-600" />
+          <p className="text-sm font-medium text-slate-700">Đang kiểm tra phiên đăng nhập...</p>
+        </div>
+      </div>
+    );
+  }
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();

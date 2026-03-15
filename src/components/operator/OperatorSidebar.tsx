@@ -5,12 +5,12 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 const menuItems = [
-  { id: 'dashboard', label: 'Dashboard', href: '/operator/dashboard', icon: Activity, enabled: true },
-  { id: 'queue', label: 'Incident Queue', href: '/operator/queue', icon: ClipboardList, enabled: true },
-  { id: 'dispatch', label: 'Dispatch Board', href: '/operator/dispatch-board', icon: Map, enabled: true },
-  { id: 'communications', label: 'Communications', href: '/operator/communications', icon: MessageSquare, enabled: true },
-  { id: 'alerts', label: 'Escalations', href: '/operator/escalations', icon: Bell, enabled: true },
-  { id: 'profile', label: 'Profile', href: '/operator/profile', icon: User, enabled: true },
+  { id: 'dashboard', label: 'Tổng quan', href: '/operator/dashboard', icon: Activity, enabled: true },
+  { id: 'queue', label: 'Hàng chờ sự cố', href: '/operator/queue', icon: ClipboardList, enabled: true },
+  { id: 'dispatch', label: 'Bảng điều phối', href: '/operator/dispatch-board', icon: Map, enabled: true },
+  { id: 'communications', label: 'Chat', href: '/operator/communications', icon: MessageSquare, enabled: true },
+  { id: 'alerts', label: 'Tranh chấp', href: '/operator/escalations', icon: Bell, enabled: true },
+  { id: 'profile', label: 'Hồ sơ', href: '/operator/profile', icon: User, enabled: true },
 ];
 
 export default function OperatorSidebar() {
@@ -21,7 +21,7 @@ export default function OperatorSidebar() {
     <aside className="sticky top-0 hidden h-screen w-72 shrink-0 border-r border-teal-800/30 bg-linear-to-b from-teal-900 to-teal-800 text-white lg:block">
       <div className="border-b border-teal-700/40 px-5 py-5">
         <p className="text-xs font-semibold uppercase tracking-widest text-teal-200">SnakeAid</p>
-        <h2 className="mt-1 text-xl font-bold">Operator Portal</h2>
+        <h2 className="mt-1 text-xl font-bold">Cổng điều phối</h2>
       </div>
 
       <nav className="space-y-1 p-3">

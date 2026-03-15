@@ -1,20 +1,44 @@
 'use client';
 
 import { Bell, LogOut } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useMemo } from 'react';
 import { clearAuthSession, getStoredUser } from '@/utils/auth-session';
 
 interface OperatorTopbarProps {
   title?: string;
-  subtitle?: string;
 }
 
-export default function OperatorTopbar({
-  title = 'Dispatch Dashboard',
-  subtitle = 'Operator Portal',
-}: OperatorTopbarProps) {
+const getOperatorTitleByPath = (pathname: string): string => {
+  const normalizedPath = pathname.replace(/^\/[a-z]{2}(?=\/)/, '');
+
+  if (normalizedPath.startsWith('/operator/queue')) {
+    return 'Hàng chờ sự cố';
+  }
+
+  if (normalizedPath.startsWith('/operator/dispatch-board')) {
+    return 'Bảng điều phối';
+  }
+
+  if (normalizedPath.startsWith('/operator/communications')) {
+    return 'Chat';
+  }
+
+  if (normalizedPath.startsWith('/operator/escalations')) {
+    return 'Tranh chấp';
+  }
+
+  if (normalizedPath.startsWith('/operator/profile')) {
+    return 'Hồ sơ điều phối viên';
+  }
+
+  return 'Tổng quan';
+};
+
+export default function OperatorTopbar({ title }: OperatorTopbarProps) {
   const router = useRouter();
+  const pathname = usePathname();
+  const resolvedTitle = title ?? getOperatorTitleByPath(pathname);
 
   const operatorEmail = useMemo(() => {
     if (typeof window === 'undefined') {
@@ -33,8 +57,7 @@ export default function OperatorTopbar({
     <header className="sticky top-0 z-20 border-b border-slate-200 bg-white">
       <div className="mx-auto flex max-w-360 items-center justify-between px-6 py-4">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-teal-700">{subtitle}</p>
-          <h1 className="text-2xl font-bold text-slate-900">{title}</h1>
+          <h1 className="text-3xl font-bold text-slate-900">{resolvedTitle}</h1>
         </div>
         <div className="flex items-center gap-3">
           <button className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-teal-700">

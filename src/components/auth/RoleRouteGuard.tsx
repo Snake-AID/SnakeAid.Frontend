@@ -2,8 +2,14 @@
 
 import type { UserRole } from '@/types/auth.type';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo } from 'react';
-import { getRoleHomePath, getStoredRole, isAuthenticated } from '@/utils/auth-session';
+import { useEffect, useSyncExternalStore } from 'react';
+import {
+  bootstrapAuthSession,
+  getAuthSessionServerSnapshot,
+  getAuthSessionSnapshot,
+  getRoleHomePath,
+  subscribeAuthSession,
+} from '@/utils/auth-session';
 
 interface RoleRouteGuardProps {
   allowedRole: UserRole;
@@ -12,30 +18,32 @@ interface RoleRouteGuardProps {
 
 export default function RoleRouteGuard({ allowedRole, children }: RoleRouteGuardProps) {
   const router = useRouter();
-
-  const canRender = useMemo(() => {
-    if (typeof window === 'undefined') {
-      return false;
-    }
-
-    if (!isAuthenticated()) {
-      return false;
-    }
-
-    const currentRole = getStoredRole();
-    return currentRole === allowedRole;
-  }, [allowedRole]);
+  const session = useSyncExternalStore(
+    subscribeAuthSession,
+    getAuthSessionSnapshot,
+    getAuthSessionServerSnapshot,
+  );
 
   useEffect(() => {
-    const authenticated = isAuthenticated();
-    const currentRole = getStoredRole();
-
-    if (!authenticated || !currentRole) {
-      router.replace('/login');
-    } else if (currentRole !== allowedRole) {
-      router.replace(getRoleHomePath(currentRole));
+    if (session.isBootstrapping) {
+      return;
     }
-  }, [allowedRole, router]);
+
+    if (!session.isAuthenticated || !session.role) {
+      router.replace('/login');
+      return;
+    }
+
+    if (session.role !== allowedRole) {
+      router.replace(getRoleHomePath(session.role));
+    }
+  }, [allowedRole, router, session.isAuthenticated, session.isBootstrapping, session.role]);
+
+  useEffect(() => {
+    void bootstrapAuthSession();
+  }, []);
+
+  const canRender = session.isAuthenticated && session.role === allowedRole;
 
   if (!canRender) {
     return (
