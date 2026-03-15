@@ -1,9 +1,42 @@
 'use client';
 
 import type { OperatorIncident, OperatorRescuer } from '@/utils/operator-mock-state';
+import L from 'leaflet';
+import markerIcon2xUrl from 'leaflet/dist/images/marker-icon-2x.png';
+import markerIconUrl from 'leaflet/dist/images/marker-icon.png';
+import markerShadowUrl from 'leaflet/dist/images/marker-shadow.png';
 import { MapPin, Radio, ShieldCheck, UserCheck } from 'lucide-react';
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
+import { CircleMarker, MapContainer, Popup, TileLayer } from 'react-leaflet';
+import { useRescuerHub } from '@/hooks/useRescuerHub';
 import { useOperatorMockState } from '@/utils/operator-mock-state';
+import 'leaflet/dist/leaflet.css';
+
+delete (L.Icon.Default as any).prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: markerIcon2xUrl,
+  iconUrl: markerIconUrl,
+  shadowUrl: markerShadowUrl,
+});
+
+interface LiveRescuer {
+  id: string;
+  name: string;
+  status: OperatorRescuer['status'];
+  lat: number;
+  lng: number;
+  activeMissions: number;
+}
+
+interface LiveIncident {
+  id: string;
+  code: string;
+  address: string;
+  lat: number;
+  lng: number;
+  stage: OperatorIncident['stage'];
+  needsRedispatch?: boolean;
+}
 
 const onDutyOperators = [
   { id: 1, name: 'Nguyễn Minh Quân', shift: '08:00 - 16:00', activeCases: 3 },
@@ -51,71 +84,132 @@ const getRescuerColor = (status: OperatorRescuer['status']) => {
 };
 
 export default function OperatorDashboardPage() {
-  const { incidents, rescuers, focusedIncidentId } = useOperatorMockState();
+  const { incidents: mockIncidents, focusedIncidentId } = useOperatorMockState();
 
-  const mapSrcdoc = useMemo(() => {
-    const focusIncident = incidents.find(item => item.id === focusedIncidentId) ?? incidents[0];
-    const centerLat = focusIncident?.lat ?? 10.78;
-    const centerLng = focusIncident?.lng ?? 106.7;
+  const [logs, setLogs] = useState<string[]>([]);
+  const addLog = (message: string) => setLogs(prev => [message, ...prev].slice(0, 50));
 
-    const incidentJs = incidents
-      .map((incident) => {
-        const color = getIncidentColor(incident.stage);
-        const label = `${incident.code} - ${stageLabel[incident.stage]}`;
-        const radius = incident.needsRedispatch ? 10 : 8;
+  const [incidentLocationOverride, setIncidentLocationOverride] = useState<Record<string, { lat: number; lng: number }>>({});
+  const [rescuersById, setRescuersById] = useState<Record<string, LiveRescuer>>({});
 
-        return `L.circleMarker([${incident.lat},${incident.lng}],{color:'${color}',fillColor:'${color}',fillOpacity:0.95,radius:${radius},weight:2}).bindTooltip(${JSON.stringify(label)},{permanent:true,direction:'right',className:'pl'}).addTo(map);`;
-      })
-      .join('');
+  const liveIncidents = useMemo<LiveIncident[]>(() => {
+    const base = mockIncidents.map(i => ({
+      id: String(i.id),
+      code: i.code,
+      address: i.address,
+      lat: incidentLocationOverride[String(i.id)]?.lat ?? i.lat,
+      lng: incidentLocationOverride[String(i.id)]?.lng ?? i.lng,
+      stage: i.stage,
+      needsRedispatch: i.needsRedispatch,
+    }));
 
-    const rescuerJs = rescuers
-      .map((rescuer) => {
-        const color = getRescuerColor(rescuer.status);
-        const label = `${rescuer.name} - ${rescuer.status}`;
+    const extra = Object.entries(incidentLocationOverride)
+      .filter(([id]) => !mockIncidents.some(i => String(i.id) === id))
+      .map(([incidentId, loc]) => ({
+        id: incidentId,
+        code: incidentId,
+        address: '',
+        lat: loc.lat,
+        lng: loc.lng,
+        stage: 'Pending' as const,
+        needsRedispatch: false,
+      }));
 
-        return `L.circleMarker([${rescuer.lat},${rescuer.lng}],{color:'${color}',fillColor:'${color}',fillOpacity:0.95,radius:6,weight:2}).bindTooltip(${JSON.stringify(label)},{permanent:true,direction:'right',className:'pl rl'}).addTo(map);`;
-      })
-      .join('');
+    return [...base, ...extra];
+  }, [mockIncidents, incidentLocationOverride]);
 
-    const connectionJs = incidents
-      .filter(item => (item.stage === 'Dispatched' || item.stage === 'Assigned' || item.stage === 'EnRoute') && item.currentRescuerId)
-      .map((incident) => {
-        const rescuer = rescuers.find(item => item.id === incident.currentRescuerId);
-        if (!rescuer) {
-          return '';
-        }
+  const liveRescuers = useMemo<LiveRescuer[]>(() =>
+    Object.values(rescuersById).filter(r => r.status !== 'offline'), [rescuersById]);
 
-        const lineColor = incident.stage === 'Dispatched' ? '#f59e0b' : '#7c3aed';
-        return `L.polyline([[${incident.lat},${incident.lng}],[${rescuer.lat},${rescuer.lng}]],{color:'${lineColor}',weight:3,opacity:0.8,dashArray:'8 6'}).addTo(map);`;
-      })
-      .join('');
+  const updateRescuerLocation = (payload: { rescuerId: string; latitude: number; longitude: number }) => {
+    setRescuersById((prev) => {
+      const existing = prev[payload.rescuerId];
+      return {
+        ...prev,
+        [payload.rescuerId]: {
+          id: payload.rescuerId,
+          name: existing?.name ?? payload.rescuerId,
+          status: existing?.status ?? 'available',
+          lat: payload.latitude,
+          lng: payload.longitude,
+          activeMissions: existing?.activeMissions ?? 0,
+        },
+      };
+    });
+  };
 
-    return [
-      '<!DOCTYPE html><html><head><meta charset="utf-8"/>',
-      '<meta name="viewport" content="width=device-width,initial-scale=1.0">',
-      '<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>',
-      '<style>*{margin:0;padding:0}#map{width:100%;height:100vh}',
-      '.pl{background:rgba(255,255,255,.95)!important;border:1px solid rgba(0,0,0,.1)!important;',
-      'box-shadow:0 1px 4px rgba(0,0,0,.15)!important;border-radius:5px!important;',
-      'font-size:11px!important;font-weight:700!important;color:#0f172a!important;padding:2px 8px!important;white-space:nowrap}',
-      '.pl.rl{color:#065f46!important}',
-      '.leaflet-tooltip::before{display:none!important}',
-      '</style></head><body><div id="map"></div>',
-      '<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"><\/script>',
-      `<script>var map=L.map('map').setView([${centerLat},${centerLng}],12);`,
-      `L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',`,
-      `{attribution:'\u00A9 <a href="https://osm.org/copyright">OpenStreetMap</a>',maxZoom:19}).addTo(map);`,
-      connectionJs,
-      incidentJs,
-      rescuerJs,
-      '<\/script></body></html>',
-    ].join('');
-  }, [focusedIncidentId, incidents, rescuers]);
+  const updateRescuerOnlineStatus = (payload: { rescuerId: string; isOnline: boolean }) => {
+    setRescuersById((prev) => {
+      if (!payload.isOnline) {
+        const next = { ...prev };
+        delete next[payload.rescuerId];
+        return next;
+      }
 
-  const queueCount = incidents.filter(item => item.bucket === 'queue').length;
-  const contactingCount = incidents.filter(item => item.stage === 'Contacting' || item.stage === 'Pending').length;
-  const assignedCount = incidents.filter(item => item.stage === 'Assigned' || item.stage === 'EnRoute').length;
-  const disputeCount = incidents.filter(item => item.needsRedispatch).length;
+      const existing = prev[payload.rescuerId];
+      if (!existing) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        [payload.rescuerId]: {
+          ...existing,
+          status: 'available',
+        },
+      };
+    });
+  };
+
+  const updateIncidentLocation = (payload: { incidentId: string; latitude: number; longitude: number }) => {
+    setIncidentLocationOverride(prev => ({
+      ...prev,
+      [payload.incidentId]: { lat: payload.latitude, lng: payload.longitude },
+    }));
+  };
+
+  const { connected, error } = useRescuerHub(
+    {
+      onRescuerIdleLocationUpdated: (payload) => {
+        updateRescuerLocation(payload);
+        addLog(`RescuerIdleLocationUpdated: ${payload.rescuerId} @ (${payload.latitude.toFixed(5)}, ${payload.longitude.toFixed(5)})`);
+      },
+      onIncidentLocationUpdated: (payload) => {
+        updateIncidentLocation(payload);
+        addLog(`IncidentLocationUpdated: ${payload.incidentId} @ (${payload.latitude.toFixed(5)}, ${payload.longitude.toFixed(5)})`);
+      },
+      onRescuerOnlineStatus: (payload) => {
+        updateRescuerOnlineStatus(payload);
+        addLog(`RescuerOnlineStatus: ${payload.rescuerId} => ${payload.isOnline}`);
+      },
+      onOperatorOnlineStatus: payload => addLog(`OperatorOnlineStatus: ${payload.operatorId} onDuty=${payload.isOnDuty}`),
+      onAdminLog: payload => addLog(`AdminLog: ${payload.type} - ${payload.message}`),
+      onRescuerAccepted: payload => addLog(`RescuerAccepted: ${payload.rescuerId} -> mission ${payload.missionId ?? 'unknown'}`),
+      onRescuerDeclined: payload => addLog(`RescuerDeclined: ${payload.rescuerId} (${payload.reason ?? 'no reason'})`),
+      onIncidentClaimed: payload => addLog(`IncidentClaimed: ${payload.incidentId} by ${payload.operatorId}`),
+      onOperatorContacting: payload => addLog(`OperatorContacting: ${payload.operatorId} (incident ${payload.incidentId})`),
+      onDispatchRequested: payload => addLog(`DispatchRequested: incident ${payload.incidentId} -> rescuer ${payload.rescuerId}`),
+      onIncidentFalseAlarm: payload => addLog(`IncidentFalseAlarm: ${payload.incidentId} (${payload.reason ?? 'no reason'})`),
+      onIncidentNoAnswer: payload => addLog(`IncidentNoAnswer: ${payload.incidentId} (continue=${payload.continueCalling})`),
+      onRescuerDispatched: payload => addLog(`RescuerDispatched: ${payload.rescuerId} -> incident ${payload.incidentId}`),
+      onIncidentCancelled: payload => addLog(`IncidentCancelled: ${payload.incidentId} (${payload.reason ?? 'no reason'})`),
+      onRescuerAborted: payload => addLog(`RescuerAborted: ${payload.rescuerId} (${payload.reason ?? 'no reason'})`),
+    },
+    { autoJoin: true },
+  );
+
+  const mapCenter = useMemo(() => {
+    const focusIncident = liveIncidents.find(item => item.id === String(focusedIncidentId)) ?? liveIncidents[0];
+    return {
+      lat: focusIncident?.lat ?? 10.78,
+      lng: focusIncident?.lng ?? 106.7,
+    };
+  }, [focusedIncidentId, liveIncidents]);
+
+  const queueCount = mockIncidents.filter(item => item.bucket === 'queue').length;
+  const contactingCount = mockIncidents.filter(item => item.stage === 'Contacting' || item.stage === 'Pending').length;
+  const assignedCount = mockIncidents.filter(item => item.stage === 'Assigned' || item.stage === 'EnRoute').length;
+  const disputeCount = mockIncidents.filter(item => item.needsRedispatch).length;
 
   return (
     <main className="h-[calc(100vh-81px)] overflow-y-auto bg-slate-50">
@@ -132,13 +226,61 @@ export default function OperatorDashboardPage() {
             </span>
           </div>
 
-          {/* min-h-140 ≈ 35rem, iframe fill parent via absolute inset */}
           <div className="relative min-h-140 overflow-hidden rounded-xl border border-slate-200">
-            <iframe
-              title="HCM Live Incident Map"
-              srcDoc={mapSrcdoc}
-              className="absolute inset-0 h-full w-full border-0"
-            />
+            <MapContainer
+              center={[mapCenter.lat, mapCenter.lng]}
+              zoom={12}
+              scrollWheelZoom
+              className="absolute inset-0 h-full w-full"
+            >
+              <TileLayer
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                attribution='&copy; <a href="https://osm.org/copyright">OpenStreetMap</a>'
+              />
+
+              {liveIncidents.map(incident => (
+                <CircleMarker
+                  key={`incident-${incident.id}`}
+                  center={[incident.lat, incident.lng]}
+                  pathOptions={{ color: getIncidentColor(incident.stage), fillColor: getIncidentColor(incident.stage), fillOpacity: 0.6 }}
+                  radius={incident.needsRedispatch ? 12 : 8}
+                >
+                  <Popup>
+                    <div className="space-y-1 text-xs">
+                      <div className="font-semibold">{incident.code}</div>
+                      <div>{incident.address}</div>
+                      <div>
+                        Stage:
+                        {stageLabel[incident.stage]}
+                      </div>
+                    </div>
+                  </Popup>
+                </CircleMarker>
+              ))}
+
+              {liveRescuers.map(rescuer => (
+                <CircleMarker
+                  key={`rescuer-${rescuer.id}`}
+                  center={[rescuer.lat, rescuer.lng]}
+                  pathOptions={{ color: getRescuerColor(rescuer.status), fillColor: getRescuerColor(rescuer.status), fillOpacity: 0.9 }}
+                  radius={6}
+                >
+                  <Popup>
+                    <div className="space-y-1 text-xs">
+                      <div className="font-semibold">{rescuer.name}</div>
+                      <div>
+                        Status:
+                        {rescuer.status}
+                      </div>
+                      <div>
+                        Active missions:
+                        {rescuer.activeMissions}
+                      </div>
+                    </div>
+                  </Popup>
+                </CircleMarker>
+              ))}
+            </MapContainer>
           </div>
         </section>
 
@@ -188,6 +330,32 @@ export default function OperatorDashboardPage() {
                 <p className="text-rose-700">Cần điều phối lại</p>
                 <p className="text-xl font-bold text-rose-900">{disputeCount}</p>
               </div>
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="flex items-center gap-2 text-base font-bold text-slate-900">
+                <span className="inline-flex h-3 w-3 items-center justify-center rounded-full bg-emerald-500" />
+                SignalR Event Log
+              </h3>
+              <span className="text-xs text-slate-500">
+                {connected ? 'connected' : 'disconnected'}
+                {error ? ` • ${error}` : ''}
+              </span>
+            </div>
+            <div className="max-h-48 overflow-y-auto rounded-lg bg-slate-50 p-3 text-xs font-mono text-slate-700">
+              {logs.length === 0
+                ? (
+                    <p className="text-slate-500">Waiting for events...</p>
+                  )
+                : (
+                    logs.map((log, idx) => (
+                      <div key={`${log}-${idx}`} className="py-0.5">
+                        {log}
+                      </div>
+                    ))
+                  )}
             </div>
           </div>
         </section>
