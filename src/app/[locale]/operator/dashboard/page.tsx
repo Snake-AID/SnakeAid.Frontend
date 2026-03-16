@@ -1,13 +1,21 @@
+/* eslint-disable react/no-array-index-key */
 'use client';
 
-import type { OperatorIncident, OperatorRescuer } from '@/utils/operator-mock-state';
+import type {
+  BriefRescuerProfileResponse,
+  OnDutyRescuerItemResponse,
+  ShiftAssignmentResponse,
+} from '@/types/operator.type';
+import type { OperatorIncident } from '@/utils/operator-mock-state';
 import L from 'leaflet';
 import markerIcon2xUrl from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIconUrl from 'leaflet/dist/images/marker-icon.png';
 import markerShadowUrl from 'leaflet/dist/images/marker-shadow.png';
 import { MapPin, Radio, ShieldCheck, UserCheck } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { CircleMarker, MapContainer, Popup, TileLayer } from 'react-leaflet';
+import { operatorApi } from '@/apis/operator.api';
+import ShiftAssignmentCard from '@/components/operator/ShiftAssignmentCard';
 import { useRescuerHub } from '@/hooks/useRescuerHub';
 import { useOperatorMockState } from '@/utils/operator-mock-state';
 import 'leaflet/dist/leaflet.css';
@@ -19,10 +27,12 @@ L.Icon.Default.mergeOptions({
   shadowUrl: markerShadowUrl,
 });
 
+type RescuerStatus = 'available' | 'busy' | 'offline';
+
 interface LiveRescuer {
   id: string;
   name: string;
-  status: OperatorRescuer['status'];
+  status: RescuerStatus;
   lat: number;
   lng: number;
   activeMissions: number;
@@ -38,11 +48,12 @@ interface LiveIncident {
   needsRedispatch?: boolean;
 }
 
-const onDutyOperators = [
-  { id: 1, name: 'Nguyễn Minh Quân', shift: '08:00 - 16:00', activeCases: 3 },
-  { id: 2, name: 'Lê Thu Hà', shift: '08:00 - 16:00', activeCases: 2 },
-  { id: 3, name: 'Trần Gia Bảo', shift: '16:00 - 00:00', activeCases: 1 },
-];
+type ShiftAssignmentWithStatus = ShiftAssignmentResponse & {
+  fullName: string;
+  isOnline: boolean;
+  isAvailable: boolean;
+  isPast: boolean;
+};
 
 const stageLabel: Record<OperatorIncident['stage'], string> = {
   Pending: 'Chờ xác minh',
@@ -71,7 +82,7 @@ const getIncidentColor = (stage: OperatorIncident['stage']) => {
   return '#2563eb';
 };
 
-const getRescuerColor = (status: OperatorRescuer['status']) => {
+const getRescuerColor = (status: RescuerStatus) => {
   if (status === 'busy') {
     return '#f59e0b';
   }
@@ -86,11 +97,54 @@ const getRescuerColor = (status: OperatorRescuer['status']) => {
 export default function OperatorDashboardPage() {
   const { incidents: mockIncidents, focusedIncidentId } = useOperatorMockState();
 
+  const getShiftStartEnd = (shiftDate: Date, shift: { startTime: string; endTime: string }) => {
+    const [startHourStr, startMinStr] = (shift.startTime ?? '').split(':');
+    const [endHourStr, endMinStr] = (shift.endTime ?? '').split(':');
+
+    const startHour = Number(startHourStr);
+    const startMin = Number(startMinStr);
+    const endHour = Number(endHourStr);
+    const endMin = Number(endMinStr);
+
+    const start = new Date(shiftDate);
+    const end = new Date(shiftDate);
+
+    if (Number.isNaN(startHour) || Number.isNaN(startMin) || Number.isNaN(endHour) || Number.isNaN(endMin)) {
+      return { start: null, end: null };
+    }
+
+    start.setHours(startHour, startMin, 0, 0);
+    end.setHours(endHour, endMin, 0, 0);
+
+    // Overnight shift (end <= start means end is next day)
+    if (end <= start) {
+      end.setDate(end.getDate() + 1);
+    }
+
+    return { start, end };
+  };
+
+  const isShiftPast = (shiftDate: Date, shift: { startTime: string; endTime: string }) => {
+    const now = new Date();
+    const { end } = getShiftStartEnd(shiftDate, shift);
+    if (!end) {
+      return false;
+    }
+    return now > end;
+  };
+
+  const getOnlineBadgeClasses = (isOnline: boolean) =>
+    isOnline ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600';
+
   const [logs, setLogs] = useState<string[]>([]);
   const addLog = (message: string) => setLogs(prev => [message, ...prev].slice(0, 50));
 
+  const [rescuerRegistry, setRescuerRegistry] = useState<Record<string, BriefRescuerProfileResponse>>({});
+  const [onDutySnapshot, setOnDutySnapshot] = useState<OnDutyRescuerItemResponse[]>([]);
+  const [shiftAssignments, setShiftAssignments] = useState<ShiftAssignmentResponse[]>([]);
+  const [shiftTab, setShiftTab] = useState<'current' | 'past'>('current');
   const [incidentLocationOverride, setIncidentLocationOverride] = useState<Record<string, { lat: number; lng: number }>>({});
-  const [rescuersById, setRescuersById] = useState<Record<string, LiveRescuer>>({});
+  const [rescuerLocationOverride, setRescuerLocationOverride] = useState<Record<string, { lat: number; lng: number }>>({});
 
   const liveIncidents = useMemo<LiveIncident[]>(() => {
     const base = mockIncidents.map(i => ({
@@ -118,46 +172,165 @@ export default function OperatorDashboardPage() {
     return [...base, ...extra];
   }, [mockIncidents, incidentLocationOverride]);
 
-  const liveRescuers = useMemo<LiveRescuer[]>(() =>
-    Object.values(rescuersById).filter(r => r.status !== 'offline'), [rescuersById]);
+  const shiftStatusByRescuer = useMemo(() => {
+    const map = new Map<string, { isOnline: boolean; isAvailable: boolean }>();
+    onDutySnapshot.forEach(r => map.set(r.rescuerId, { isOnline: r.isOnline, isAvailable: r.isAvailable }));
+    return map;
+  }, [onDutySnapshot]);
+
+  const liveRescuers = useMemo<LiveRescuer[]>(() => {
+    const list = onDutySnapshot
+      .filter(r => r.isOnline)
+      .map((r) => {
+        const loc = rescuerLocationOverride[r.rescuerId] ?? { lat: r.latitude, lng: r.longitude };
+        if (loc.lat === null || loc.lng === null) {
+          return null;
+        }
+
+        const profile = rescuerRegistry[r.rescuerId];
+        const name = profile?.account?.fullName ?? r.fullName ?? r.rescuerId;
+        const activeMissions = profile?.totalMissions ?? 0;
+
+        const status: RescuerStatus = r.isAvailable ? 'available' : 'busy';
+
+        return {
+          id: r.rescuerId,
+          name,
+          status,
+          lat: loc.lat,
+          lng: loc.lng,
+          activeMissions,
+        };
+      })
+      .filter(Boolean) as LiveRescuer[];
+
+    return list;
+  }, [onDutySnapshot, rescuerLocationOverride, rescuerRegistry]);
+
+  const shiftAssignmentsWithStatus = useMemo<ShiftAssignmentWithStatus[]>(() =>
+    shiftAssignments
+      .map((sa) => {
+        const status = shiftStatusByRescuer.get(sa.rescuerId);
+        const snapshot = onDutySnapshot.find(r => r.rescuerId === sa.rescuerId);
+        const profile = rescuerRegistry[sa.rescuerId];
+        return {
+          ...sa,
+          fullName: snapshot?.fullName ?? profile?.account?.fullName ?? sa.rescuerId,
+          isOnline: status?.isOnline ?? false,
+          isAvailable: status?.isAvailable ?? false,
+          isPast: isShiftPast(sa.date, sa.shift),
+        };
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+      }), [shiftAssignments, shiftStatusByRescuer, onDutySnapshot, rescuerRegistry]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const registry = await operatorApi.getRescuerRegistry();
+        setRescuerRegistry(Object.fromEntries(registry.map(item => [item.accountId, item])));
+      } catch (err) {
+        console.error('Failed to load rescuer registry', err);
+      }
+
+      try {
+        const snapshot = await operatorApi.getOnDutyRescuers();
+        setOnDutySnapshot(snapshot.rescuers);
+      } catch (err) {
+        console.error('Failed to load on-duty rescuer snapshot', err);
+      }
+
+      try {
+        const shifts = await operatorApi.getTodayShiftAssignments();
+        setShiftAssignments(shifts);
+      } catch (err) {
+        console.error('Failed to load today shift assignments', err);
+      }
+    })();
+  }, []);
 
   const updateRescuerLocation = (payload: { rescuerId: string; latitude: number; longitude: number }) => {
-    setRescuersById((prev) => {
-      const existing = prev[payload.rescuerId];
-      return {
+    setRescuerLocationOverride(prev => ({
+      ...prev,
+      [payload.rescuerId]: { lat: payload.latitude, lng: payload.longitude },
+    }));
+
+    setOnDutySnapshot((prev) => {
+      const idx = prev.findIndex(r => r.rescuerId === payload.rescuerId);
+      if (idx !== -1) {
+        return prev;
+      }
+
+      const profile = rescuerRegistry[payload.rescuerId];
+      return [
         ...prev,
-        [payload.rescuerId]: {
-          id: payload.rescuerId,
-          name: existing?.name ?? payload.rescuerId,
-          status: existing?.status ?? 'available',
-          lat: payload.latitude,
-          lng: payload.longitude,
-          activeMissions: existing?.activeMissions ?? 0,
+        {
+          rescuerId: payload.rescuerId,
+          fullName: profile?.account?.fullName ?? payload.rescuerId,
+          phoneNumber: profile?.phoneNumber ?? null,
+          isOnline: true,
+          isAvailable: true,
+          isOnDutyNow: true,
+          assignmentStatus: 'Unknown',
+          shiftAssignmentId: '',
+          shiftId: '',
+          shiftName: '',
+          shiftStartTime: '',
+          shiftEndTime: '',
+          shiftDate: new Date(),
+          latitude: payload.latitude,
+          longitude: payload.longitude,
+          lastLocationUpdate: new Date().toISOString(),
+          distanceKm: null,
         },
-      };
+      ];
     });
   };
 
   const updateRescuerOnlineStatus = (payload: { rescuerId: string; isOnline: boolean }) => {
-    setRescuersById((prev) => {
+    setOnDutySnapshot((prev) => {
+      if (!payload.isOnline) {
+        return prev.filter(r => r.rescuerId !== payload.rescuerId);
+      }
+
+      const idx = prev.findIndex(r => r.rescuerId === payload.rescuerId);
+      if (idx !== -1) {
+        return prev.map(r =>
+          r.rescuerId === payload.rescuerId ? { ...r, isOnline: true, isAvailable: true } : r,
+        );
+      }
+
+      const profile = rescuerRegistry[payload.rescuerId];
+      return [
+        ...prev,
+        {
+          rescuerId: payload.rescuerId,
+          fullName: profile?.account?.fullName ?? payload.rescuerId,
+          phoneNumber: profile?.phoneNumber ?? null,
+          isOnline: true,
+          isAvailable: true,
+          isOnDutyNow: true,
+          assignmentStatus: 'Unknown',
+          shiftAssignmentId: '',
+          shiftId: '',
+          shiftName: '',
+          shiftStartTime: '',
+          shiftEndTime: '',
+          shiftDate: new Date(),
+          latitude: null,
+          longitude: null,
+          lastLocationUpdate: null,
+          distanceKm: null,
+        },
+      ];
+    });
+
+    setRescuerLocationOverride((prev) => {
       if (!payload.isOnline) {
         const next = { ...prev };
         delete next[payload.rescuerId];
         return next;
       }
-
-      const existing = prev[payload.rescuerId];
-      if (!existing) {
-        return prev;
-      }
-
-      return {
-        ...prev,
-        [payload.rescuerId]: {
-          ...existing,
-          status: 'available',
-        },
-      };
+      return prev;
     });
   };
 
@@ -213,7 +386,7 @@ export default function OperatorDashboardPage() {
 
   return (
     <main className="h-[calc(100vh-81px)] overflow-y-auto bg-slate-50">
-      <div className="mx-auto grid max-w-360 grid-cols-12 gap-6 px-6 py-6">
+      <div className="mx-auto grid w-full max-w-full grid-cols-12 gap-6 px-6 py-6">
         <section className="col-span-12 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm xl:col-span-8">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="flex items-center gap-2 text-lg font-bold text-slate-900">
@@ -288,24 +461,95 @@ export default function OperatorDashboardPage() {
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h3 className="mb-4 flex items-center gap-2 text-base font-bold text-slate-900">
               <UserCheck className="size-4.5 text-teal-700" />
-              Điều phối viên trực ca
+              Rescuers online
             </h3>
-            <div className="space-y-3">
-              {onDutyOperators.map(operator => (
-                <div key={operator.id} className="rounded-xl border border-slate-200 p-3">
-                  <p className="font-semibold text-slate-800">{operator.name}</p>
-                  <p className="text-sm text-slate-500">
-                    Ca trực:
-                    {operator.shift}
-                  </p>
-                  <p className="mt-1 text-sm font-medium text-teal-700">
-                    {operator.activeCases}
-                    {' '}
-                    case đang xử lý
-                  </p>
-                </div>
-              ))}
+
+            {liveRescuers.length === 0
+              ? (
+                  <p className="text-sm text-slate-500">No rescuers currently online.</p>
+                )
+              : (
+                  <div className="space-y-3">
+                    {liveRescuers.map(rescuer => (
+                      <div key={rescuer.id} className="rounded-xl border border-slate-200 p-3">
+                        <p className="font-semibold text-slate-800">{rescuer.name}</p>
+                        <p className="text-xs text-slate-500">
+                          {rescuerRegistry[rescuer.id]?.phoneNumber ?? 'No phone'}
+                        </p>
+                        <p className="text-sm text-slate-500">
+                          <span
+                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${getOnlineBadgeClasses(rescuer.status === 'available' || rescuer.status === 'busy')}`}
+                          >
+                            {rescuer.status === 'available' ? 'Online' : 'Busy'}
+                          </span>
+                          {rescuerRegistry[rescuer.id]?.totalMissions != null ? ` • Missions: ${rescuerRegistry[rescuer.id]?.totalMissions}` : ''}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h3 className="mb-4 flex items-center gap-2 text-base font-bold text-slate-900">
+              <UserCheck className="size-4.5 text-teal-700" />
+              Shift schedule (
+              {new Date().toLocaleDateString()}
+              )
+            </h3>
+
+            <div className="mb-4 flex gap-2">
+              <button
+                type="button"
+                className={`rounded-full px-4 py-1 text-sm font-semibold transition ${shiftTab === 'current'
+                  ? 'bg-teal-500 text-white shadow-sm'
+                  : 'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}
+                onClick={() => setShiftTab('current')}
+              >
+                Current / Upcoming
+              </button>
+              <button
+                type="button"
+                className={`rounded-full px-4 py-1 text-sm font-semibold transition ${shiftTab === 'past'
+                  ? 'bg-gray-300 text-black shadow-sm'
+                  : 'bg-slate-50 text-slate-600 hover:bg-slate-100'}`}
+                onClick={() => setShiftTab('past')}
+              >
+                Past shifts
+              </button>
             </div>
+
+            {shiftTab === 'current'
+              ? (
+                  shiftAssignmentsWithStatus.filter(a => !a.isPast).length === 0
+                    ? (
+                        <p className="text-sm text-slate-500">No upcoming shifts.</p>
+                      )
+                    : (
+                        <div className="space-y-2">
+                          {shiftAssignmentsWithStatus
+                            .filter(a => !a.isPast)
+                            .map(assignment => (
+                              <ShiftAssignmentCard key={assignment.id} assignment={assignment} showStatus />
+                            ))}
+                        </div>
+                      )
+                )
+              : (
+                  shiftAssignmentsWithStatus.filter(a => a.isPast).length === 0
+                    ? (
+                        <p className="text-sm text-slate-500">No past shifts.</p>
+                      )
+                    : (
+                        <div className="space-y-2">
+                          {shiftAssignmentsWithStatus
+                            .filter(a => a.isPast)
+                            .map(assignment => (
+                              <ShiftAssignmentCard key={assignment.id} assignment={assignment} showStatus={false} />
+                            ))}
+                        </div>
+                      )
+                )}
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
