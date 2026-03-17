@@ -37,4 +37,12 @@ export const incidentApi = {
 
   dispatchIncident: (incidentId: string, payload: DispatchIncidentRequest) =>
     api.post<CreateIncidentResponse>(`/incidents/${incidentId}/dispatch`, payload),
+
+  /**
+   * Cancel a dispatch request for an incident.
+   * This allows the operator to cancel a rescue mission and reassign to another rescuer.
+   * TODO: Backend endpoint needs to be implemented.
+   */
+  cancelDispatch: (incidentId: string) =>
+    api.post<CreateIncidentResponse>(`/incidents/${incidentId}/cancel-dispatch`),
 };

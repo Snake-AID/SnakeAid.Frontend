@@ -1,8 +1,10 @@
 'use client';
 
 import type { DetailSnakebiteIncidentResponse } from '@/types/snakebite-incident.type';
-import { User, X } from 'lucide-react';
-import { PrimaryVenomType } from '@/types/snakebite-incident.type';
+import { AlertCircle, CheckCircle, RotateCcw, Send, User, X } from 'lucide-react';
+import { useState } from 'react';
+import { PrimaryVenomType, SnakebiteIncidentStatus } from '@/types/snakebite-incident.type';
+import DispatchRescuerModal from './DispatchRescuerModal';
 
 export interface IncidentDetailDrawerProps {
   incident: DetailSnakebiteIncidentResponse | null;
@@ -10,6 +12,11 @@ export interface IncidentDetailDrawerProps {
   isLoading: boolean;
   error: string | null;
   onClose: () => void;
+  onVerify?: (incidentId: string) => Promise<void>;
+  onFalseAlarm?: (incidentId: string) => Promise<void>;
+  onDispatch?: (incidentId: string, rescuerId: string) => Promise<void>;
+  onCancelDispatch?: (incidentId: string) => Promise<void>;
+  onRefresh?: () => void;
 }
 
 export default function IncidentDetailDrawer({
@@ -18,10 +25,83 @@ export default function IncidentDetailDrawer({
   isLoading,
   error,
   onClose,
+  onVerify,
+  onFalseAlarm,
+  onDispatch,
+  onCancelDispatch,
+  onRefresh,
 }: IncidentDetailDrawerProps) {
+  const [isDispatchModalOpen, setIsDispatchModalOpen] = useState(false);
+  const [isActionLoading, setIsActionLoading] = useState(false);
+
   if (!isOpen) {
     return null;
   }
+
+  const handleVerify = async () => {
+    if (!incident?.id || !onVerify) {
+      return;
+    }
+
+    setIsActionLoading(true);
+    try {
+      await onVerify(incident.id);
+      onRefresh?.();
+      onClose();
+    } catch (err) {
+      console.error('Failed to verify incident', err);
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
+  const handleFalseAlarm = async () => {
+    if (!incident?.id || !onFalseAlarm) {
+      return;
+    }
+
+    setIsActionLoading(true);
+    try {
+      await onFalseAlarm(incident.id);
+      onRefresh?.();
+      onClose();
+    } catch (err) {
+      console.error('Failed to mark false alarm', err);
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
+
+  const handleDispatchClick = () => {
+    setIsDispatchModalOpen(true);
+  };
+
+  const handleDispatch = async (rescuerId: string) => {
+    if (!incident?.id || !onDispatch) {
+      return;
+    }
+
+    await onDispatch(incident.id, rescuerId);
+    onRefresh?.();
+    onClose();
+  };
+
+  const handleCancelDispatch = async () => {
+    if (!incident?.id || !onCancelDispatch) {
+      return;
+    }
+
+    setIsActionLoading(true);
+    try {
+      await onCancelDispatch(incident.id);
+      onRefresh?.();
+      onClose();
+    } catch (err) {
+      console.error('Failed to cancel dispatch', err);
+    } finally {
+      setIsActionLoading(false);
+    }
+  };
 
   const renderMedia = () => {
     if (!incident?.media || incident.media.length === 0) {
@@ -364,9 +444,69 @@ export default function IncidentDetailDrawer({
                         <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">Hình ảnh / bằng chứng</p>
                         <div className="mt-2">{renderMedia()}</div>
                       </div>
+
+                      {/* Action Buttons based on status */}
+                      <div className="border-t border-slate-200 pt-4">
+                        <div className="flex flex-col gap-2">
+                          {incident.status === SnakebiteIncidentStatus.Pending && (
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={handleVerify}
+                                disabled={isActionLoading || !onVerify}
+                                className="flex-1 inline-flex items-center justify-center gap-2 rounded-full border border-emerald-600 bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                <CheckCircle className="size-4" />
+                                Xác minh
+                              </button>
+                              <button
+                                type="button"
+                                onClick={handleFalseAlarm}
+                                disabled={isActionLoading || !onFalseAlarm}
+                                className="flex-1 inline-flex items-center justify-center gap-2 rounded-full border border-rose-600 bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                <AlertCircle className="size-4" />
+                                Báo động giả
+                              </button>
+                            </div>
+                          )}
+
+                          {incident.status === SnakebiteIncidentStatus.Verified && (
+                            <button
+                              type="button"
+                              onClick={handleDispatchClick}
+                              disabled={!onDispatch}
+                              className="w-full inline-flex items-center justify-center gap-2 rounded-full border border-sky-600 bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              <Send className="size-4" />
+                              Điều phối đội cứu hộ
+                            </button>
+                          )}
+
+                          {incident.status === SnakebiteIncidentStatus.Assigned && (
+                            <button
+                              type="button"
+                              onClick={handleCancelDispatch}
+                              disabled={isActionLoading || !onCancelDispatch}
+                              className="w-full inline-flex items-center justify-center gap-2 rounded-full border border-amber-600 bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              <RotateCcw className="size-4" />
+                              Hủy điều phối
+                            </button>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   )}
       </div>
+
+      {/* Dispatch Rescuer Modal */}
+      <DispatchRescuerModal
+        incidentId={incident?.id ?? ''}
+        isOpen={isDispatchModalOpen}
+        onClose={() => setIsDispatchModalOpen(false)}
+        onDispatch={handleDispatch}
+      />
     </div>
   );
 }

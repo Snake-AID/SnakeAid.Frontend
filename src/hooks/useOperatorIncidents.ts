@@ -22,6 +22,7 @@ export interface UseOperatorIncidentsResult {
   focusedIncidentId: string | null;
   setFocusedIncidentId: (id: string | null) => void;
   confirmIncident: (incidentId: string) => Promise<void>;
+  refreshIncidents: () => Promise<void>;
   hasError: boolean;
   isLoading: boolean;
 }
@@ -112,6 +113,18 @@ export function useOperatorIncidents(): UseOperatorIncidentsResult {
     }
   };
 
+  const refreshIncidents = async () => {
+    try {
+      const response = await incidentApi.getActiveIncidents({ page: 1, pageSize: 100 });
+      const mapped = response.items.map(toOperatorMapIncident);
+      incidentsRef.current = mapped;
+      setIncidents(mapped);
+    } catch (err) {
+      console.error('Failed to refresh incidents', err);
+      setHasError(true);
+    }
+  };
+
   useRescuerHub({
     onNewIncidentCreated: addIncidentFromSignalR,
   });
@@ -121,6 +134,7 @@ export function useOperatorIncidents(): UseOperatorIncidentsResult {
     focusedIncidentId,
     setFocusedIncidentId,
     confirmIncident,
+    refreshIncidents,
     hasError,
     isLoading,
   }), [incidents, focusedIncidentId, hasError, isLoading]);

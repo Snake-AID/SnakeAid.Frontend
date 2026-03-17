@@ -96,7 +96,13 @@ const getRescuerColor = (status: RescuerStatus) => {
 };
 
 export default function OperatorDashboardPage() {
-  const { incidents, focusedIncidentId, setFocusedIncidentId, confirmIncident } = useOperatorIncidents();
+  const {
+    incidents,
+    focusedIncidentId,
+    setFocusedIncidentId,
+    confirmIncident,
+    refreshIncidents,
+  } = useOperatorIncidents();
 
   const getShiftStartEnd = (shiftDate: Date, shift: { startTime: string; endTime: string }) => {
     const [startHourStr, startMinStr] = (shift.startTime ?? '').split(':');
@@ -180,6 +186,24 @@ export default function OperatorDashboardPage() {
     setDetailOpen(false);
     setDetailIncident(null);
     setDetailError(null);
+  };
+
+  const handleVerify = async (incidentId: string) => {
+    await incidentApi.confirmIncident(incidentId);
+  };
+
+  const handleFalseAlarm = async (incidentId: string) => {
+    await incidentApi.markFalseAlarm(incidentId, {
+      reason: 'Operator marked as false alarm',
+    });
+  };
+
+  const handleDispatch = async (incidentId: string, rescuerId: string) => {
+    await incidentApi.dispatchIncident(incidentId, { rescuerId });
+  };
+
+  const handleCancelDispatch = async (incidentId: string) => {
+    await incidentApi.cancelDispatch(incidentId);
   };
 
   const focusedIncident = useMemo(() => {
@@ -355,6 +379,11 @@ export default function OperatorDashboardPage() {
         isLoading={detailLoading}
         error={detailError}
         onClose={closeIncidentDetail}
+        onVerify={handleVerify}
+        onFalseAlarm={handleFalseAlarm}
+        onDispatch={handleDispatch}
+        onCancelDispatch={handleCancelDispatch}
+        onRefresh={refreshIncidents}
       />
 
       <div className="mx-auto grid w-full max-w-full grid-cols-12 gap-6 px-6 py-6">
