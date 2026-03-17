@@ -15,8 +15,8 @@ import {
 } from 'lucide-react';
 import { useParams, useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
+import { useRescuerHub } from '@/hooks/useRescuerHub';
 import {
-
   useOperatorMockState,
 } from '@/utils/operator-mock-state';
 
@@ -98,7 +98,30 @@ export default function OperatorQueuePage() {
     pinRedispatch,
     completeIncident,
     setFocusedIncidentId,
+    confirmIncident,
+    addNewIncident,
   } = useOperatorMockState();
+
+  const [pendingNewIncident, setPendingNewIncident] = useState<{ incidentId: string; memberId: string; latitude: number; longitude: number; updatedAt: string } | null>(null);
+
+  const getMockIncidentId = (incidentId: string) =>
+    Number.parseInt(incidentId.replace(/\D/g, '').slice(-6), 10) || 0;
+
+  const handleConfirmNewIncident = () => {
+    if (!pendingNewIncident) {
+      return;
+    }
+    const id = getMockIncidentId(pendingNewIncident.incidentId);
+    confirmIncident(id);
+    setPendingNewIncident(null);
+  };
+
+  useRescuerHub({
+    onNewIncidentCreated: (payload) => {
+      addNewIncident(payload);
+      setPendingNewIncident(payload);
+    },
+  });
 
   const [activeBucket, setActiveBucket] = useState<IncidentBucket>('queue');
   const [selectedIncidentId, setSelectedIncidentId] = useState<number>(incidents[0]?.id ?? 0);
@@ -189,6 +212,53 @@ export default function OperatorQueuePage() {
             >
               Đóng
             </button>
+          </div>
+        )}
+
+        {pendingNewIncident && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+            <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+              <h2 className="text-lg font-bold text-slate-900">Case mới vừa đến</h2>
+              <p className="mt-2 text-sm text-slate-600">
+                Có case mới được báo từ member, vui lòng xác nhận để đưa vào luồng xử lý.
+              </p>
+
+              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold text-slate-700">Vị trí (lat/lng)</p>
+                  <span className="text-xs text-slate-500">{pendingNewIncident.updatedAt ?? ''}</span>
+                </div>
+                <p className="mt-2 text-sm text-slate-700">
+                  {pendingNewIncident.latitude.toFixed(5)}
+                  ,
+                  {pendingNewIncident.longitude.toFixed(5)}
+                </p>
+                <div className="mt-3 flex items-center gap-2 text-xs text-slate-500">
+                  <MapPin className="size-4 text-teal-700" />
+                  <span>
+                    Member ID:
+                    {pendingNewIncident.memberId}
+                  </span>
+                </div>
+              </div>
+
+              <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={() => setPendingNewIncident(null)}
+                  className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                >
+                  Bỏ qua
+                </button>
+                <button
+                  type="button"
+                  onClick={handleConfirmNewIncident}
+                  className="rounded-xl bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700"
+                >
+                  Xác nhận case
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
@@ -314,7 +384,7 @@ export default function OperatorQueuePage() {
                     <div className="grid gap-2 sm:grid-cols-2 lg:w-70">
                       <button
                         type="button"
-                        onClick={() => markFalseAlarm(selectedIncident.id)}
+                        onClick={() => void markFalseAlarm(selectedIncident.id)}
                         className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-2.5 text-sm font-semibold text-rose-700 hover:bg-rose-100"
                       >
                         Đánh dấu báo động giả
@@ -462,7 +532,7 @@ export default function OperatorQueuePage() {
                       <div className="mt-4 grid gap-3">
                         <button
                           type="button"
-                          onClick={() => markContacting(selectedIncident.id)}
+                          onClick={() => void markContacting(selectedIncident.id)}
                           className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
                         >
                           Gọi lại người báo tin

@@ -139,7 +139,7 @@ export default function OperatorDispatchBoardPage() {
       return;
     }
 
-    dispatchIncident(selectedIncident.id, selectedRescuerId);
+    void dispatchIncident(selectedIncident.id, selectedRescuerId);
   };
 
   if (!selectedIncident) {

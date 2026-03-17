@@ -1,23 +1,24 @@
-/* eslint-disable react/no-array-index-key */
 'use client';
 
+import type { OperatorMapIncident } from '@/hooks/useOperatorIncidents';
 import type {
   BriefRescuerProfileResponse,
   OnDutyRescuerItemResponse,
   ShiftAssignmentResponse,
 } from '@/types/operator.type';
-import type { OperatorIncident } from '@/utils/operator-mock-state';
+import type { DetailSnakebiteIncidentResponse } from '@/types/snakebite-incident.type';
 import L from 'leaflet';
 import markerIcon2xUrl from 'leaflet/dist/images/marker-icon-2x.png';
 import markerIconUrl from 'leaflet/dist/images/marker-icon.png';
 import markerShadowUrl from 'leaflet/dist/images/marker-shadow.png';
 import { MapPin, Radio, ShieldCheck, UserCheck } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { CircleMarker, MapContainer, Popup, TileLayer } from 'react-leaflet';
+import { CircleMarker, MapContainer, Popup, TileLayer, useMap } from 'react-leaflet';
+import { incidentApi } from '@/apis/incident.api';
 import { operatorApi } from '@/apis/operator.api';
+import IncidentDetailDrawer from '@/components/operator/IncidentDetailDrawer';
 import ShiftAssignmentCard from '@/components/operator/ShiftAssignmentCard';
-import { useRescuerHub } from '@/hooks/useRescuerHub';
-import { useOperatorMockState } from '@/utils/operator-mock-state';
+import { useOperatorIncidents } from '@/hooks/useOperatorIncidents';
 import 'leaflet/dist/leaflet.css';
 
 delete (L.Icon.Default as any).prototype._getIconUrl;
@@ -44,7 +45,7 @@ interface LiveIncident {
   address: string;
   lat: number;
   lng: number;
-  stage: OperatorIncident['stage'];
+  stage: OperatorMapIncident['stage'];
   needsRedispatch?: boolean;
 }
 
@@ -55,7 +56,7 @@ type ShiftAssignmentWithStatus = ShiftAssignmentResponse & {
   isPast: boolean;
 };
 
-const stageLabel: Record<OperatorIncident['stage'], string> = {
+const stageLabel: Record<OperatorMapIncident['stage'], string> = {
   Pending: 'Chờ xác minh',
   Verified: 'Chờ điều phối',
   Contacting: 'Đang liên hệ',
@@ -66,7 +67,7 @@ const stageLabel: Record<OperatorIncident['stage'], string> = {
   FalseAlarm: 'Báo động giả',
 };
 
-const getIncidentColor = (stage: OperatorIncident['stage']) => {
+const getIncidentColor = (stage: OperatorMapIncident['stage']) => {
   if (stage === 'Dispatched') {
     return '#f59e0b';
   }
@@ -95,7 +96,7 @@ const getRescuerColor = (status: RescuerStatus) => {
 };
 
 export default function OperatorDashboardPage() {
-  const { incidents: mockIncidents, focusedIncidentId } = useOperatorMockState();
+  const { incidents, focusedIncidentId, setFocusedIncidentId, confirmIncident } = useOperatorIncidents();
 
   const getShiftStartEnd = (shiftDate: Date, shift: { startTime: string; endTime: string }) => {
     const [startHourStr, startMinStr] = (shift.startTime ?? '').split(':');
@@ -136,41 +137,76 @@ export default function OperatorDashboardPage() {
   const getOnlineBadgeClasses = (isOnline: boolean) =>
     isOnline ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600';
 
-  const [logs, setLogs] = useState<string[]>([]);
-  const addLog = (message: string) => setLogs(prev => [message, ...prev].slice(0, 50));
-
   const [rescuerRegistry, setRescuerRegistry] = useState<Record<string, BriefRescuerProfileResponse>>({});
   const [onDutySnapshot, setOnDutySnapshot] = useState<OnDutyRescuerItemResponse[]>([]);
   const [shiftAssignments, setShiftAssignments] = useState<ShiftAssignmentResponse[]>([]);
   const [shiftTab, setShiftTab] = useState<'current' | 'past'>('current');
-  const [incidentLocationOverride, setIncidentLocationOverride] = useState<Record<string, { lat: number; lng: number }>>({});
-  const [rescuerLocationOverride, setRescuerLocationOverride] = useState<Record<string, { lat: number; lng: number }>>({});
+  const [pendingConfirmIncidentId, setPendingConfirmIncidentId] = useState<string | null>(null);
+  const [detailIncident, setDetailIncident] = useState<DetailSnakebiteIncidentResponse | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
 
   const liveIncidents = useMemo<LiveIncident[]>(() => {
-    const base = mockIncidents.map(i => ({
-      id: String(i.id),
+    return incidents.map(i => ({
+      id: i.id,
       code: i.code,
       address: i.address,
-      lat: incidentLocationOverride[String(i.id)]?.lat ?? i.lat,
-      lng: incidentLocationOverride[String(i.id)]?.lng ?? i.lng,
-      stage: i.stage,
+      lat: i.lat,
+      lng: i.lng,
+      stage: i.stage as OperatorMapIncident['stage'],
       needsRedispatch: i.needsRedispatch,
     }));
+  }, [incidents]);
 
-    const extra = Object.entries(incidentLocationOverride)
-      .filter(([id]) => !mockIncidents.some(i => String(i.id) === id))
-      .map(([incidentId, loc]) => ({
-        id: incidentId,
-        code: incidentId,
-        address: '',
-        lat: loc.lat,
-        lng: loc.lng,
-        stage: 'Pending' as const,
-        needsRedispatch: false,
-      }));
+  const openIncidentDetail = async (incidentId: string) => {
+    setDetailError(null);
+    setDetailLoading(true);
+    setDetailOpen(true);
 
-    return [...base, ...extra];
-  }, [mockIncidents, incidentLocationOverride]);
+    try {
+      const detail = await incidentApi.getIncident(incidentId);
+      setDetailIncident(detail);
+    } catch (err) {
+      console.error('Failed to load incident detail', err);
+      setDetailError('Không thể tải thông tin case.');
+      setDetailIncident(null);
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
+  const closeIncidentDetail = () => {
+    setDetailOpen(false);
+    setDetailIncident(null);
+    setDetailError(null);
+  };
+
+  const focusedIncident = useMemo(() => {
+    if (!focusedIncidentId) {
+      return null;
+    }
+    return liveIncidents.find(i => i.id === focusedIncidentId) ?? null;
+  }, [focusedIncidentId, liveIncidents]);
+
+  useEffect(() => {
+    if (!focusedIncident) {
+      return;
+    }
+
+    if (focusedIncident.stage === 'Pending') {
+      // eslint-disable-next-line react-hooks-extra/no-direct-set-state-in-use-effect
+      setPendingConfirmIncidentId(focusedIncident.id);
+    }
+  }, [focusedIncident]);
+
+  const MapViewUpdater = ({ center }: { center: [number, number] }) => {
+    const map = useMap();
+    useEffect(() => {
+      map.setView(center, 13, { animate: true });
+    }, [center, map]);
+    return null;
+  };
 
   const shiftStatusByRescuer = useMemo(() => {
     const map = new Map<string, { isOnline: boolean; isAvailable: boolean }>();
@@ -182,8 +218,9 @@ export default function OperatorDashboardPage() {
     const list = onDutySnapshot
       .filter(r => r.isOnline)
       .map((r) => {
-        const loc = rescuerLocationOverride[r.rescuerId] ?? { lat: r.latitude, lng: r.longitude };
-        if (loc.lat === null || loc.lng === null) {
+        const lat = r.latitude;
+        const lng = r.longitude;
+        if (lat === null || lng === null) {
           return null;
         }
 
@@ -197,15 +234,15 @@ export default function OperatorDashboardPage() {
           id: r.rescuerId,
           name,
           status,
-          lat: loc.lat,
-          lng: loc.lng,
+          lat,
+          lng,
           activeMissions,
         };
       })
       .filter(Boolean) as LiveRescuer[];
 
     return list;
-  }, [onDutySnapshot, rescuerLocationOverride, rescuerRegistry]);
+  }, [onDutySnapshot, rescuerRegistry]);
 
   const shiftAssignmentsWithStatus = useMemo<ShiftAssignmentWithStatus[]>(() =>
     shiftAssignments
@@ -248,129 +285,6 @@ export default function OperatorDashboardPage() {
     })();
   }, []);
 
-  const updateRescuerLocation = (payload: { rescuerId: string; latitude: number; longitude: number }) => {
-    setRescuerLocationOverride(prev => ({
-      ...prev,
-      [payload.rescuerId]: { lat: payload.latitude, lng: payload.longitude },
-    }));
-
-    setOnDutySnapshot((prev) => {
-      const idx = prev.findIndex(r => r.rescuerId === payload.rescuerId);
-      if (idx !== -1) {
-        return prev;
-      }
-
-      const profile = rescuerRegistry[payload.rescuerId];
-      return [
-        ...prev,
-        {
-          rescuerId: payload.rescuerId,
-          fullName: profile?.account?.fullName ?? payload.rescuerId,
-          phoneNumber: profile?.phoneNumber ?? null,
-          isOnline: true,
-          isAvailable: true,
-          isOnDutyNow: true,
-          assignmentStatus: 'Unknown',
-          shiftAssignmentId: '',
-          shiftId: '',
-          shiftName: '',
-          shiftStartTime: '',
-          shiftEndTime: '',
-          shiftDate: new Date(),
-          latitude: payload.latitude,
-          longitude: payload.longitude,
-          lastLocationUpdate: new Date().toISOString(),
-          distanceKm: null,
-        },
-      ];
-    });
-  };
-
-  const updateRescuerOnlineStatus = (payload: { rescuerId: string; isOnline: boolean }) => {
-    setOnDutySnapshot((prev) => {
-      if (!payload.isOnline) {
-        return prev.filter(r => r.rescuerId !== payload.rescuerId);
-      }
-
-      const idx = prev.findIndex(r => r.rescuerId === payload.rescuerId);
-      if (idx !== -1) {
-        return prev.map(r =>
-          r.rescuerId === payload.rescuerId ? { ...r, isOnline: true, isAvailable: true } : r,
-        );
-      }
-
-      const profile = rescuerRegistry[payload.rescuerId];
-      return [
-        ...prev,
-        {
-          rescuerId: payload.rescuerId,
-          fullName: profile?.account?.fullName ?? payload.rescuerId,
-          phoneNumber: profile?.phoneNumber ?? null,
-          isOnline: true,
-          isAvailable: true,
-          isOnDutyNow: true,
-          assignmentStatus: 'Unknown',
-          shiftAssignmentId: '',
-          shiftId: '',
-          shiftName: '',
-          shiftStartTime: '',
-          shiftEndTime: '',
-          shiftDate: new Date(),
-          latitude: null,
-          longitude: null,
-          lastLocationUpdate: null,
-          distanceKm: null,
-        },
-      ];
-    });
-
-    setRescuerLocationOverride((prev) => {
-      if (!payload.isOnline) {
-        const next = { ...prev };
-        delete next[payload.rescuerId];
-        return next;
-      }
-      return prev;
-    });
-  };
-
-  const updateIncidentLocation = (payload: { incidentId: string; latitude: number; longitude: number }) => {
-    setIncidentLocationOverride(prev => ({
-      ...prev,
-      [payload.incidentId]: { lat: payload.latitude, lng: payload.longitude },
-    }));
-  };
-
-  const { connected, error } = useRescuerHub(
-    {
-      onRescuerIdleLocationUpdated: (payload) => {
-        updateRescuerLocation(payload);
-        addLog(`RescuerIdleLocationUpdated: ${payload.rescuerId} @ (${payload.latitude.toFixed(5)}, ${payload.longitude.toFixed(5)})`);
-      },
-      onIncidentLocationUpdated: (payload) => {
-        updateIncidentLocation(payload);
-        addLog(`IncidentLocationUpdated: ${payload.incidentId} @ (${payload.latitude.toFixed(5)}, ${payload.longitude.toFixed(5)})`);
-      },
-      onRescuerOnlineStatus: (payload) => {
-        updateRescuerOnlineStatus(payload);
-        addLog(`RescuerOnlineStatus: ${payload.rescuerId} => ${payload.isOnline}`);
-      },
-      onOperatorOnlineStatus: payload => addLog(`OperatorOnlineStatus: ${payload.operatorId} onDuty=${payload.isOnDuty}`),
-      onAdminLog: payload => addLog(`AdminLog: ${payload.type} - ${payload.message}`),
-      onRescuerAccepted: payload => addLog(`RescuerAccepted: ${payload.rescuerId} -> mission ${payload.missionId ?? 'unknown'}`),
-      onRescuerDeclined: payload => addLog(`RescuerDeclined: ${payload.rescuerId} (${payload.reason ?? 'no reason'})`),
-      onIncidentClaimed: payload => addLog(`IncidentClaimed: ${payload.incidentId} by ${payload.operatorId}`),
-      onOperatorContacting: payload => addLog(`OperatorContacting: ${payload.operatorId} (incident ${payload.incidentId})`),
-      onDispatchRequested: payload => addLog(`DispatchRequested: incident ${payload.incidentId} -> rescuer ${payload.rescuerId}`),
-      onIncidentFalseAlarm: payload => addLog(`IncidentFalseAlarm: ${payload.incidentId} (${payload.reason ?? 'no reason'})`),
-      onIncidentNoAnswer: payload => addLog(`IncidentNoAnswer: ${payload.incidentId} (continue=${payload.continueCalling})`),
-      onRescuerDispatched: payload => addLog(`RescuerDispatched: ${payload.rescuerId} -> incident ${payload.incidentId}`),
-      onIncidentCancelled: payload => addLog(`IncidentCancelled: ${payload.incidentId} (${payload.reason ?? 'no reason'})`),
-      onRescuerAborted: payload => addLog(`RescuerAborted: ${payload.rescuerId} (${payload.reason ?? 'no reason'})`),
-    },
-    { autoJoin: true },
-  );
-
   const mapCenter = useMemo(() => {
     const focusIncident = liveIncidents.find(item => item.id === String(focusedIncidentId)) ?? liveIncidents[0];
     return {
@@ -379,13 +293,70 @@ export default function OperatorDashboardPage() {
     };
   }, [focusedIncidentId, liveIncidents]);
 
-  const queueCount = mockIncidents.filter(item => item.bucket === 'queue').length;
-  const contactingCount = mockIncidents.filter(item => item.stage === 'Contacting' || item.stage === 'Pending').length;
-  const assignedCount = mockIncidents.filter(item => item.stage === 'Assigned' || item.stage === 'EnRoute').length;
-  const disputeCount = mockIncidents.filter(item => item.needsRedispatch).length;
+  const queueCount = incidents.filter(item => item.stage === 'Pending' || item.stage === 'Verified').length;
+  const contactingCount = incidents.filter(item => item.stage === 'Contacting' || item.stage === 'Pending').length;
+  const assignedCount = incidents.filter(item => item.stage === 'Assigned' || item.stage === 'EnRoute').length;
+  const disputeCount = incidents.filter(item => item.needsRedispatch).length;
 
   return (
     <main className="h-[calc(100vh-81px)] overflow-y-auto bg-slate-50">
+      {pendingConfirmIncidentId && (
+        <div className="fixed bottom-4 right-4 z-9999 w-[min(100%,420px)]">
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xl">
+            <h2 className="text-lg font-bold text-slate-900">Case mới đã được báo</h2>
+            <p className="mt-2 text-sm text-slate-600">
+              Case mới đã được ghim trên bản đồ; hãy xác nhận để đưa vào luồng xử lý.
+            </p>
+            <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-sm font-semibold text-slate-700">Case ID</p>
+              <p className="mt-1 text-sm text-slate-800">{pendingConfirmIncidentId}</p>
+              <p className="mt-3 text-sm font-semibold text-slate-700">Vị trí</p>
+              <p className="mt-1 text-sm text-slate-800">
+                {focusedIncident?.lat.toFixed(5)}
+                ,
+                {focusedIncident?.lng.toFixed(5)}
+              </p>
+            </div>
+            <div className="mt-5 flex flex-col gap-3 sm:flex-row sm:justify-end">
+              <button
+                type="button"
+                onClick={() => openIncidentDetail(pendingConfirmIncidentId)}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Xem chi tiết
+              </button>
+              <button
+                type="button"
+                onClick={() => setPendingConfirmIncidentId(null)}
+                className="rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Ẩn
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (pendingConfirmIncidentId) {
+                    await confirmIncident(pendingConfirmIncidentId);
+                    setPendingConfirmIncidentId(null);
+                  }
+                }}
+                className="rounded-xl bg-teal-600 px-4 py-2 text-sm font-semibold text-white hover:bg-teal-700"
+              >
+                Xác nhận case
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <IncidentDetailDrawer
+        incident={detailIncident}
+        isOpen={detailOpen}
+        isLoading={detailLoading}
+        error={detailError}
+        onClose={closeIncidentDetail}
+      />
+
       <div className="mx-auto grid w-full max-w-full grid-cols-12 gap-6 px-6 py-6">
         <section className="col-span-12 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm xl:col-span-8">
           <div className="mb-4 flex items-center justify-between">
@@ -406,6 +377,7 @@ export default function OperatorDashboardPage() {
               scrollWheelZoom
               className="absolute inset-0 h-full w-full"
             >
+              <MapViewUpdater center={[mapCenter.lat, mapCenter.lng]} />
               <TileLayer
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 attribution='&copy; <a href="https://osm.org/copyright">OpenStreetMap</a>'
@@ -417,6 +389,10 @@ export default function OperatorDashboardPage() {
                   center={[incident.lat, incident.lng]}
                   pathOptions={{ color: getIncidentColor(incident.stage), fillColor: getIncidentColor(incident.stage), fillOpacity: 0.6 }}
                   radius={incident.needsRedispatch ? 12 : 8}
+                  eventHandlers={{ click: () => {
+                    setFocusedIncidentId(incident.id);
+                    openIncidentDetail(incident.id);
+                  } }}
                 >
                   <Popup>
                     <div className="space-y-1 text-xs">
@@ -488,6 +464,41 @@ export default function OperatorDashboardPage() {
                     ))}
                   </div>
                 )}
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h3 className="mb-4 flex items-center gap-2 text-base font-bold text-slate-900">
+              <MapPin className="size-4.5 text-teal-700" />
+              Danh sách sự cố đang hoạt động
+            </h3>
+            <div className="space-y-2 max-h-80 overflow-y-auto">
+              {incidents.length === 0
+                ? (
+                    <p className="text-sm text-slate-500">Không có case nào.</p>
+                  )
+                : (
+                    incidents.map((inc) => {
+                      const isFocused = inc.id === focusedIncidentId;
+                      return (
+                        <button
+                          key={inc.id}
+                          type="button"
+                          onClick={() => {
+                            setFocusedIncidentId(inc.id);
+                            openIncidentDetail(inc.id);
+                          }}
+                          className={`w-full rounded-xl border px-3 py-3 text-left transition ${isFocused ? 'border-teal-500 bg-teal-50' : 'border-slate-200 bg-white hover:bg-slate-50'}`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm font-semibold text-slate-900">{inc.code}</p>
+                            <span className="text-xs text-slate-500">{stageLabel[inc.stage]}</span>
+                          </div>
+                          <p className="mt-1 text-xs text-slate-500">{inc.address || 'Không có địa chỉ'}</p>
+                        </button>
+                      );
+                    })
+                  )}
+            </div>
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -577,31 +588,6 @@ export default function OperatorDashboardPage() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="flex items-center gap-2 text-base font-bold text-slate-900">
-                <span className="inline-flex h-3 w-3 items-center justify-center rounded-full bg-emerald-500" />
-                SignalR Event Log
-              </h3>
-              <span className="text-xs text-slate-500">
-                {connected ? 'connected' : 'disconnected'}
-                {error ? ` • ${error}` : ''}
-              </span>
-            </div>
-            <div className="max-h-48 overflow-y-auto rounded-lg bg-slate-50 p-3 text-xs font-mono text-slate-700">
-              {logs.length === 0
-                ? (
-                    <p className="text-slate-500">Waiting for events...</p>
-                  )
-                : (
-                    logs.map((log, idx) => (
-                      <div key={`${log}-${idx}`} className="py-0.5">
-                        {log}
-                      </div>
-                    ))
-                  )}
-            </div>
-          </div>
         </section>
       </div>
     </main>
