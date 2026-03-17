@@ -1,6 +1,9 @@
 'use client';
 
+import type { NewIncidentCreatedPayload } from '@/types/signalr.type';
 import { useSyncExternalStore } from 'react';
+import { incidentApi } from '@/apis/incident.api';
+import { SnakebiteIncidentStatus } from '@/types/snakebite-incident.type';
 
 export type IncidentStage
   = | 'Pending'
@@ -233,6 +236,29 @@ const updateTimelineByStage = (timeline: TimelineItem[], stage: IncidentStage, t
   });
 };
 
+const mapIncidentStatusToStageBucket = (status: SnakebiteIncidentStatus): { stage: IncidentStage; bucket: IncidentBucket } => {
+  switch (status) {
+    case SnakebiteIncidentStatus.Pending:
+      return { stage: 'Pending', bucket: 'queue' };
+    case SnakebiteIncidentStatus.Verified:
+      return { stage: 'Verified', bucket: 'queue' };
+    case SnakebiteIncidentStatus.Assigned:
+      return { stage: 'Assigned', bucket: 'progress' };
+    case SnakebiteIncidentStatus.Completed:
+      return { stage: 'Completed', bucket: 'history' };
+    case SnakebiteIncidentStatus.FalseAlarm:
+      return { stage: 'FalseAlarm', bucket: 'history' };
+    case SnakebiteIncidentStatus.NoRescuerFound:
+      return { stage: 'FalseAlarm', bucket: 'history' };
+    case SnakebiteIncidentStatus.Cancelled:
+      return { stage: 'Completed', bucket: 'history' };
+    case SnakebiteIncidentStatus.Disputed:
+      return { stage: 'Completed', bucket: 'history' };
+    default:
+      return { stage: 'Pending', bucket: 'queue' };
+  }
+};
+
 const refreshRescuerLoads = (rescuers: OperatorRescuer[], incidents: OperatorIncident[]) => {
   const missionCount = new Map<number, number>();
 
@@ -325,54 +351,61 @@ export const operatorMockActions = {
     }));
   },
 
-  dispatchIncident: (incidentId: number, rescuerId: number) => {
-    updateStore((current) => {
-      const rescuer = current.rescuers.find(item => item.id === rescuerId);
-      if (!rescuer) {
+  dispatchIncident: async (incidentId: number, rescuerId: number) => {
+    try {
+      const response = await incidentApi.dispatchIncident(incidentId.toString(), { rescuerId: rescuerId.toString() });
+      const { stage, bucket } = mapIncidentStatusToStageBucket(response.status);
+
+      updateStore((current) => {
+        const rescuer = current.rescuers.find(item => item.id === rescuerId);
+        const incidents = current.incidents.map((incident) => {
+          if (incident.id !== incidentId) {
+            return incident;
+          }
+
+          return {
+            ...incident,
+            stage,
+            bucket,
+            currentRescuerId: rescuerId,
+            needsRedispatch: false,
+            // keep existing ETA calculation until backend provides one
+            eta: rescuer
+              ? `${Math.max(4, Math.round(distanceKm(incident.lat, incident.lng, rescuer.lat, rescuer.lng) * 3))} phút`
+              : incident.eta,
+            eventHistory: [...incident.eventHistory, `${nowLabel()} Đã điều phối tới ${rescuer?.name ?? rescuerId}`],
+            timeline: updateTimelineByStage(incident.timeline, stage, nowLabel()),
+          };
+        });
+
+        const rescuers = current.rescuers.map((item) => {
+          if (item.id !== rescuerId) {
+            return item;
+          }
+
+          return {
+            ...item,
+            status: 'busy' as const,
+          };
+        });
+
+        const incidentCode = incidents.find(item => item.id === incidentId)?.code ?? `INC-${incidentId}`;
+
         return {
           ...current,
-          toastMessage: 'Không tìm thấy đội cứu hộ để điều phối.',
-        };
-      }
-
-      const incidents = current.incidents.map((incident) => {
-        if (incident.id !== incidentId) {
-          return incident;
-        }
-
-        return {
-          ...incident,
-          stage: 'Dispatched' as const,
-          bucket: 'progress' as const,
-          currentRescuerId: rescuerId,
-          needsRedispatch: false,
-          eta: `${Math.max(4, Math.round(distanceKm(incident.lat, incident.lng, rescuer.lat, rescuer.lng) * 3))} phút`,
-          eventHistory: [...incident.eventHistory, `${nowLabel()} Đã điều phối tới ${rescuer.name}`],
-          timeline: updateTimelineByStage(incident.timeline, 'Dispatched', nowLabel()),
+          incidents,
+          rescuers,
+          toastMessage: `${incidentCode} đã được điều phối cho ${rescuer?.name ?? 'đội cứu hộ'}.`,
+          focusedIncidentId: incidentId,
         };
       });
-
-      const rescuers = current.rescuers.map((item) => {
-        if (item.id !== rescuerId) {
-          return item;
-        }
-
-        return {
-          ...item,
-          status: 'busy' as const,
-        };
-      });
-
-      const incidentCode = incidents.find(item => item.id === incidentId)?.code ?? `INC-${incidentId}`;
-
-      return {
+    } catch (error) {
+      console.error('Dispatch incident failed:', error);
+      updateStore(current => ({
         ...current,
-        incidents,
-        rescuers,
-        toastMessage: `${incidentCode} đã được điều phối cho ${rescuer.name}.`,
-        focusedIncidentId: incidentId,
-      };
-    });
+        toastMessage: `Không thể điều phối case (${incidentId}). Vui lòng thử lại.`,
+      }));
+    }
   },
 
   acceptIncident: (incidentId: number) => {
@@ -445,6 +478,83 @@ export const operatorMockActions = {
         incidents,
         rescuers,
         toastMessage: `${target.code} bị hủy nhiệm vụ. Case đã được đẩy lên đầu hàng chờ.`,
+        focusedIncidentId: incidentId,
+      };
+    });
+  },
+
+  addNewIncident: (payload: NewIncidentCreatedPayload) => {
+    updateStore((current) => {
+      const existing = current.incidents.find(incident => incident.code === `INC-${payload.incidentId}`);
+      if (existing) {
+        return current;
+      }
+
+      const newIncidentId = Number.parseInt(payload.incidentId.replace(/\D/g, '').slice(-6), 10) || Date.now();
+
+      const newIncident: OperatorIncident = {
+        id: newIncidentId,
+        code: `INC-${payload.incidentId.slice(-6).toUpperCase()}`,
+        reporter: `Member ${payload.memberId.slice(0, 6)}`,
+        phone: 'N/A',
+        createdAt: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        district: 'Unknown',
+        address: 'Chưa có địa chỉ',
+        lat: payload.latitude,
+        lng: payload.longitude,
+        stage: 'Pending',
+        bucket: 'queue',
+        priority: 'Medium',
+        notes: 'Sự cố mới từ thành viên',
+        eventHistory: [`${nowLabel()} Tạo case mới`],
+        timeline: [
+          { label: 'Created', at: nowLabel(), done: true },
+          { label: 'Contacting', at: '--:--', done: false },
+          { label: 'Verified', at: '--:--', done: false },
+          { label: 'Dispatched', at: '--:--', done: false },
+          { label: 'Assigned', at: '--:--', done: false },
+          { label: 'EnRoute', at: '--:--', done: false },
+          { label: 'Completed', at: '--:--', done: false },
+        ],
+        suggestedRescuers: [],
+      };
+
+      return {
+        ...current,
+        incidents: [newIncident, ...current.incidents],
+        toastMessage: `Case mới: ${newIncident.code}`,
+        focusedIncidentId: newIncidentId,
+      };
+    });
+  },
+
+  confirmIncident: (incidentId: number) => {
+    updateStore((current) => {
+      const target = current.incidents.find(item => item.id === incidentId);
+      if (!target) {
+        return current;
+      }
+
+      const incidents = current.incidents.map((incident) => {
+        if (incident.id !== incidentId) {
+          return incident;
+        }
+
+        return {
+          ...incident,
+          stage: 'Verified' as const,
+          bucket: 'queue' as const,
+          eventHistory: [...incident.eventHistory, `${nowLabel()} Xác nhận case`],
+          timeline: updateTimelineByStage(incident.timeline, 'Verified', nowLabel()),
+        };
+      });
+
+      const incidentCode = incidents.find(item => item.id === incidentId)?.code ?? `INC-${incidentId}`;
+
+      return {
+        ...current,
+        incidents,
+        toastMessage: `${incidentCode} đã được xác nhận.`,
         focusedIncidentId: incidentId,
       };
     });

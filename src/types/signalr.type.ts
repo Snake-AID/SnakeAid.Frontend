@@ -31,7 +31,7 @@ export interface RescuerDeclinedPayload {
   [key: string]: unknown;
 }
 
-export interface IncidentLocationUpdatedPayload {
+export interface NewIncidentCreatedPayload {
   incidentId: string;
   memberId: string;
   latitude: number;

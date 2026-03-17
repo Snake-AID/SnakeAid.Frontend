@@ -1,4 +1,5 @@
 import type { UserInfo } from './auth.type';
+import type { GeoPointResponse, RescueMissionStatus, SnakebiteIncidentStatus } from './snakebite-incident.type';
 
 export interface BriefRescuerProfileResponse {
   accountId: string;
@@ -72,4 +73,15 @@ export interface WorkShiftResponse {
   startTime: string;
   endTime: string;
   requiredRescuers: number;
+}
+
+export interface OperatorIncidentSummaryResponse {
+  id: string;
+  status: SnakebiteIncidentStatus;
+  locationCoordinates: GeoPointResponse;
+  createdAt: string;
+  assignedRescuerId: string | null;
+  activeMissionStatus: RescueMissionStatus | null;
+  needsRedispatch: boolean;
+  handlingOperatorId: string | null;
 }
