@@ -7,8 +7,8 @@ import type {
   IncidentCancelledPayload,
   IncidentClaimedPayload,
   IncidentFalseAlarmPayload,
-  IncidentLocationUpdatedPayload,
   IncidentNoAnswerPayload,
+  NewIncidentCreatedPayload,
   OperatorContactingPayload,
   OperatorOnlineStatusPayload,
   RescuerAbortedPayload,
@@ -31,7 +31,7 @@ export interface RescuerHubEvents {
   onRescuerIdleLocationUpdated?: (payload: RescuerIdleLocationUpdatedPayload) => void;
   onRescuerAccepted?: (payload: RescuerAcceptedPayload) => void;
   onRescuerDeclined?: (payload: RescuerDeclinedPayload) => void;
-  onIncidentLocationUpdated?: (payload: IncidentLocationUpdatedPayload) => void;
+  onNewIncidentCreated?: (payload: NewIncidentCreatedPayload) => void;
   onOperatorOnlineStatus?: (payload: OperatorOnlineStatusPayload) => void;
   onAdminLog?: (payload: AdminLogPayload) => void;
   onIncidentClaimed?: (payload: IncidentClaimedPayload) => void;
@@ -61,8 +61,8 @@ const attachHandlers = (connection: HubConnection, handlers: RescuerHubEvents) =
   if (handlers.onRescuerDeclined) {
     connection.on('RescuerDeclined', handlers.onRescuerDeclined);
   }
-  if (handlers.onIncidentLocationUpdated) {
-    connection.on('IncidentLocationUpdated', handlers.onIncidentLocationUpdated);
+  if (handlers.onNewIncidentCreated) {
+    connection.on('NewIncidentCreated', handlers.onNewIncidentCreated);
   }
   if (handlers.onOperatorOnlineStatus) {
     connection.on('OperatorOnlineStatus', handlers.onOperatorOnlineStatus);
@@ -109,8 +109,8 @@ const detachHandlers = (connection: HubConnection, handlers: RescuerHubEvents) =
   if (handlers.onRescuerDeclined) {
     connection.off('RescuerDeclined', handlers.onRescuerDeclined);
   }
-  if (handlers.onIncidentLocationUpdated) {
-    connection.off('IncidentLocationUpdated', handlers.onIncidentLocationUpdated);
+  if (handlers.onNewIncidentCreated) {
+    connection.off('NewIncidentCreated', handlers.onNewIncidentCreated);
   }
   if (handlers.onOperatorOnlineStatus) {
     connection.off('OperatorOnlineStatus', handlers.onOperatorOnlineStatus);
