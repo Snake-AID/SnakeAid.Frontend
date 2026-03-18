@@ -2,7 +2,7 @@
 
 import type { OperatorIncidentSummaryResponse } from '@/types/operator.type';
 import type { NewIncidentCreatedPayload } from '@/types/signalr.type';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { incidentApi } from '@/apis/incident.api';
 import { useRescuerHub } from '@/hooks/useRescuerHub';
@@ -21,6 +21,8 @@ export interface UseOperatorIncidentsResult {
   incidents: OperatorMapIncident[];
   focusedIncidentId: string | null;
   setFocusedIncidentId: (id: string | null) => void;
+  lastCreatedIncidentId: string | null;
+  clearLastCreatedIncidentId: () => void;
   confirmIncident: (incidentId: string) => Promise<void>;
   refreshIncidents: () => Promise<void>;
   hasError: boolean;
@@ -40,6 +42,10 @@ const toOperatorMapIncident = (incident: OperatorIncidentSummaryResponse): Opera
 export function useOperatorIncidents(): UseOperatorIncidentsResult {
   const [incidents, setIncidents] = useState<OperatorMapIncident[]>([]);
   const [focusedIncidentId, setFocusedIncidentId] = useState<string | null>(null);
+  const [lastCreatedIncidentId, setLastCreatedIncidentId] = useState<string | null>(null);
+  const clearLastCreatedIncidentId = useCallback(() => {
+    setLastCreatedIncidentId(null);
+  }, []);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
 
@@ -95,6 +101,7 @@ export function useOperatorIncidents(): UseOperatorIncidentsResult {
     incidentsRef.current = [newIncident, ...incidentsRef.current];
     setIncidents(incidentsRef.current);
     setFocusedIncidentId(id);
+    setLastCreatedIncidentId(id);
   };
 
   const confirmIncident = async (incidentId: string) => {
@@ -133,11 +140,13 @@ export function useOperatorIncidents(): UseOperatorIncidentsResult {
     incidents,
     focusedIncidentId,
     setFocusedIncidentId,
+    lastCreatedIncidentId,
+    clearLastCreatedIncidentId,
     confirmIncident,
     refreshIncidents,
     hasError,
     isLoading,
-  }), [incidents, focusedIncidentId, hasError, isLoading]);
+  }), [incidents, focusedIncidentId, lastCreatedIncidentId, clearLastCreatedIncidentId, hasError, isLoading]);
 
   return value;
 }

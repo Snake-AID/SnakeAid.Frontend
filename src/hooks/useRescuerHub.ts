@@ -19,9 +19,9 @@ import type {
   RescuerOnlineStatusPayload,
 } from '@/types/signalr.type';
 import type {
-  SnakeCatchingRequestAcceptedPayload,
   SnakeCatchingRequestAssignedPayload,
   SnakeCatchingRequestCancelledPayload,
+  SnakeCatchingRequestConfirmedPayload,
   SnakeCatchingRequestCreatedPayload,
 } from '@/types/snakecatching-request.type';
 import { HubConnectionState } from '@microsoft/signalr';
@@ -39,7 +39,7 @@ export interface RescuerHubEvents {
   onRescuerDeclined?: (payload: RescuerDeclinedPayload) => void;
   onNewIncidentCreated?: (payload: NewIncidentCreatedPayload) => void;
   onSnakeCatchingRequestCreated?: (payload: SnakeCatchingRequestCreatedPayload) => void;
-  onSnakeCatchingRequestAccepted?: (payload: SnakeCatchingRequestAcceptedPayload) => void;
+  onSnakeCatchingRequestAccepted?: (payload: SnakeCatchingRequestConfirmedPayload) => void;
   onSnakeCatchingRequestAssigned?: (payload: SnakeCatchingRequestAssignedPayload) => void;
   onSnakeCatchingRequestCancelled?: (payload: SnakeCatchingRequestCancelledPayload) => void;
   onOperatorOnlineStatus?: (payload: OperatorOnlineStatusPayload) => void;

@@ -46,33 +46,37 @@ export interface DetailSnakeCatchingRequestResponse extends CreateSnakeCatchingR
 export interface SnakeCatchingRequestCreatedPayload {
   id: string;
   userId: string;
+  status: string;
   address?: string | null;
-  locationCoordinates?: GeoPointResponse | null;
+  lat: number;
+  lng: number;
   additionalDetails?: string | null;
-  status: SnakeCatchingRequestStatus;
   estimatedPrice?: number | null;
   distanceKm?: number | null;
   createdAt?: string | null;
-  user?: unknown;
-  [key: string]: unknown;
+  user: SnakeCatchingRequestUserInfo;
 }
 
-export interface SnakeCatchingRequestAcceptedPayload {
+export interface SnakeCatchingRequestUserInfo {
+  userName?: string | null;
+  phoneNumber?: string | null;
+}
+
+export interface SnakeCatchingRequestConfirmedPayload {
   id: string;
   status: SnakeCatchingRequestStatus;
   confirmedAt?: string | null;
   prePaidAt?: string | null;
   isPrePaid?: boolean | null;
-  [key: string]: unknown;
 }
 
 export interface SnakeCatchingRequestAssignedPayload {
   id: string;
   status: SnakeCatchingRequestStatus;
   assignedAt?: string | null;
-  assignedRescuerId?: string | null;
-  assignedRescuer?: unknown;
-  [key: string]: unknown;
+  assignedRescuerId: string;
+  AssignedRescuerName: string;
+  AssignedRescuerPhone: string;
 }
 
 export interface SnakeCatchingRequestCancelledPayload {
@@ -80,7 +84,6 @@ export interface SnakeCatchingRequestCancelledPayload {
   userId: string;
   status: SnakeCatchingRequestStatus;
   cancellationReason?: string | null;
-  [key: string]: unknown;
 }
 
 export interface AssignSnakeCatchingRequestPayload {

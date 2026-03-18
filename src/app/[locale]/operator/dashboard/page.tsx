@@ -24,6 +24,8 @@ export default function OperatorDashboardPage() {
     incidents,
     focusedIncidentId,
     setFocusedIncidentId,
+    lastCreatedIncidentId,
+    clearLastCreatedIncidentId,
     confirmIncident,
     refreshIncidents,
   } = useOperatorIncidents();
@@ -35,6 +37,8 @@ export default function OperatorDashboardPage() {
     requests,
     focusedRequestId,
     setFocusedRequestId,
+    lastCreatedRequestId,
+    clearLastCreatedRequestId,
     refreshRequests,
     confirmRequest,
     assignRequest,
@@ -167,37 +171,31 @@ export default function OperatorDashboardPage() {
   }, [focusedIncidentId, liveIncidents]);
 
   useEffect(() => {
-    if (!focusedIncident) {
+    if (!lastCreatedIncidentId) {
       return;
     }
 
-    if (focusedIncident.stage === 'Pending') {
-      // eslint-disable-next-line react-hooks-extra/no-direct-set-state-in-use-effect
-      setPendingConfirmIncidentId(focusedIncident.id);
-    } else {
-      // eslint-disable-next-line react-hooks-extra/no-direct-set-state-in-use-effect
-      setPendingConfirmIncidentId(null);
-    }
-  }, [focusedIncident]);
+    setPendingConfirmIncidentId(lastCreatedIncidentId);
+  }, [lastCreatedIncidentId]);
 
   const focusedRequest = useMemo(() => {
     if (!focusedRequestId) {
       return null;
     }
-    return liveRequests.find(r => r.id === focusedRequestId) ?? null;
-  }, [focusedRequestId, liveRequests]);
+    return requests.find(r => r.id === focusedRequestId) ?? null;
+  }, [focusedRequestId, requests]);
+
+  useEffect(() => {
+    if (!lastCreatedRequestId) {
+      return;
+    }
+
+    setPendingConfirmRequestId(lastCreatedRequestId);
+  }, [lastCreatedRequestId]);
 
   useEffect(() => {
     if (!focusedRequest) {
       return;
-    }
-
-    if (focusedRequest.status === 'Pending') {
-      // eslint-disable-next-line react-hooks-extra/no-direct-set-state-in-use-effect
-      setPendingConfirmRequestId(focusedRequest.id);
-    } else {
-      // eslint-disable-next-line react-hooks-extra/no-direct-set-state-in-use-effect
-      setPendingConfirmRequestId(null);
     }
 
     const el = requestRowRefs.current[focusedRequest.id];
@@ -270,7 +268,10 @@ export default function OperatorDashboardPage() {
           incidentId={pendingConfirmIncidentId}
           focusedIncident={focusedIncident}
           onViewDetail={openIncidentDetail}
-          onHide={() => setPendingConfirmIncidentId(null)}
+          onHide={() => {
+            setPendingConfirmIncidentId(null);
+            clearLastCreatedIncidentId();
+          }}
           onConfirm={async (id) => {
             await confirmIncident(id);
             setPendingConfirmIncidentId(null);
@@ -283,7 +284,10 @@ export default function OperatorDashboardPage() {
           requestId={pendingConfirmRequestId}
           focusedRequest={focusedRequest}
           onViewDetail={openRequestDetail}
-          onHide={() => setPendingConfirmRequestId(null)}
+          onHide={() => {
+            setPendingConfirmRequestId(null);
+            clearLastCreatedRequestId();
+          }}
           onConfirm={async (id) => {
             await handleConfirmRequest(id);
             setPendingConfirmRequestId(null);
