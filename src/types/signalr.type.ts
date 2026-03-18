@@ -108,31 +108,51 @@ export interface RescuerAbortedPayload {
 }
 
 // Snake catching request event payloads (RescuerHub)
+export interface SnakeCatchingRequestUserInfo {
+  userName?: string | null;
+  phoneNumber?: string | null;
+}
+
 export interface SnakeCatchingRequestCreatedPayload {
   id: string;
-  status: string;
   userId: string;
-  handlingOperatorId?: string | null;
-  assignedRescuerId?: string | null;
-  assignedAt?: string | null;
-  confirmedAt?: string | null;
-  dispatchedAt?: string | null;
-  cancellationReason?: string | null;
-  estimatedPrice?: number | null;
-  distanceKm?: number | null;
+  status: string;
   address?: string | null;
   lat?: number | null;
   lng?: number | null;
-  priority?: string | null;
-  requestDate?: string | null;
-  preferredTime?: string | null;
+  additionalDetails?: string | null;
+  estimatedPrice?: number | null;
+  distanceKm?: number | null;
+  createdAt?: string | null;
+  user?: SnakeCatchingRequestUserInfo | null;
   // additional fields may exist; allow extensional data
   [key: string]: unknown;
 }
 
-export interface SnakeCatchingRequestAcceptedPayload extends SnakeCatchingRequestCreatedPayload {}
-export interface SnakeCatchingRequestAssignedPayload extends SnakeCatchingRequestCreatedPayload {}
-export interface SnakeCatchingRequestCancelledPayload extends SnakeCatchingRequestCreatedPayload {
-  // Cancel payload may contain additional fields (e.g. cancellationReason)
+export interface SnakeCatchingRequestAcceptedPayload {
+  id: string;
+  status: string;
+  confirmedAt?: string | null;
+  prePaidAt?: string | null;
+  isPrePaid: boolean;
+  // additional fields may exist
+  [key: string]: unknown;
+}
+
+export interface SnakeCatchingRequestAssignedPayload {
+  id: string;
+  status: string;
+  assignedAt?: string | null;
+  assignedRescuerId?: string | null;
+  assignedRescuerName?: string | null;
+  assignedRescuerPhone?: string | null;
+  // additional fields may exist
+  [key: string]: unknown;
+}
+
+export interface SnakeCatchingRequestCancelledPayload {
+  id: string;
+  userId: string;
+  status: string;
   cancellationReason?: string | null;
 }

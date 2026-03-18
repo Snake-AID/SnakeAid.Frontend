@@ -10,6 +10,7 @@ import CatchingRequestDetailModal from '@/components/operator/CatchingRequestDet
 import OperatorInfoPanels from '@/components/operator/dashboard/OperatorInfoPanels';
 import OperatorMap from '@/components/operator/dashboard/OperatorMap';
 import PendingIncidentAlert from '@/components/operator/dashboard/PendingIncidentAlert';
+import PendingRequestAlert from '@/components/operator/dashboard/PendingRequestAlert';
 import ShiftSchedulePanel from '@/components/operator/dashboard/ShiftSchedulePanel';
 import IncidentDetailModal from '@/components/operator/IncidentDetailModal';
 import { useToast } from '@/components/ToastProvider';
@@ -55,6 +56,7 @@ export default function OperatorDashboardPage() {
   }, [requests]);
 
   const [pendingConfirmIncidentId, setPendingConfirmIncidentId] = useState<string | null>(null);
+  const [pendingConfirmRequestId, setPendingConfirmRequestId] = useState<string | null>(null);
   const [detailIncident, setDetailIncident] = useState<DetailSnakebiteIncidentResponse | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -172,19 +174,37 @@ export default function OperatorDashboardPage() {
     if (focusedIncident.stage === 'Pending') {
       // eslint-disable-next-line react-hooks-extra/no-direct-set-state-in-use-effect
       setPendingConfirmIncidentId(focusedIncident.id);
+    } else {
+      // eslint-disable-next-line react-hooks-extra/no-direct-set-state-in-use-effect
+      setPendingConfirmIncidentId(null);
     }
   }, [focusedIncident]);
 
-  useEffect(() => {
+  const focusedRequest = useMemo(() => {
     if (!focusedRequestId) {
+      return null;
+    }
+    return liveRequests.find(r => r.id === focusedRequestId) ?? null;
+  }, [focusedRequestId, liveRequests]);
+
+  useEffect(() => {
+    if (!focusedRequest) {
       return;
     }
 
-    const el = requestRowRefs.current[focusedRequestId];
+    if (focusedRequest.status === 'Pending') {
+      // eslint-disable-next-line react-hooks-extra/no-direct-set-state-in-use-effect
+      setPendingConfirmRequestId(focusedRequest.id);
+    } else {
+      // eslint-disable-next-line react-hooks-extra/no-direct-set-state-in-use-effect
+      setPendingConfirmRequestId(null);
+    }
+
+    const el = requestRowRefs.current[focusedRequest.id];
     if (el) {
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
-  }, [focusedRequestId]);
+  }, [focusedRequest]);
 
   const handleRescuerAborted = useCallback((payload: { incidentId: string; rescuerId: string; reason?: string }) => {
     showToast('Rescuer đã abort. Vui lòng xử lý case này.', { type: 'info' });
@@ -204,6 +224,8 @@ export default function OperatorDashboardPage() {
 
   useRescuerHub({
     onRescuerAborted: handleRescuerAborted,
+    onNewIncidentCreated: () => setFocusedRequestId(null),
+    onSnakeCatchingRequestCreated: () => setFocusedIncidentId(null),
   });
 
   const handleIncidentClick = useCallback((incidentId: string) => {
@@ -236,9 +258,10 @@ export default function OperatorDashboardPage() {
   };
 
   const handleRequestClick = useCallback((requestId: string) => {
+    setFocusedIncidentId(null);
     setFocusedRequestId(requestId);
     openRequestDetail(requestId);
-  }, [setFocusedRequestId]);
+  }, [setFocusedIncidentId, setFocusedRequestId]);
 
   return (
     <main className="relative h-[calc(100vh-81px)] overflow-hidden bg-slate-50">
@@ -251,6 +274,19 @@ export default function OperatorDashboardPage() {
           onConfirm={async (id) => {
             await confirmIncident(id);
             setPendingConfirmIncidentId(null);
+          }}
+        />
+      )}
+
+      {pendingConfirmRequestId && (
+        <PendingRequestAlert
+          requestId={pendingConfirmRequestId}
+          focusedRequest={focusedRequest}
+          onViewDetail={openRequestDetail}
+          onHide={() => setPendingConfirmRequestId(null)}
+          onConfirm={async (id) => {
+            await handleConfirmRequest(id);
+            setPendingConfirmRequestId(null);
           }}
         />
       )}
