@@ -66,25 +66,44 @@ const getRescuerColor = (status: RescuerStatus) => {
   return '#10b981';
 };
 
+export interface LiveRequest {
+  id: string;
+  address?: string | null;
+  lat: number;
+  lng: number;
+  status: string;
+}
+
 interface OperatorMapProps {
   liveIncidents: LiveIncident[];
+  liveRequests?: LiveRequest[];
   liveRescuers: LiveRescuer[];
-  focusedIncidentId: string | null;
+  focusedIncidentId?: string | null;
+  focusedRequestId?: string | null;
   onIncidentClick: (incidentId: string, lat: number, lng: number) => void;
+  onRequestClick?: (requestId: string, lat: number, lng: number) => void;
 }
 
 export default function OperatorMap({
   liveIncidents,
+  liveRequests = [],
   liveRescuers,
   focusedIncidentId,
+  focusedRequestId,
   onIncidentClick,
+  onRequestClick,
 }: OperatorMapProps) {
   const mapRef = useRef<L.Map | null>(null);
   const liveIncidentsRef = useRef<LiveIncident[]>([]);
+  const liveRequestsRef = useRef<LiveRequest[]>([]);
 
   useEffect(() => {
     liveIncidentsRef.current = liveIncidents;
   }, [liveIncidents]);
+
+  useEffect(() => {
+    liveRequestsRef.current = liveRequests;
+  }, [liveRequests]);
 
   const updateMapCenter = useCallback((lat: number, lng: number) => {
     const map = mapRef.current;
@@ -112,18 +131,21 @@ export default function OperatorMap({
   }, [updateMapCenter]);
 
   useEffect(() => {
-    if (!focusedIncidentId) {
+    const focusId = focusedRequestId ?? focusedIncidentId;
+    if (!focusId) {
       return;
     }
 
-    const incidents = liveIncidentsRef.current;
-    const focusIncident = incidents.find(item => item.id === String(focusedIncidentId));
-    if (!focusIncident) {
+    const focusItem = focusedRequestId
+      ? liveRequestsRef.current.find(item => item.id === String(focusId))
+      : liveIncidentsRef.current.find(item => item.id === String(focusId));
+
+    if (!focusItem) {
       return;
     }
 
-    updateMapCenter(focusIncident.lat, focusIncident.lng);
-  }, [focusedIncidentId, updateMapCenter]);
+    updateMapCenter(focusItem.lat, focusItem.lng);
+  }, [focusedIncidentId, focusedRequestId, updateMapCenter]);
 
   return (
     <div className="absolute inset-0 z-0">
@@ -158,6 +180,31 @@ export default function OperatorMap({
                 <div>
                   Stage:
                   {stageLabel[incident.stage]}
+                </div>
+              </div>
+            </Popup>
+          </CircleMarker>
+        ))}
+
+        {liveRequests.map(request => (
+          <CircleMarker
+            key={`request-${request.id}`}
+            center={[request.lat, request.lng]}
+            pathOptions={{ color: '#f59e0b', fillColor: '#f59e0b', fillOpacity: 0.6 }}
+            radius={8}
+            eventHandlers={{
+              click: () => {
+                onRequestClick?.(request.id, request.lat, request.lng);
+              },
+            }}
+          >
+            <Popup>
+              <div className="space-y-1 text-xs">
+                <div className="font-semibold">{request.id}</div>
+                <div>{request.address ?? 'No address'}</div>
+                <div>
+                  Status:
+                  {request.status}
                 </div>
               </div>
             </Popup>

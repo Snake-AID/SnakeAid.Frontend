@@ -5,6 +5,8 @@ import type { DetailSnakebiteIncidentResponse } from '@/types/snakebite-incident
 import { UserCheck } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { incidentApi } from '@/apis/incident.api';
+import { snakeCatchingRequestApi } from '@/apis/snake-catching-request.api';
+import CatchingRequestDetailModal from '@/components/operator/CatchingRequestDetailModal';
 import OperatorInfoPanels from '@/components/operator/dashboard/OperatorInfoPanels';
 import OperatorMap from '@/components/operator/dashboard/OperatorMap';
 import PendingIncidentAlert from '@/components/operator/dashboard/PendingIncidentAlert';
@@ -12,6 +14,7 @@ import ShiftSchedulePanel from '@/components/operator/dashboard/ShiftSchedulePan
 import IncidentDetailModal from '@/components/operator/IncidentDetailModal';
 import { useToast } from '@/components/ToastProvider';
 import { useOperatorIncidents } from '@/hooks/useOperatorIncidents';
+import { useOperatorRequests } from '@/hooks/useOperatorRequests';
 import { useOperatorRescuers } from '@/hooks/useOperatorRescuers';
 import { useRescuerHub } from '@/hooks/useRescuerHub';
 
@@ -27,15 +30,46 @@ export default function OperatorDashboardPage() {
   const { showToast } = useToast();
   const { rescuerRegistry, liveRescuers, shiftAssignmentsWithStatus } = useOperatorRescuers();
 
+  const {
+    requests,
+    focusedRequestId,
+    setFocusedRequestId,
+    refreshRequests,
+    confirmRequest,
+    assignRequest,
+    cancelRequest,
+    isLoading: isRequestsLoading,
+    hasError: hasRequestsError,
+  } = useOperatorRequests();
+
+  const liveRequests = useMemo(() => {
+    return requests
+      .filter(r => r.lat != null && r.lng != null)
+      .map(r => ({
+        id: r.id,
+        address: r.address ?? null,
+        lat: r.lat as number,
+        lng: r.lng as number,
+        status: r.status,
+      }));
+  }, [requests]);
+
   const [pendingConfirmIncidentId, setPendingConfirmIncidentId] = useState<string | null>(null);
   const [detailIncident, setDetailIncident] = useState<DetailSnakebiteIncidentResponse | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
+
+  const [detailRequestId, setDetailRequestId] = useState<string | null>(null);
+  const [detailRequest, setDetailRequest] = useState<any | null>(null);
+  const [detailRequestOpen, setDetailRequestOpen] = useState(false);
+  const [detailRequestLoading, setDetailRequestLoading] = useState(false);
+  const [detailRequestError, setDetailRequestError] = useState<string | null>(null);
   const [urgentIncidentIds, setUrgentIncidentIds] = useState<Set<string>>(new Set());
   const [shiftPanelOpen, setShiftPanelOpen] = useState(false);
 
   const incidentRowRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const requestRowRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
   const liveIncidents = useMemo<LiveIncident[]>(() => {
     return incidents.map(i => ({
@@ -90,6 +124,39 @@ export default function OperatorDashboardPage() {
     await incidentApi.cancelDispatch(incidentId);
   };
 
+  const handleConfirmRequest = async (requestId: string) => {
+    try {
+      await confirmRequest(requestId);
+      showToast('Yêu cầu đã được xác nhận.', { type: 'success' });
+      await refreshRequests();
+    } catch (err) {
+      console.error('Failed to confirm request', err);
+      showToast('Không thể xác nhận yêu cầu. Vui lòng thử lại.', { type: 'error' });
+    }
+  };
+
+  const handleAssignRequest = async (requestId: string, rescuerId: string) => {
+    try {
+      await assignRequest(requestId, rescuerId);
+      showToast('Đã điều phối cứu hộ.', { type: 'success' });
+      await refreshRequests();
+    } catch (err) {
+      console.error('Failed to assign request', err);
+      showToast('Không thể điều phối. Vui lòng thử lại.', { type: 'error' });
+    }
+  };
+
+  const handleCancelRequest = async (requestId: string) => {
+    try {
+      await cancelRequest(requestId, 'Cancelled by operator');
+      showToast('Yêu cầu đã được hủy.', { type: 'success' });
+      await refreshRequests();
+    } catch (err) {
+      console.error('Failed to cancel request', err);
+      showToast('Không thể hủy yêu cầu. Vui lòng thử lại.', { type: 'error' });
+    }
+  };
+
   const focusedIncident = useMemo(() => {
     if (!focusedIncidentId) {
       return null;
@@ -108,9 +175,21 @@ export default function OperatorDashboardPage() {
     }
   }, [focusedIncident]);
 
+  useEffect(() => {
+    if (!focusedRequestId) {
+      return;
+    }
+
+    const el = requestRowRefs.current[focusedRequestId];
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [focusedRequestId]);
+
   const handleRescuerAborted = useCallback((payload: { incidentId: string; rescuerId: string; reason?: string }) => {
     showToast('Rescuer đã abort. Vui lòng xử lý case này.', { type: 'info' });
     setUrgentIncidentIds(prev => new Set(prev).add(payload.incidentId));
+    setFocusedRequestId(null);
     setFocusedIncidentId(payload.incidentId);
 
     // Scroll item into view if rendered
@@ -121,13 +200,14 @@ export default function OperatorDashboardPage() {
 
     // Optionally refresh list so UI state (needsRedispatch etc) stays fresh
     refreshIncidents();
-  }, [refreshIncidents]);
+  }, [refreshIncidents, setFocusedRequestId]);
 
   useRescuerHub({
     onRescuerAborted: handleRescuerAborted,
   });
 
   const handleIncidentClick = useCallback((incidentId: string) => {
+    setFocusedRequestId(null);
     setFocusedIncidentId(incidentId);
     openIncidentDetail(incidentId);
     setUrgentIncidentIds((prev) => {
@@ -135,7 +215,30 @@ export default function OperatorDashboardPage() {
       next.delete(incidentId);
       return next;
     });
-  }, [setFocusedIncidentId, setUrgentIncidentIds]);
+  }, [setFocusedIncidentId, setFocusedRequestId, setUrgentIncidentIds]);
+
+  const openRequestDetail = async (requestId: string) => {
+    setDetailRequestError(null);
+    setDetailRequestLoading(true);
+    setDetailRequestOpen(true);
+
+    try {
+      const detail = await snakeCatchingRequestApi.getRequest(requestId);
+      setDetailRequest(detail);
+      setDetailRequestId(requestId);
+    } catch (err) {
+      console.error('Failed to load request detail', err);
+      setDetailRequestError('Không thể tải thông tin request.');
+      setDetailRequest(null);
+    } finally {
+      setDetailRequestLoading(false);
+    }
+  };
+
+  const handleRequestClick = useCallback((requestId: string) => {
+    setFocusedRequestId(requestId);
+    openRequestDetail(requestId);
+  }, [setFocusedRequestId]);
 
   return (
     <main className="relative h-[calc(100vh-81px)] overflow-hidden bg-slate-50">
@@ -165,21 +268,49 @@ export default function OperatorDashboardPage() {
         onRefresh={refreshIncidents}
       />
 
+      <CatchingRequestDetailModal
+        request={detailRequest}
+        requestId={detailRequestId}
+        isOpen={detailRequestOpen}
+        isLoading={detailRequestLoading}
+        error={detailRequestError}
+        onClose={() => {
+          setDetailRequestOpen(false);
+          setDetailRequest(null);
+          setDetailRequestId(null);
+          setDetailRequestError(null);
+        }}
+        onConfirm={handleConfirmRequest}
+        onAssign={handleAssignRequest}
+        onCancel={handleCancelRequest}
+        onRefresh={refreshRequests}
+      />
+
       <OperatorMap
         liveIncidents={liveIncidents}
+        liveRequests={liveRequests}
         liveRescuers={liveRescuers}
         focusedIncidentId={focusedIncidentId}
+        focusedRequestId={focusedRequestId}
         onIncidentClick={handleIncidentClick}
+        onRequestClick={handleRequestClick}
       />
 
       <OperatorInfoPanels
         incidents={incidents}
+        requests={requests}
         liveRescuers={liveRescuers}
         rescuerRegistry={rescuerRegistry}
         focusedIncidentId={focusedIncidentId}
+        focusedRequestId={focusedRequestId}
         urgentIncidentIds={urgentIncidentIds}
         incidentRowRefs={incidentRowRefs}
+        requestRowRefs={requestRowRefs}
         onIncidentClick={handleIncidentClick}
+        onRequestClick={handleRequestClick}
+        isRequestsLoading={isRequestsLoading}
+        hasRequestsError={hasRequestsError}
+        onRefreshRequests={refreshRequests}
       />
 
       <ShiftSchedulePanel

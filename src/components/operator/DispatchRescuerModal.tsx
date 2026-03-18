@@ -8,7 +8,8 @@ import { operatorApi } from '@/apis/operator.api';
 import { useToast } from '@/components/ToastProvider';
 
 export interface DispatchRescuerModalProps {
-  incidentId: string;
+  incidentId?: string;
+  catchingRequestId?: string;
   isOpen: boolean;
   onClose: () => void;
   onDispatch: (rescuerId: string) => Promise<void>;
@@ -16,6 +17,7 @@ export interface DispatchRescuerModalProps {
 
 export default function DispatchRescuerModal({
   incidentId,
+  catchingRequestId,
   isOpen,
   onClose,
   onDispatch,
@@ -35,10 +37,25 @@ export default function DispatchRescuerModal({
     setIsLoading(true);
     setError(null);
     try {
-      const response = await operatorApi.getOnDutyRescuers({
-        incidentId,
+      const params: {
+        date?: string;
+        incidentId?: string;
+        catchingRequestId?: string;
+        onlyAvailable: boolean;
+        maxDistanceKm?: number;
+      } = {
         onlyAvailable: true,
-      });
+      };
+
+      if (incidentId) {
+        params.incidentId = incidentId;
+      }
+
+      if (catchingRequestId) {
+        params.catchingRequestId = catchingRequestId;
+      }
+
+      const response = await operatorApi.getOnDutyRescuers(params);
       setRescuers(response.rescuers);
     } catch (err) {
       console.error('Failed to load on-duty rescuers', err);
@@ -53,7 +70,7 @@ export default function DispatchRescuerModal({
       loadRescuers();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, incidentId]);
+  }, [isOpen, incidentId, catchingRequestId]);
 
   const filteredRescuers = useMemo(() => {
     let list = [...rescuers];

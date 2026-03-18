@@ -1,17 +1,26 @@
 import type { MutableRefObject } from 'react';
 import type { OperatorMapIncident } from '@/hooks/useOperatorIncidents';
+import type { OperatorRequestSummary } from '@/hooks/useOperatorRequests';
 import type { LiveRescuer } from '@/hooks/useOperatorRescuers';
 import type { BriefRescuerProfileResponse } from '@/types/operator.type';
 import { MapPin, ShieldCheck, UserCheck } from 'lucide-react';
+import { useState } from 'react';
 
 interface OperatorInfoPanelsProps {
   incidents: OperatorMapIncident[];
+  requests: OperatorRequestSummary[];
   liveRescuers: LiveRescuer[];
   rescuerRegistry: Record<string, BriefRescuerProfileResponse>;
   focusedIncidentId: string | null;
+  focusedRequestId: string | null;
   urgentIncidentIds: Set<string>;
   incidentRowRefs: MutableRefObject<Record<string, HTMLButtonElement | null>>;
+  requestRowRefs: MutableRefObject<Record<string, HTMLButtonElement | null>>;
   onIncidentClick: (incidentId: string, lat: number, lng: number) => void;
+  onRequestClick: (requestId: string, lat: number, lng: number) => void;
+  isRequestsLoading: boolean;
+  hasRequestsError: boolean;
+  onRefreshRequests: () => Promise<void>;
 }
 
 const stageLabel: Record<OperatorMapIncident['stage'], string> = {
@@ -30,17 +39,26 @@ const getOnlineBadgeClasses = (isOnline: boolean) =>
 
 export default function OperatorInfoPanels({
   incidents,
+  requests,
   liveRescuers,
   rescuerRegistry,
   focusedIncidentId,
+  focusedRequestId,
   urgentIncidentIds,
   incidentRowRefs,
+  requestRowRefs,
   onIncidentClick,
+  onRequestClick,
+  isRequestsLoading,
+  hasRequestsError,
+  onRefreshRequests,
 }: OperatorInfoPanelsProps) {
   const queueCount = incidents.filter(item => item.stage === 'Pending' || item.stage === 'Verified').length;
   const contactingCount = incidents.filter(item => item.stage === 'Contacting' || item.stage === 'Pending').length;
   const assignedCount = incidents.filter(item => item.stage === 'Assigned' || item.stage === 'EnRoute').length;
   const disputeCount = incidents.filter(item => item.needsRedispatch).length;
+
+  const [activeTab, setActiveTab] = useState<'incidents' | 'requests'>('incidents');
 
   return (
     <div className="absolute inset-0 z-10 pointer-events-none">
@@ -55,7 +73,7 @@ export default function OperatorInfoPanels({
               <p className="text-amber-700">Chờ điều phối</p>
               <p className="text-xl font-bold text-amber-900">{queueCount}</p>
             </div>
-            <div className="rounded-xl bg-blue-50 p-3">
+            <div className="rounded-2xl bg-blue-50 p-3">
               <p className="text-blue-700">Đang liên hệ</p>
               <p className="text-xl font-bold text-blue-900">{contactingCount}</p>
             </div>
@@ -107,42 +125,123 @@ export default function OperatorInfoPanels({
             <MapPin className="size-4.5 text-teal-700" />
             Danh sách sự cố đang hoạt động
           </h3>
-          <div className="space-y-2 max-h-[34vh] overflow-y-auto">
-            {incidents.length === 0
-              ? (
-                  <p className="text-sm text-slate-500">Không có case nào.</p>
-                )
-              : (
-                  incidents.map((inc) => {
-                    const isFocused = inc.id === focusedIncidentId;
-                    const isUrgent = urgentIncidentIds.has(inc.id);
-                    return (
-                      <button
-                        key={inc.id}
-                        type="button"
-                        ref={(el) => {
-                          incidentRowRefs.current[inc.id] = el;
-                        }}
-                        onClick={() => onIncidentClick(inc.id, inc.lat, inc.lng)}
-                        className={`w-full rounded-xl border px-3 py-3 text-left transition ${isFocused ? 'border-teal-500 bg-teal-50' : 'border-slate-200 bg-white hover:bg-slate-50'}`}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div>
-                            <p className="text-sm font-semibold text-slate-900">{inc.code}</p>
-                            <p className="mt-1 text-xs text-slate-500">{inc.address || 'Không có địa chỉ'}</p>
-                          </div>
-                          <div className="flex flex-col items-end gap-1">
-                            <span className="text-xs text-slate-500">{stageLabel[inc.stage]}</span>
-                            {isUrgent && (
-                              <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-700">Cần xử lý</span>
-                            )}
-                          </div>
-                        </div>
-                      </button>
-                    );
-                  })
-                )}
+
+          <div className="mb-4 flex gap-2">
+            <button
+              type="button"
+              onClick={() => setActiveTab('incidents')}
+              className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                activeTab === 'incidents' ? 'bg-teal-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              Incidents
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('requests')}
+              className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                activeTab === 'requests' ? 'bg-teal-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+            >
+              Requests
+              <span className="ml-2 inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-white/20 px-2 text-xs font-semibold">
+                {requests.length}
+              </span>
+            </button>
           </div>
+
+          {activeTab === 'requests'
+            ? (
+                <div className="space-y-2 max-h-[34vh] overflow-y-auto">
+                  {isRequestsLoading
+                    ? (
+                        <div className="flex h-40 items-center justify-center text-sm text-slate-500">
+                          Đang tải yêu cầu...
+                        </div>
+                      )
+                    : hasRequestsError
+                      ? (
+                          <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+                            Không thể tải danh sách yêu cầu.
+                            <button
+                              type="button"
+                              onClick={onRefreshRequests}
+                              className="ml-2 inline-flex items-center gap-1 text-xs font-semibold text-rose-700 hover:underline"
+                            >
+                              Thử lại
+                            </button>
+                          </div>
+                        )
+                      : requests.length === 0
+                        ? (
+                            <p className="text-sm text-slate-500">Không có yêu cầu nào.</p>
+                          )
+                        : (
+                            requests.map((req) => {
+                              const isFocused = req.id === focusedRequestId;
+                              return (
+                                <button
+                                  key={req.id}
+                                  type="button"
+                                  ref={(el) => {
+                                    requestRowRefs.current[req.id] = el;
+                                  }}
+                                  onClick={() => onRequestClick(req.id, req.lat ?? 0, req.lng ?? 0)}
+                                  className={`w-full rounded-xl border px-3 py-3 text-left transition ${
+                                    isFocused ? 'border-teal-500 bg-teal-50' : 'border-slate-200 bg-white hover:bg-slate-50'
+                                  }`}
+                                >
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div>
+                                      <p className="text-sm font-semibold text-slate-900">{req.id}</p>
+                                      <p className="mt-1 text-xs text-slate-500">{req.address ?? 'Không có địa chỉ'}</p>
+                                    </div>
+                                    <span className="text-xs text-slate-500">{req.status}</span>
+                                  </div>
+                                </button>
+                              );
+                            })
+                          )}
+                </div>
+              )
+            : (
+                <div className="space-y-2 max-h-[34vh] overflow-y-auto">
+                  {incidents.length === 0
+                    ? (
+                        <p className="text-sm text-slate-500">Không có case nào.</p>
+                      )
+                    : (
+                        incidents.map((inc) => {
+                          const isFocused = inc.id === focusedIncidentId;
+                          const isUrgent = urgentIncidentIds.has(inc.id);
+                          return (
+                            <button
+                              key={inc.id}
+                              type="button"
+                              ref={(el) => {
+                                incidentRowRefs.current[inc.id] = el;
+                              }}
+                              onClick={() => onIncidentClick(inc.id, inc.lat, inc.lng)}
+                              className={`w-full rounded-xl border px-3 py-3 text-left transition ${isFocused ? 'border-teal-500 bg-teal-50' : 'border-slate-200 bg-white hover:bg-slate-50'}`}
+                            >
+                              <div className="flex items-start justify-between gap-2">
+                                <div>
+                                  <p className="text-sm font-semibold text-slate-900">{inc.code}</p>
+                                  <p className="mt-1 text-xs text-slate-500">{inc.address || 'Không có địa chỉ'}</p>
+                                </div>
+                                <div className="flex flex-col items-end gap-1">
+                                  <span className="text-xs text-slate-500">{stageLabel[inc.stage]}</span>
+                                  {isUrgent && (
+                                    <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-700">Cần xử lý</span>
+                                  )}
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })
+                      )}
+                </div>
+              )}
         </div>
       </div>
     </div>
