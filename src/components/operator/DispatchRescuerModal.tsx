@@ -5,6 +5,7 @@ import { Ambulance, Check, MapPin, Navigation, RefreshCw, UserRound, X } from 'l
 
 import { useEffect, useMemo, useState } from 'react';
 import { operatorApi } from '@/apis/operator.api';
+import { useToast } from '@/components/ToastProvider';
 
 export interface DispatchRescuerModalProps {
   incidentId: string;
@@ -24,6 +25,7 @@ export default function DispatchRescuerModal({
   const [isLoading, setIsLoading] = useState(false);
   const [isDispatching, setIsDispatching] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { showToast } = useToast();
 
   const [onlyInShift, setOnlyInShift] = useState(true);
   const [onlyOnline, setOnlyOnline] = useState(true);
@@ -50,6 +52,7 @@ export default function DispatchRescuerModal({
     if (isOpen) {
       loadRescuers();
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, incidentId]);
 
   const filteredRescuers = useMemo(() => {
@@ -83,9 +86,11 @@ export default function DispatchRescuerModal({
     try {
       await onDispatch(selectedRescuerId);
       onClose();
+      showToast('Điều phối đội cứu hộ thành công.', { type: 'success' });
     } catch (err) {
       console.error('Failed to dispatch rescuer', err);
       setError('Không thể điều phối. Vui lòng thử lại.');
+      showToast('Điều phối thất bại. Vui lòng thử lại.', { type: 'error' });
     } finally {
       setIsDispatching(false);
     }
@@ -96,7 +101,7 @@ export default function DispatchRescuerModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4">
+    <div className="fixed inset-0 z-99999 flex items-center justify-center bg-black/50 p-4">
       <div className="flex h-[min(600px,90vh)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">

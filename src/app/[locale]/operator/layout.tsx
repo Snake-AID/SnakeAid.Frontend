@@ -18,7 +18,7 @@ export default function OperatorLayout({ children }: { children: React.ReactNode
 
   const closeSidebar = () => {
     setIsSidebarOpen(false);
-    window.setTimeout(() => setIsSidebarVisible(false), 100);
+    window.setTimeout(() => setIsSidebarVisible(false), 200);
   };
 
   const toggleSidebar = () => {
@@ -31,7 +31,7 @@ export default function OperatorLayout({ children }: { children: React.ReactNode
 
   return (
     <RoleRouteGuard allowedRole="Operator">
-      <div className={`flex min-h-screen bg-slate-50 ${isSidebarVisible ? 'lg:pl-72' : ''}`}>
+      <div className={`flex min-h-screen bg-slate-50 transition-[padding-left] duration-200 ${isSidebarOpen ? 'lg:pl-72' : ''}`}>
         {isSidebarVisible && <OperatorSidebar open={isSidebarOpen} onClose={closeSidebar} />}
         <div className="min-w-0 flex-1">
           <OperatorTopbar onToggleSidebar={toggleSidebar} sidebarOpen={isSidebarOpen} />
