@@ -2,10 +2,6 @@
 
 import type { OperatorSnakeCatchingRequestSummaryResponse } from '@/types/operator.type';
 import type {
-  CreateSnakeCatchingRequestResponse,
-  SnakeCatchingRequestAcceptedPayload,
-  SnakeCatchingRequestAssignedPayload,
-  SnakeCatchingRequestCancelledPayload,
   SnakeCatchingRequestCreatedPayload,
 } from '@/types/snakecatching-request.type';
 
@@ -18,8 +14,8 @@ export interface OperatorRequestSummary {
   id: string;
   status: string;
   address?: string | null;
-  lat?: number | null;
-  lng?: number | null;
+  lat: number;
+  lng: number;
   distanceKm?: number | null;
   assignedRescuerId?: string | null;
   needsRedispatch?: boolean;
@@ -29,6 +25,8 @@ export interface UseOperatorRequestsResult {
   requests: OperatorRequestSummary[];
   focusedRequestId: string | null;
   setFocusedRequestId: (id: string | null) => void;
+  lastCreatedRequestId: string | null;
+  clearLastCreatedRequestId: () => void;
   confirmRequest: (requestId: string) => Promise<void>;
   assignRequest: (requestId: string, rescuerId: string) => Promise<void>;
   cancelRequest: (requestId: string, reason: string) => Promise<void>;
@@ -40,49 +38,44 @@ export interface UseOperatorRequestsResult {
 export function useOperatorRequests(): UseOperatorRequestsResult {
   const [requests, setRequests] = useState<OperatorRequestSummary[]>([]);
   const [focusedRequestId, setFocusedRequestId] = useState<string | null>(null);
+  const [lastCreatedRequestId, setLastCreatedRequestId] = useState<string | null>(null);
+  const clearLastCreatedRequestId = useCallback(() => {
+    setLastCreatedRequestId(null);
+  }, []);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
 
   const requestsRef = useRef<OperatorRequestSummary[]>([]);
 
-  const upsertRequest = useCallback((payload: Partial<CreateSnakeCatchingRequestResponse> & { id: string }) => {
-    const next = requestsRef.current.slice();
-    const existingIndex = next.findIndex(r => r.id === payload.id);
+  const addRequestFromSignalR = useCallback((payload: SnakeCatchingRequestCreatedPayload) => {
+    const id = payload.id;
 
-    if (existingIndex >= 0) {
-      const existing = next[existingIndex]!;
-      const lat = payload.lat ?? payload.locationCoordinates?.latitude ?? existing.lat;
-      const lng = payload.lng ?? payload.locationCoordinates?.longitude ?? existing.lng;
-
-      next[existingIndex] = {
-        ...existing,
-        id: existing.id,
-        status: payload.status ?? existing.status,
-        address: payload.address !== undefined ? payload.address : existing.address,
-        lat,
-        lng,
-        distanceKm: payload.distanceKm !== undefined ? payload.distanceKm : existing.distanceKm,
-        assignedRescuerId: payload.assignedRescuerId !== undefined ? payload.assignedRescuerId : existing.assignedRescuerId,
-      };
-    } else {
-      const lat = payload.lat ?? payload.locationCoordinates?.latitude ?? null;
-      const lng = payload.lng ?? payload.locationCoordinates?.longitude ?? null;
-
-      next.unshift({
-        id: payload.id,
-        status: payload.status ?? 'Pending',
-        address: payload.address ?? null,
-        lat,
-        lng,
-        distanceKm: payload.distanceKm ?? null,
-        assignedRescuerId: payload.assignedRescuerId ?? null,
-        needsRedispatch: false,
+    if (requestsRef.current.some(r => r.id === id)) {
+      setRequests((prev) => {
+        const next = prev.map(r => (
+          r.id === id ? { ...r, lat: payload.lat, lng: payload.lng } : r
+        ));
+        requestsRef.current = next;
+        return next;
       });
+      return;
     }
 
-    requestsRef.current = next;
-    setRequests(next);
-  }, []);
+    const newRequest: OperatorRequestSummary = {
+      id,
+      status: payload.status,
+      address: payload.address ?? null,
+      lat: payload.lat,
+      lng: payload.lng,
+      distanceKm: null,
+      assignedRescuerId: null,
+      needsRedispatch: false,
+    };
+
+    requestsRef.current = [newRequest, ...requestsRef.current];
+    setRequests(requestsRef.current);
+    setFocusedRequestId(id);
+  }, [setFocusedRequestId]);
 
   const refreshRequests = useCallback(async () => {
     setIsLoading(true);
@@ -102,7 +95,7 @@ export function useOperatorRequests(): UseOperatorRequestsResult {
       }));
       requestsRef.current = mapped;
       setRequests(mapped);
-      setFocusedRequestId(mapped[0]?.id ?? null);
+      setFocusedRequestId(prev => prev ?? mapped[0]?.id ?? null);
     } catch (err) {
       console.error('Failed to load snake catching requests', err);
       setHasError(true);
@@ -116,19 +109,12 @@ export function useOperatorRequests(): UseOperatorRequestsResult {
   }, [refreshRequests]);
 
   const handleCreated = useCallback((payload: SnakeCatchingRequestCreatedPayload) => {
-    upsertRequest(payload as Partial<CreateSnakeCatchingRequestResponse> & { id: string });
-    setFocusedRequestId(payload.id);
-  }, [upsertRequest, setFocusedRequestId]);
-
-  const handleUpdated = useCallback((payload: SnakeCatchingRequestAcceptedPayload | SnakeCatchingRequestAssignedPayload | SnakeCatchingRequestCancelledPayload) => {
-    upsertRequest(payload as Partial<CreateSnakeCatchingRequestResponse> & { id: string });
-  }, [upsertRequest]);
+    addRequestFromSignalR(payload);
+    setLastCreatedRequestId(payload.id);
+  }, [addRequestFromSignalR]);
 
   useRescuerHub({
     onSnakeCatchingRequestCreated: handleCreated,
-    onSnakeCatchingRequestAccepted: handleUpdated,
-    onSnakeCatchingRequestAssigned: handleUpdated,
-    onSnakeCatchingRequestCancelled: handleUpdated,
   });
 
   const confirmRequest = useCallback(async (requestId: string) => {
@@ -147,6 +133,8 @@ export function useOperatorRequests(): UseOperatorRequestsResult {
     requests,
     focusedRequestId,
     setFocusedRequestId,
+    lastCreatedRequestId,
+    clearLastCreatedRequestId,
     confirmRequest,
     assignRequest,
     cancelRequest,
@@ -156,6 +144,8 @@ export function useOperatorRequests(): UseOperatorRequestsResult {
   }), [
     requests,
     focusedRequestId,
+    lastCreatedRequestId,
+    clearLastCreatedRequestId,
     confirmRequest,
     assignRequest,
     cancelRequest,
