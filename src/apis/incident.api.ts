@@ -3,6 +3,7 @@ import type {
   CreateIncidentResponse,
   DetailSnakebiteIncidentResponse,
   DispatchIncidentRequest,
+  DispatchRequestItem,
   MarkFalseAlarmRequest,
   ReportNoAnswerRequest,
 } from '@/types/snakebite-incident.type';
@@ -38,11 +39,14 @@ export const incidentApi = {
   dispatchIncident: (incidentId: string, payload: DispatchIncidentRequest) =>
     api.post<CreateIncidentResponse>(`/incidents/${incidentId}/dispatch`, payload),
 
-  /**
-   * Cancel a dispatch request for an incident.
-   * This allows the operator to cancel a rescue mission and reassign to another rescuer.
-   * TODO: Backend endpoint needs to be implemented.
-   */
   cancelDispatch: (incidentId: string) =>
     api.post<CreateIncidentResponse>(`/incidents/${incidentId}/cancel-dispatch`),
+
+  getDispatchRequests: (incidentId: string) =>
+    api.get<DispatchRequestItem[]>(`/incidents/${incidentId}/dispatch-requests`),
+
+  cancelDispatchRequest: (requestId: string) =>
+    api.post<{ requestId: string; rejectedAt: string; message: string }>(
+      `/incidents/dispatch-requests/${requestId}/cancel`,
+    ),
 };

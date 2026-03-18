@@ -167,3 +167,21 @@ export interface ReportNoAnswerRequest {
   continueCalling: boolean;
   note?: string;
 }
+
+export enum DispatchRequestStatus {
+  Pending = 'Pending',
+  Accepted = 'Accepted',
+  Declined = 'Declined',
+  Cancelled = 'Cancelled',
+}
+
+export interface DispatchRequestItem {
+  requestId: string;
+  rescuerId: string;
+  rescuerName: string;
+  rescuerPhone: string;
+  status: DispatchRequestStatus;
+  createdAt: string;
+  responseAt: string | null;
+  declineReason?: string | null;
+}
