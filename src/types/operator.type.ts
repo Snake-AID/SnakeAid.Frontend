@@ -1,5 +1,6 @@
 import type { UserInfo } from './auth.type';
 import type { GeoPointResponse, RescueMissionStatus, SnakebiteIncidentStatus } from './snakebite-incident.type';
+import type { CatchingRequestPriority, CatchingRequestStatus } from './snakecatching-request.type';
 
 export interface BriefRescuerProfileResponse {
   accountId: string;
@@ -21,7 +22,7 @@ export enum RescuerType {
 }
 
 export interface OnDutyRescuerSnapshotResponse {
-  incidentId: string | null;
+  contextId: string | null;
   date: Date;
   snapshotAt: string;
   rescuers: OnDutyRescuerItemResponse[];
@@ -84,4 +85,14 @@ export interface OperatorIncidentSummaryResponse {
   activeMissionStatus: RescueMissionStatus | null;
   needsRedispatch: boolean;
   handlingOperatorId: string | null;
+}
+
+export interface OperatorSnakeCatchingRequestSummaryResponse {
+  id: string;
+  status: CatchingRequestStatus;
+  locationCoordinates: GeoPointResponse;
+  requestDate: string;
+  assignedRescuerId: string | null;
+  handlingOperatorId: string | null;
+  priority: CatchingRequestPriority | null;
 }

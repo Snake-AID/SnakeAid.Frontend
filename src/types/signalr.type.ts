@@ -106,3 +106,33 @@ export interface RescuerAbortedPayload {
   reason?: string;
   updatedAt: string;
 }
+
+// Snake catching request event payloads (RescuerHub)
+export interface SnakeCatchingRequestCreatedPayload {
+  id: string;
+  status: string;
+  userId: string;
+  handlingOperatorId?: string | null;
+  assignedRescuerId?: string | null;
+  assignedAt?: string | null;
+  confirmedAt?: string | null;
+  dispatchedAt?: string | null;
+  cancellationReason?: string | null;
+  estimatedPrice?: number | null;
+  distanceKm?: number | null;
+  address?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+  priority?: string | null;
+  requestDate?: string | null;
+  preferredTime?: string | null;
+  // additional fields may exist; allow extensional data
+  [key: string]: unknown;
+}
+
+export interface SnakeCatchingRequestAcceptedPayload extends SnakeCatchingRequestCreatedPayload {}
+export interface SnakeCatchingRequestAssignedPayload extends SnakeCatchingRequestCreatedPayload {}
+export interface SnakeCatchingRequestCancelledPayload extends SnakeCatchingRequestCreatedPayload {
+  // Cancel payload may contain additional fields (e.g. cancellationReason)
+  cancellationReason?: string | null;
+}

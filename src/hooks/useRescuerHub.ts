@@ -18,6 +18,12 @@ import type {
   RescuerIdleLocationUpdatedPayload,
   RescuerOnlineStatusPayload,
 } from '@/types/signalr.type';
+import type {
+  SnakeCatchingRequestAcceptedPayload,
+  SnakeCatchingRequestAssignedPayload,
+  SnakeCatchingRequestCancelledPayload,
+  SnakeCatchingRequestCreatedPayload,
+} from '@/types/snakecatching-request.type';
 import { HubConnectionState } from '@microsoft/signalr';
 
 import { useEffect, useRef, useState } from 'react';
@@ -32,6 +38,10 @@ export interface RescuerHubEvents {
   onRescuerAccepted?: (payload: RescuerAcceptedPayload) => void;
   onRescuerDeclined?: (payload: RescuerDeclinedPayload) => void;
   onNewIncidentCreated?: (payload: NewIncidentCreatedPayload) => void;
+  onSnakeCatchingRequestCreated?: (payload: SnakeCatchingRequestCreatedPayload) => void;
+  onSnakeCatchingRequestAccepted?: (payload: SnakeCatchingRequestAcceptedPayload) => void;
+  onSnakeCatchingRequestAssigned?: (payload: SnakeCatchingRequestAssignedPayload) => void;
+  onSnakeCatchingRequestCancelled?: (payload: SnakeCatchingRequestCancelledPayload) => void;
   onOperatorOnlineStatus?: (payload: OperatorOnlineStatusPayload) => void;
   onAdminLog?: (payload: AdminLogPayload) => void;
   onIncidentClaimed?: (payload: IncidentClaimedPayload) => void;
@@ -63,6 +73,18 @@ const attachHandlers = (connection: HubConnection, handlers: RescuerHubEvents) =
   }
   if (handlers.onNewIncidentCreated) {
     connection.on('NewIncidentCreated', handlers.onNewIncidentCreated);
+  }
+  if (handlers.onSnakeCatchingRequestCreated) {
+    connection.on('SnakeCatchingRequestCreated', handlers.onSnakeCatchingRequestCreated);
+  }
+  if (handlers.onSnakeCatchingRequestAccepted) {
+    connection.on('SnakeCatchingRequestAccepted', handlers.onSnakeCatchingRequestAccepted);
+  }
+  if (handlers.onSnakeCatchingRequestAssigned) {
+    connection.on('SnakeCatchingRequestAssigned', handlers.onSnakeCatchingRequestAssigned);
+  }
+  if (handlers.onSnakeCatchingRequestCancelled) {
+    connection.on('SnakeCatchingRequestCancelled', handlers.onSnakeCatchingRequestCancelled);
   }
   if (handlers.onOperatorOnlineStatus) {
     connection.on('OperatorOnlineStatus', handlers.onOperatorOnlineStatus);
@@ -111,6 +133,18 @@ const detachHandlers = (connection: HubConnection, handlers: RescuerHubEvents) =
   }
   if (handlers.onNewIncidentCreated) {
     connection.off('NewIncidentCreated', handlers.onNewIncidentCreated);
+  }
+  if (handlers.onSnakeCatchingRequestCreated) {
+    connection.off('SnakeCatchingRequestCreated', handlers.onSnakeCatchingRequestCreated);
+  }
+  if (handlers.onSnakeCatchingRequestAccepted) {
+    connection.off('SnakeCatchingRequestAccepted', handlers.onSnakeCatchingRequestAccepted);
+  }
+  if (handlers.onSnakeCatchingRequestAssigned) {
+    connection.off('SnakeCatchingRequestAssigned', handlers.onSnakeCatchingRequestAssigned);
+  }
+  if (handlers.onSnakeCatchingRequestCancelled) {
+    connection.off('SnakeCatchingRequestCancelled', handlers.onSnakeCatchingRequestCancelled);
   }
   if (handlers.onOperatorOnlineStatus) {
     connection.off('OperatorOnlineStatus', handlers.onOperatorOnlineStatus);

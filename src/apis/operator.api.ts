@@ -10,6 +10,7 @@ export const operatorApi = {
   getOnDutyRescuers: (params?: {
     date?: string;
     incidentId?: string;
+    catchingRequestId?: string;
     onlyAvailable?: boolean;
     maxDistanceKm?: number;
   }) => api.get<OnDutyRescuerSnapshotResponse>('/monitoring/on-duty', { params }),
