@@ -11,7 +11,10 @@ export interface RegisterRequest {
 export interface LoginRequest {
   email: string;
   password: string;
+  role: UserRole;
 }
+
+export type UserRole = 'Admin' | 'Operator';
 
 export interface RefreshTokenRequest {
   userId: string;
@@ -31,6 +34,6 @@ export interface UserInfo {
   email: string;
   fullName: string;
   avatarUrl?: string;
-  role: string;
+  role: UserRole;
   isActive: boolean;
 }

@@ -1,6 +1,5 @@
 import type { NextFetchEvent, NextRequest } from 'next/server';
 import { detectBot } from '@arcjet/next';
-import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
 import createMiddleware from 'next-intl/middleware';
 import { NextResponse } from 'next/server';
 import arcjet from '@/libs/Arcjet';
@@ -8,17 +7,7 @@ import { routing } from './libs/I18nRouting';
 
 const handleI18nRouting = createMiddleware(routing);
 
-const isProtectedRoute = createRouteMatcher([
-  '/dashboard(.*)',
-  '/:locale/dashboard(.*)',
-]);
-
-const isAuthPage = createRouteMatcher([
-  '/sign-in(.*)',
-  '/:locale/sign-in(.*)',
-  '/sign-up(.*)',
-  '/:locale/sign-up(.*)',
-]);
+const legacyClerkRoutePattern = /^\/(?:[a-z]{2}\/)?(?:sign-in|sign-up|dashboard)(?:\/.*)?$/i;
 
 // Improve security with Arcjet
 const aj = arcjet.withRule(
@@ -36,7 +25,7 @@ const aj = arcjet.withRule(
 
 export default async function proxy(
   request: NextRequest,
-  event: NextFetchEvent,
+  _event: NextFetchEvent,
 ) {
   // Verify the request with Arcjet
   // Use `process.env` instead of Env to reduce bundle size in middleware
@@ -48,23 +37,15 @@ export default async function proxy(
     }
   }
 
-  // Clerk keyless mode doesn't work with i18n, this is why we need to run the middleware conditionally
-  if (
-    isAuthPage(request) || isProtectedRoute(request)
-  ) {
-    return clerkMiddleware(async (auth, req) => {
-      if (isProtectedRoute(req)) {
-        const locale = req.nextUrl.pathname.match(/(\/.*)\/dashboard/)?.at(1) ?? '';
+  if (legacyClerkRoutePattern.test(request.nextUrl.pathname)) {
+    const pathSegments = request.nextUrl.pathname.split('/').filter(Boolean);
+    const maybeLocale = pathSegments[0];
+    const localePrefix = routing.locales.includes(maybeLocale as (typeof routing.locales)[number])
+      ? `/${maybeLocale}`
+      : '';
 
-        const signInUrl = new URL(`${locale}/sign-in`, req.url);
-
-        await auth.protect({
-          unauthenticatedUrl: signInUrl.toString(),
-        });
-      }
-
-      return handleI18nRouting(req);
-    })(request, event);
+    const loginUrl = new URL(`${localePrefix}/login`, request.url);
+    return NextResponse.redirect(loginUrl);
   }
 
   return handleI18nRouting(request);

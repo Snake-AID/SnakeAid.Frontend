@@ -37,14 +37,6 @@ export default async function Layout(props: {
             </li>
             <li>
               <Link
-                href="/counter/"
-                className="border-none text-gray-700 hover:text-gray-900"
-              >
-                {t('counter_link')}
-              </Link>
-            </li>
-            <li>
-              <Link
                 href="/portfolio/"
                 className="border-none text-gray-700 hover:text-gray-900"
               >
@@ -65,19 +57,10 @@ export default async function Layout(props: {
           <>
             <li>
               <Link
-                href="/sign-in/"
+                href="/login/"
                 className="border-none text-gray-700 hover:text-gray-900"
               >
                 {t('sign_in_link')}
-              </Link>
-            </li>
-
-            <li>
-              <Link
-                href="/sign-up/"
-                className="border-none text-gray-700 hover:text-gray-900"
-              >
-                {t('sign_up_link')}
               </Link>
             </li>
 

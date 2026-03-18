@@ -32,7 +32,11 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# local env files
+# env files
+.env
+.env.production
+.env.development
+.env.test
 .env*.local
 
 # Sentry Config File

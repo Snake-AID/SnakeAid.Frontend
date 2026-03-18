@@ -11,3 +11,15 @@ export interface ClientErrorResponse {
   timestamp: string;
   validationErrors: { [key: string]: string[] } | null;
 }
+
+export interface PagedData<T> {
+  items: T[];
+  meta: PaginationMeta;
+}
+
+export interface PaginationMeta {
+  total_pages: number;
+  total_items: number;
+  current_page: number;
+  page_size: number;
+}

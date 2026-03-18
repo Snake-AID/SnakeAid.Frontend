@@ -22,7 +22,7 @@ const clearTokens = () => {
 export const authApi = {
   login: async (data: LoginRequest): Promise<AuthResponse> => {
     try {
-      const response = await api.post<AuthResponse>('/auth/login', data);
+      const response = await api.post<AuthResponse>('/auth/login/v2', data);
       // Auto-save tokens after successful login
       saveTokens(response);
       return response;
@@ -42,9 +42,23 @@ export const authApi = {
           throw validationError;
         }
         if (status === 401) {
-          const credError = new Error((err as any).message || 'Unauthorized');
-          Object.assign(credError, { type: 'credentials' as const });
-          throw credError;
+          const backendMessage = String((err as any).message ?? '').toLowerCase();
+
+          if (backendMessage.includes('invalid role')) {
+            const roleError = new Error('Role bạn chọn không thể đăng nhập bằng tài khoản này.');
+            Object.assign(roleError, { type: 'role_mismatch' as const });
+            throw roleError;
+          }
+
+          if (backendMessage.includes('invalid email or password')) {
+            const credError = new Error('Email hoặc mật khẩu không đúng.');
+            Object.assign(credError, { type: 'credentials' as const });
+            throw credError;
+          }
+
+          const fallbackError = new Error('Bạn không có quyền đăng nhập bằng tài khoản này.');
+          Object.assign(fallbackError, { type: 'unauthorized' as const });
+          throw fallbackError;
         }
       }
       throw err;
