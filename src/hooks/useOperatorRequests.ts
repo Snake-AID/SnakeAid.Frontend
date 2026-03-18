@@ -37,22 +37,6 @@ export interface UseOperatorRequestsResult {
   isLoading: boolean;
 }
 
-const toOperatorRequestSummary = (item: CreateSnakeCatchingRequestResponse): OperatorRequestSummary => {
-  const lat = item.lat ?? item.locationCoordinates?.latitude ?? null;
-  const lng = item.lng ?? item.locationCoordinates?.longitude ?? null;
-
-  return {
-    id: item.id,
-    status: item.status,
-    address: item.address ?? null,
-    lat,
-    lng,
-    distanceKm: item.distanceKm ?? null,
-    assignedRescuerId: item.assignedRescuerId ?? null,
-    needsRedispatch: false,
-  };
-};
-
 export function useOperatorRequests(): UseOperatorRequestsResult {
   const [requests, setRequests] = useState<OperatorRequestSummary[]>([]);
   const [focusedRequestId, setFocusedRequestId] = useState<string | null>(null);
@@ -61,18 +45,39 @@ export function useOperatorRequests(): UseOperatorRequestsResult {
 
   const requestsRef = useRef<OperatorRequestSummary[]>([]);
 
-  const upsertRequest = useCallback((payload: CreateSnakeCatchingRequestResponse) => {
+  const upsertRequest = useCallback((payload: Partial<CreateSnakeCatchingRequestResponse> & { id: string }) => {
     const next = requestsRef.current.slice();
     const existingIndex = next.findIndex(r => r.id === payload.id);
-    const nextItem = toOperatorRequestSummary(payload);
 
     if (existingIndex >= 0) {
+      const existing = next[existingIndex]!;
+      const lat = payload.lat ?? payload.locationCoordinates?.latitude ?? existing.lat;
+      const lng = payload.lng ?? payload.locationCoordinates?.longitude ?? existing.lng;
+
       next[existingIndex] = {
-        ...next[existingIndex],
-        ...nextItem,
+        ...existing,
+        id: existing.id,
+        status: payload.status ?? existing.status,
+        address: payload.address !== undefined ? payload.address : existing.address,
+        lat,
+        lng,
+        distanceKm: payload.distanceKm !== undefined ? payload.distanceKm : existing.distanceKm,
+        assignedRescuerId: payload.assignedRescuerId !== undefined ? payload.assignedRescuerId : existing.assignedRescuerId,
       };
     } else {
-      next.unshift(nextItem);
+      const lat = payload.lat ?? payload.locationCoordinates?.latitude ?? null;
+      const lng = payload.lng ?? payload.locationCoordinates?.longitude ?? null;
+
+      next.unshift({
+        id: payload.id,
+        status: payload.status ?? 'Pending',
+        address: payload.address ?? null,
+        lat,
+        lng,
+        distanceKm: payload.distanceKm ?? null,
+        assignedRescuerId: payload.assignedRescuerId ?? null,
+        needsRedispatch: false,
+      });
     }
 
     requestsRef.current = next;
@@ -111,12 +116,12 @@ export function useOperatorRequests(): UseOperatorRequestsResult {
   }, [refreshRequests]);
 
   const handleCreated = useCallback((payload: SnakeCatchingRequestCreatedPayload) => {
-    upsertRequest(payload as CreateSnakeCatchingRequestResponse);
+    upsertRequest(payload as Partial<CreateSnakeCatchingRequestResponse> & { id: string });
     setFocusedRequestId(payload.id);
-  }, [upsertRequest]);
+  }, [upsertRequest, setFocusedRequestId]);
 
   const handleUpdated = useCallback((payload: SnakeCatchingRequestAcceptedPayload | SnakeCatchingRequestAssignedPayload | SnakeCatchingRequestCancelledPayload) => {
-    upsertRequest(payload as CreateSnakeCatchingRequestResponse);
+    upsertRequest(payload as Partial<CreateSnakeCatchingRequestResponse> & { id: string });
   }, [upsertRequest]);
 
   useRescuerHub({

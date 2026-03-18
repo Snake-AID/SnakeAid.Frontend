@@ -4,7 +4,7 @@ import type { OperatorRequestSummary } from '@/hooks/useOperatorRequests';
 import type { LiveRescuer } from '@/hooks/useOperatorRescuers';
 import type { BriefRescuerProfileResponse } from '@/types/operator.type';
 import { MapPin, ShieldCheck, UserCheck } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 interface OperatorInfoPanelsProps {
   incidents: OperatorMapIncident[];
@@ -59,6 +59,14 @@ export default function OperatorInfoPanels({
   const disputeCount = incidents.filter(item => item.needsRedispatch).length;
 
   const [activeTab, setActiveTab] = useState<'incidents' | 'requests'>('incidents');
+
+  useEffect(() => {
+    if (focusedRequestId) {
+      setTimeout(() => setActiveTab('requests'), 0);
+    } else if (focusedIncidentId) {
+      setTimeout(() => setActiveTab('incidents'), 0);
+    }
+  }, [focusedRequestId, focusedIncidentId]);
 
   return (
     <div className="absolute inset-0 z-10 pointer-events-none">
