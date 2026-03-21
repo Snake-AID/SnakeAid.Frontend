@@ -6,6 +6,8 @@ export interface TreatmentFacilityResponse {
   distanceKm: number;
   latitude: number;
   longitude: number;
+  antivenomIds: number[];
+  isActive?: boolean;
 }
 
 export interface UpdateTreatmentFacilityRequest {
@@ -14,6 +16,7 @@ export interface UpdateTreatmentFacilityRequest {
   contactNumber: string;
   latitude: number | null;
   longitude: number | null;
+  antivenomIds: number[];
   isActive: boolean;
 }
 
@@ -23,5 +26,6 @@ export interface CreateTreatmentFacilityRequest {
   contactNumber: string;
   latitude: number;
   longitude: number;
+  antivenomIds: number[];
   isActive: boolean;
 }

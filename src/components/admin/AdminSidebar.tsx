@@ -2,12 +2,9 @@
 
 import {
   Building2,
-  DollarSign,
+  FlaskConical,
   LayoutDashboard,
-  Settings,
   Shield,
-  TrendingUp,
-  UserCheck,
   Users,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -39,39 +36,24 @@ export default function AdminSidebar({
       enabled: true,
     },
     {
-      id: 'approvals',
-      icon: UserCheck,
-      label: 'Phê duyệt tài khoản',
-      href: '/admin/approvals',
-      enabled: true,
-    },
-    {
       id: 'snakes',
       icon: Shield,
-      label: 'Cơ sở dữ liệu loài rắn',
+      label: 'Quản lý loài rắn',
       href: '/admin/snakes',
       enabled: true,
     },
     {
-      id: 'hospitals',
+      id: 'antivenoms',
+      icon: FlaskConical,
+      label: 'Quản lý huyết thanh',
+      href: '/admin/antivenoms',
+      enabled: true,
+    },
+    {
+      id: 'treatment-facilities',
       icon: Building2,
-      label: 'Quản lý bệnh viện',
-      href: '/admin/hospitals',
-      enabled: true,
-    },
-    { id: 'finance', icon: DollarSign, label: 'Tài chính', href: '/admin/finance', enabled: true },
-    {
-      id: 'reports',
-      icon: TrendingUp,
-      label: 'Báo cáo & Phân tích',
-      href: '/admin/reports',
-      enabled: true,
-    },
-    {
-      id: 'settings',
-      icon: Settings,
-      label: 'Cài đặt hệ thống',
-      href: '/admin/settings',
+      label: 'Quản lý cơ sở điều trị',
+      href: '/admin/treatment-facilities',
       enabled: true,
     },
   ];
