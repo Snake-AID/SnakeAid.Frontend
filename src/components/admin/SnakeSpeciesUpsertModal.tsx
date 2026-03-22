@@ -6,7 +6,7 @@ import type {
   SnakeSpeciesUpsertPayload,
 } from '@/types/snake-species.type';
 import { Plus, Trash2, X } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 
 export type SnakeSpeciesFormMode = 'create' | 'update';
 
@@ -14,8 +14,11 @@ interface SnakeSpeciesUpsertModalProps {
   isOpen: boolean;
   mode: SnakeSpeciesFormMode;
   initialValue: SnakeSpeciesUpsertPayload;
+  venomTypeOptions: Array<{ id: number; label: string }>;
+  antivenomOptions: Array<{ id: number; label: string }>;
   isSubmitting: boolean;
   onClose: () => void;
+  onUploadMedia: (file: File) => Promise<string>;
   onSubmit: (value: SnakeSpeciesUpsertPayload) => Promise<void>;
 }
 
@@ -26,20 +29,13 @@ interface TagListInputProps {
   onChange: (next: string[]) => void;
 }
 
-interface NumberTagListInputProps {
-  label: string;
-  values: number[];
-  placeholder?: string;
-  onChange: (next: number[]) => void;
-}
-
 interface LineItemEditorProps {
   label: string;
   values: FirstAidLineItem[];
   onChange: (next: FirstAidLineItem[]) => void;
 }
 
-const venomOptions = ['Neurotoxic', 'Hemotoxic', 'Cytotoxic', 'Myotoxic', 'None'];
+const primaryVenomOptions = ['Neurotoxic', 'Hemotoxic', 'Cytotoxic', 'Myotoxic', 'None'];
 
 const venomOptionLabel: Record<string, string> = {
   Neurotoxic: 'Neurotoxic (Độc thần kinh)',
@@ -110,66 +106,6 @@ function TagListInput({ label, values, placeholder, onChange }: TagListInputProp
   );
 }
 
-function NumberTagListInput({ label, values, placeholder, onChange }: NumberTagListInputProps) {
-  const [draft, setDraft] = useState('');
-
-  const addId = () => {
-    const parsed = Number(draft.trim());
-    if (!Number.isInteger(parsed)) {
-      return;
-    }
-
-    if (values.includes(parsed)) {
-      setDraft('');
-      return;
-    }
-
-    onChange([...values, parsed]);
-    setDraft('');
-  };
-
-  return (
-    <div>
-      <p className="mb-2 text-xs font-semibold text-slate-700">{label}</p>
-      <div className="flex gap-2">
-        <input
-          value={draft}
-          onChange={e => setDraft(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              addId();
-            }
-          }}
-          placeholder={placeholder ?? 'Ví dụ: 1, 2, 3'}
-          className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-600"
-        />
-        <button
-          type="button"
-          onClick={addId}
-          className="inline-flex items-center rounded-lg border border-slate-200 px-3 text-slate-700 hover:bg-slate-100"
-        >
-          <Plus className="size-4" />
-        </button>
-      </div>
-      <div className="mt-2 flex flex-wrap gap-2">
-        {values.map(item => (
-          <span key={item} className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-xs text-slate-700">
-            {item}
-            <button
-              type="button"
-              onClick={() => onChange(values.filter(value => value !== item))}
-              className="text-slate-500 hover:text-slate-900"
-            >
-              <X className="size-3" />
-            </button>
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function LineItemEditor({ label, values, onChange }: LineItemEditorProps) {
   const addItem = () => {
     onChange([...values, { text: '', mediaUrl: null }]);
@@ -189,7 +125,7 @@ function LineItemEditor({ label, values, onChange }: LineItemEditorProps) {
       </div>
       <div className="space-y-2">
         {values.map((item, index) => (
-          <div key={`${item.text}-${item.mediaUrl ?? ''}`} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <div key={`line-item-${index}`} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
             <div className="mb-2 flex items-center justify-between">
               <p className="text-xs font-semibold text-slate-500">
                 Mục
@@ -226,12 +162,35 @@ export default function SnakeSpeciesUpsertModal({
   isOpen,
   mode,
   initialValue,
+  venomTypeOptions,
+  antivenomOptions,
   isSubmitting,
   onClose,
+  onUploadMedia,
   onSubmit,
 }: SnakeSpeciesUpsertModalProps) {
   const [draft, setDraft] = useState<SnakeSpeciesUpsertPayload>(initialValue);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null);
+  const [isUploadingMedia, setIsUploadingMedia] = useState(false);
+  const [mediaUploadError, setMediaUploadError] = useState<string | null>(null);
+  const [isUploadSuccess, setIsUploadSuccess] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (!selectedImageFile) {
+      setPreviewUrl(null);
+      return;
+    }
+
+    const nextPreviewUrl = URL.createObjectURL(selectedImageFile);
+    setPreviewUrl(nextPreviewUrl);
+
+    return () => {
+      URL.revokeObjectURL(nextPreviewUrl);
+    };
+  }, [selectedImageFile]);
 
   if (!isOpen) {
     return null;
@@ -260,6 +219,12 @@ export default function SnakeSpeciesUpsertModal({
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     setSubmitError(null);
+
+    if (!draft.mediaId.trim()) {
+      setSubmitError('Vui lòng upload ảnh để lấy mediaId trước khi lưu loài rắn.');
+      return;
+    }
+
     try {
       await onSubmit(draft);
     } catch (error) {
@@ -268,6 +233,41 @@ export default function SnakeSpeciesUpsertModal({
       } else {
         setSubmitError('Không thể lưu dữ liệu. Vui lòng kiểm tra lại.');
       }
+    }
+  };
+
+  const uploadMedia = async (file: File) => {
+    if (!file) {
+      return;
+    }
+
+    setMediaUploadError(null);
+    setIsUploadSuccess(false);
+    setIsUploadingMedia(true);
+
+    try {
+      const mediaId = await onUploadMedia(file);
+      setDraft(prev => ({ ...prev, mediaId }));
+      setIsUploadSuccess(true);
+    } catch (error) {
+      if (error instanceof Error) {
+        setMediaUploadError(error.message || 'Upload ảnh thất bại. Vui lòng thử lại.');
+      } else {
+        setMediaUploadError('Upload ảnh thất bại. Vui lòng thử lại.');
+      }
+    } finally {
+      setIsUploadingMedia(false);
+    }
+  };
+
+  const handleImageSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] ?? null;
+    setSelectedImageFile(file);
+    setMediaUploadError(null);
+    setIsUploadSuccess(false);
+
+    if (file) {
+      void uploadMedia(file);
     }
   };
 
@@ -322,13 +322,59 @@ export default function SnakeSpeciesUpsertModal({
               />
             </div>
             <div>
-              <p className="mb-2 text-xs font-semibold text-slate-700">URL ảnh</p>
-              <input
-                required
-                value={draft.imageUrl}
-                onChange={e => setDraft(prev => ({ ...prev, imageUrl: e.target.value }))}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-600"
-              />
+              <p className="mb-2 text-xs font-semibold text-slate-700">Ảnh loài rắn (upload để lấy mediaId)</p>
+              <div className="flex flex-col gap-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageSelect}
+                  className="hidden"
+                />
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                  >
+                    Chọn ảnh
+                  </button>
+                  <div className="min-h-10 flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
+                    {selectedImageFile?.name ?? 'Chưa chọn ảnh'}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (selectedImageFile) {
+                        void uploadMedia(selectedImageFile);
+                      }
+                    }}
+                    disabled={isUploadingMedia || !selectedImageFile}
+                    className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-70"
+                  >
+                    {isUploadingMedia ? 'Đang upload...' : 'Upload lại'}
+                  </button>
+                </div>
+                <p className="text-xs text-slate-500">Ảnh sẽ tự động upload ngay sau khi bạn chọn file.</p>
+                {isUploadingMedia && (
+                  <p className="text-xs font-semibold text-blue-600">Đang upload ảnh...</p>
+                )}
+                {!isUploadingMedia && isUploadSuccess && (
+                  <p className="text-xs font-semibold text-emerald-600">Upload ảnh thành công.</p>
+                )}
+                {previewUrl && (
+                  <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                    <p className="border-b border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700">Preview ảnh</p>
+                    <div
+                      className="h-44 w-full bg-contain bg-center bg-no-repeat"
+                      style={{ backgroundImage: `url('${previewUrl}')` }}
+                    />
+                  </div>
+                )}
+                {mediaUploadError && (
+                  <p className="text-xs text-rose-600">{mediaUploadError}</p>
+                )}
+              </div>
             </div>
             <div>
               <p className="mb-2 text-xs font-semibold text-slate-700">Loại độc tố chính</p>
@@ -337,7 +383,7 @@ export default function SnakeSpeciesUpsertModal({
                 onChange={e => setDraft(prev => ({ ...prev, primaryVenomType: e.target.value }))}
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-600"
               >
-                {venomOptions.map(option => (
+                {primaryVenomOptions.map(option => (
                   <option key={option} value={option}>{venomOptionLabel[option] ?? option}</option>
                 ))}
               </select>
@@ -433,7 +479,7 @@ export default function SnakeSpeciesUpsertModal({
             </div>
             <div className="space-y-3">
               {draft.symptomsByTime.map((symptom, index) => (
-                <div key={`${symptom.timeRange}-${symptom.signs.join('|')}-${String(symptom.isCritical)}`} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <div key={`symptom-${index}`} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
                   <div className="mb-2 flex items-center justify-between">
                     <p className="text-xs font-semibold text-slate-500">
                       Mốc
@@ -582,21 +628,73 @@ export default function SnakeSpeciesUpsertModal({
           </section>
 
           <section className="grid grid-cols-1 gap-4 rounded-xl border border-slate-200 bg-slate-50 p-4 lg:grid-cols-2">
-            <TagListInput
-              label="Tên gọi khác"
-              values={draft.alternativeNames}
-              onChange={next => setDraft(prev => ({ ...prev, alternativeNames: next }))}
-            />
-            <NumberTagListInput
-              label="Danh sách ID độc tố"
-              values={draft.venomIds}
-              onChange={next => setDraft(prev => ({ ...prev, venomIds: next }))}
-            />
-            <NumberTagListInput
-              label="Danh sách ID huyết thanh kháng nọc"
-              values={draft.antivenomIds}
-              onChange={next => setDraft(prev => ({ ...prev, antivenomIds: next }))}
-            />
+            <div>
+              <TagListInput
+                label="Tên gọi khác"
+                values={draft.alternativeNames}
+                onChange={next => setDraft(prev => ({ ...prev, alternativeNames: next }))}
+              />
+              <div className="mt-4">
+                <p className="mb-2 text-xs font-semibold text-slate-700">Loại độc liên kết</p>
+                <div className="space-y-2 rounded-xl border border-slate-300 bg-white p-3">
+                  {venomTypeOptions.length === 0
+                    ? (
+                        <p className="text-sm text-slate-500">Không có dữ liệu loại độc.</p>
+                      )
+                    : venomTypeOptions.map(option => (
+                        <label
+                          key={option.id}
+                          className="flex cursor-pointer items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 hover:bg-slate-100"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={draft.venomIds.includes(option.id)}
+                            onChange={(e) => {
+                              setDraft((prev) => {
+                                const next = e.target.checked
+                                  ? [...prev.venomIds, option.id]
+                                  : prev.venomIds.filter(id => id !== option.id);
+                                return { ...prev, venomIds: next };
+                              });
+                            }}
+                            className="mt-1"
+                          />
+                          <span className="text-sm text-slate-700">{option.label}</span>
+                        </label>
+                      ))}
+                </div>
+              </div>
+            </div>
+            <div>
+              <p className="mb-2 text-xs font-semibold text-slate-700">Huyết thanh kháng nọc liên kết</p>
+              <div className="space-y-2 rounded-xl border border-slate-300 bg-white p-3">
+                {antivenomOptions.length === 0
+                  ? (
+                      <p className="text-sm text-slate-500">Không có dữ liệu huyết thanh.</p>
+                    )
+                  : antivenomOptions.map(option => (
+                      <label
+                        key={option.id}
+                        className="flex cursor-pointer items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 hover:bg-slate-100"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={draft.antivenomIds.includes(option.id)}
+                          onChange={(e) => {
+                            setDraft((prev) => {
+                              const next = e.target.checked
+                                ? [...prev.antivenomIds, option.id]
+                                : prev.antivenomIds.filter(id => id !== option.id);
+                              return { ...prev, antivenomIds: next };
+                            });
+                          }}
+                          className="mt-1"
+                        />
+                        <span className="text-sm text-slate-700">{option.label}</span>
+                      </label>
+                    ))}
+              </div>
+            </div>
           </section>
 
           <div className="flex items-center justify-end gap-3 border-t border-slate-200 pt-4">

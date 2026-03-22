@@ -2,7 +2,7 @@
 
 import type { Antivenom } from '@/types/antivenom.type';
 import type { CreateTreatmentFacilityRequest } from '@/types/treatment-facility.type';
-import { X } from 'lucide-react';
+import { Phone, X } from 'lucide-react';
 import { useState } from 'react';
 
 interface TreatmentFacilityUpsertModalProps {
@@ -15,6 +15,44 @@ interface TreatmentFacilityUpsertModalProps {
   onSubmit: (payload: CreateTreatmentFacilityRequest) => Promise<void>;
 }
 
+const validatePhoneNumber = (phone: string): { valid: boolean; error?: string } => {
+  const trimmed = phone.trim();
+
+  if (!trimmed) {
+    return { valid: false, error: 'Số điện thoại không được để trống.' };
+  }
+
+  // Remove spaces and hyphens
+  const cleaned = trimmed.replace(/[\s\-]/g, '');
+
+  // Check if only contains digits (and optional + at start)
+  if (!/^\+?\d+$/.test(cleaned)) {
+    return { valid: false, error: 'Số điện thoại chỉ được chứa chữ số và các ký tự +, -.' };
+  }
+
+  const digits = cleaned.replace(/\D/g, '');
+
+  // Support hotline numbers such as 1900 8989 / 1800 1234 (8 digits)
+  if ((digits.startsWith('1900') || digits.startsWith('1800')) && digits.length === 8) {
+    return { valid: true };
+  }
+
+  // Mobile/landline/international numbers: 10-15 digits
+  if (digits.length < 10) {
+    return {
+      valid: false,
+      error: `Số điện thoại phải có ít nhất 10 chữ số hoặc là số tổng đài 1800/1900 (hiện có ${digits.length} chữ số).`,
+    };
+  }
+
+  // Check maximum length (at most 15 digits - international standard)
+  if (digits.length > 15) {
+    return { valid: false, error: `Số điện thoại không được vượt quá 15 chữ số (hiện có ${digits.length} chữ số).` };
+  }
+
+  return { valid: true };
+};
+
 export default function TreatmentFacilityUpsertModal({
   isOpen,
   mode,
@@ -26,6 +64,7 @@ export default function TreatmentFacilityUpsertModal({
 }: TreatmentFacilityUpsertModalProps) {
   const [draft, setDraft] = useState<CreateTreatmentFacilityRequest>(initialValue);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [phoneError, setPhoneError] = useState<string | null>(null);
 
   if (!isOpen) {
     return null;
@@ -43,9 +82,28 @@ export default function TreatmentFacilityUpsertModal({
     });
   };
 
+  const handlePhoneChange = (value: string) => {
+    setDraft(prev => ({ ...prev, contactNumber: value }));
+
+    // Validate on change
+    const validation = validatePhoneNumber(value);
+    if (!validation.valid && value.trim()) {
+      setPhoneError(validation.error ?? 'Định dạng số điện thoại không hợp lệ.');
+    } else {
+      setPhoneError(null);
+    }
+  };
+
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     setSubmitError(null);
+
+    // Validate phone number before submit
+    const phoneValidation = validatePhoneNumber(draft.contactNumber);
+    if (!phoneValidation.valid) {
+      setPhoneError(phoneValidation.error ?? 'Định dạng số điện thoại không hợp lệ.');
+      return;
+    }
 
     try {
       await onSubmit({
@@ -111,13 +169,22 @@ export default function TreatmentFacilityUpsertModal({
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
-              <p className="mb-2 text-xs font-semibold text-slate-700">Số liên hệ</p>
+              <p className="mb-2 flex items-center gap-1 text-xs font-semibold text-slate-700">
+                <Phone className="size-3.5" />
+                Số liên hệ
+              </p>
               <input
                 required
                 value={draft.contactNumber}
-                onChange={e => setDraft(prev => ({ ...prev, contactNumber: e.target.value }))}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-600"
+                onChange={e => handlePhoneChange(e.target.value)}
+                placeholder="Ví dụ: 0912345678 hoặc +84912345678"
+                className={`w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-teal-600 ${
+                  phoneError ? 'border-rose-300 focus:border-rose-600' : 'border-slate-300'
+                }`}
               />
+              {phoneError && (
+                <p className="mt-1 text-xs text-rose-600">{phoneError}</p>
+              )}
             </div>
             <div className="flex items-end">
               <label className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">

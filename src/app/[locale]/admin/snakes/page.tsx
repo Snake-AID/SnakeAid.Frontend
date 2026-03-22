@@ -19,8 +19,11 @@ import {
 } from 'lucide-react';
 import Image from 'next/image';
 import { useEffect, useMemo, useState } from 'react';
+import { antivenomApi } from '@/apis/antivenom.api';
 import { ApiClientError } from '@/apis/client';
+import { libraryMediaApi } from '@/apis/library-media.api';
 import { snakeSpeciesApi } from '@/apis/snake-species.api';
+import { venomTypeApi } from '@/apis/venom-type.api';
 import SnakeSpeciesUpsertModal from '@/components/admin/SnakeSpeciesUpsertModal';
 
 const emptyFirstAid: FirstAidGuidelineOverride = {
@@ -37,7 +40,7 @@ const createEmptyPayload = (): SnakeSpeciesUpsertPayload => ({
   scientificName: '',
   slug: '',
   commonName: '',
-  imageUrl: '',
+  mediaId: '',
   description: '',
   identificationSummary: '',
   primaryVenomType: 'None',
@@ -115,7 +118,7 @@ const sanitizePayload = (payload: SnakeSpeciesUpsertPayload): SnakeSpeciesUpsert
     scientificName: sanitizeText(payload.scientificName),
     slug: sanitizeText(payload.slug),
     commonName: sanitizeText(payload.commonName),
-    imageUrl: sanitizeText(payload.imageUrl),
+    mediaId: sanitizeText(payload.mediaId),
     description: sanitizeText(payload.description),
     identificationSummary: sanitizeText(payload.identificationSummary),
     primaryVenomType: payload.primaryVenomType ?? 'None',
@@ -152,7 +155,7 @@ const mapDetailToPayload = (detail: SnakeSpeciesDetail): SnakeSpeciesUpsertPaylo
   scientificName: detail.scientificName ?? '',
   slug: detail.slug ?? '',
   commonName: detail.commonName ?? '',
-  imageUrl: detail.imageUrl ?? '',
+  mediaId: detail.mediaId ?? '',
   description: detail.description ?? '',
   identificationSummary: detail.identificationSummary ?? '',
   primaryVenomType: detail.primaryVenomType ?? 'None',
@@ -189,6 +192,22 @@ const venomBadgeClass = (isVenomous: boolean) => (
     : 'bg-emerald-100 text-emerald-700 border-emerald-200'
 );
 
+const venomTypeLabelMap: Record<string, string> = {
+  Neurotoxic: 'Độc thần kinh',
+  Hemotoxic: 'Độc máu',
+  Cytotoxic: 'Độc tế bào',
+  Myotoxic: 'Độc cơ',
+  None: 'Không độc',
+};
+
+const getVenomTypeLabel = (value: string | null | undefined) => {
+  if (!value) {
+    return 'Không xác định';
+  }
+
+  return venomTypeLabelMap[value] ?? value;
+};
+
 export default function SnakesPage() {
   const [species, setSpecies] = useState<SnakeSpeciesSummary[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
@@ -205,6 +224,8 @@ export default function SnakesPage() {
   const [listError, setListError] = useState<string | null>(null);
   const [detailError, setDetailError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [venomTypeOptions, setVenomTypeOptions] = useState<Array<{ id: number; label: string }>>([]);
+  const [antivenomOptions, setAntivenomOptions] = useState<Array<{ id: number; label: string }>>([]);
 
   const selectedSummary = useMemo(
     () => species.find(item => item.id === selectedId) ?? null,
@@ -254,6 +275,32 @@ export default function SnakesPage() {
       setDetailError('Không thể tải chi tiết loài rắn. Vui lòng thử lại.');
     } finally {
       setIsDetailLoading(false);
+    }
+  };
+
+  const loadVenomTypeOptions = async () => {
+    try {
+      const data = await venomTypeApi.getAll();
+      const options = data.map(item => ({
+        id: item.id,
+        label: item.scientificName ? `${item.name} (${item.scientificName})` : item.name,
+      }));
+      setVenomTypeOptions(options);
+    } catch (err) {
+      console.error('Failed to load venom type options', err);
+    }
+  };
+
+  const loadAntivenomOptions = async () => {
+    try {
+      const data = await antivenomApi.getAll();
+      const options = data.map(item => ({
+        id: item.id,
+        label: item.manufacturer ? `${item.name} (${item.manufacturer})` : item.name,
+      }));
+      setAntivenomOptions(options);
+    } catch (err) {
+      console.error('Failed to load antivenom options', err);
     }
   };
 
@@ -316,10 +363,14 @@ export default function SnakesPage() {
 
       const validationMessage = getValidationMessage(err, fallbackMessage);
       setActionError(validationMessage);
-      throw err;
+      throw new Error(validationMessage);
     } finally {
       setIsSubmittingForm(false);
     }
+  };
+
+  const uploadSnakeMedia = async (file: File) => {
+    return libraryMediaApi.uploadSnakeImage(file);
   };
 
   const handleDelete = async () => {
@@ -353,6 +404,8 @@ export default function SnakesPage() {
 
   useEffect(() => {
     void loadList();
+    void loadVenomTypeOptions();
+    void loadAntivenomOptions();
   }, []);
 
   useEffect(() => {
@@ -546,9 +599,7 @@ export default function SnakesPage() {
                           {selectedDetail.riskLevel}
                         </span>
                         <span className="rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-700">
-                          Venom
-                          {' '}
-                          {selectedDetail.primaryVenomType ?? 'N/A'}
+                          {getVenomTypeLabel(selectedDetail.primaryVenomType)}
                         </span>
                       </div>
 
@@ -698,8 +749,11 @@ export default function SnakesPage() {
         isOpen={isModalOpen}
         mode={formMode}
         initialValue={formInitialValue}
+        venomTypeOptions={venomTypeOptions}
+        antivenomOptions={antivenomOptions}
         isSubmitting={isSubmittingForm}
         onClose={() => setIsModalOpen(false)}
+        onUploadMedia={uploadSnakeMedia}
         onSubmit={submitUpsert}
       />
     </main>

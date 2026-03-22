@@ -5,6 +5,7 @@ import {
   FlaskConical,
   LayoutDashboard,
   Shield,
+  Skull,
   Users,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -40,6 +41,13 @@ export default function AdminSidebar({
       icon: Shield,
       label: 'Quản lý loài rắn',
       href: '/admin/snakes',
+      enabled: true,
+    },
+    {
+      id: 'venom-types',
+      icon: Skull,
+      label: 'Quản lý loại độc rắn',
+      href: '/admin/venom-types',
       enabled: true,
     },
     {

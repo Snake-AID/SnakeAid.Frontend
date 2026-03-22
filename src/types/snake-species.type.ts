@@ -40,6 +40,7 @@ export interface SnakeSpeciesSummary {
   slug: string;
   commonName: string;
   imageUrl: string;
+  mediaId?: string | null;
   description: string;
   identificationSummary: string;
   primaryVenomType: PrimaryVenomType | null;
@@ -63,7 +64,7 @@ export interface SnakeSpeciesUpsertPayload {
   scientificName: string;
   slug: string;
   commonName: string;
-  imageUrl: string;
+  mediaId: string;
   description: string;
   identificationSummary: string;
   primaryVenomType: PrimaryVenomType | null;
