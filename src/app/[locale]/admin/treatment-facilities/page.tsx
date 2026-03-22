@@ -29,7 +29,7 @@ const mapToPayload = (item: TreatmentFacilityResponse): CreateTreatmentFacilityR
   latitude: item.latitude ?? 0,
   longitude: item.longitude ?? 0,
   antivenomIds: item.antivenomIds ?? [],
-  isActive: item.isActive ?? true,
+  isActive: item.isActive,
 });
 
 const getValidationMessage = (err: unknown, fallback: string) => {
@@ -94,12 +94,14 @@ export default function TreatmentFacilitiesPage() {
 
     try {
       const data = await treatmentFacilityApi.getAllTreatmentFacilities();
+      const visibleItems = data.filter(item => item.isActive === true);
+
       const ordered = pinToTop && preferredId != null
         ? [
-            ...data.filter(item => item.id === preferredId),
-            ...data.filter(item => item.id !== preferredId),
+            ...visibleItems.filter(item => item.id === preferredId),
+            ...visibleItems.filter(item => item.id !== preferredId),
           ]
-        : data;
+        : visibleItems;
 
       setItems(ordered);
       setSelectedId((prev) => {
@@ -172,7 +174,7 @@ export default function TreatmentFacilitiesPage() {
       latitude: Number(payload.latitude),
       longitude: Number(payload.longitude),
       antivenomIds: payload.antivenomIds,
-      isActive: payload.isActive,
+      isActive: true,
     };
 
     try {

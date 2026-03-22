@@ -113,7 +113,7 @@ export default function TreatmentFacilityUpsertModal({
         latitude: Number(draft.latitude),
         longitude: Number(draft.longitude),
         antivenomIds: draft.antivenomIds,
-        isActive: draft.isActive,
+        isActive: true,
       });
     } catch (error) {
       if (error instanceof Error) {
@@ -185,16 +185,6 @@ export default function TreatmentFacilityUpsertModal({
               {phoneError && (
                 <p className="mt-1 text-xs text-rose-600">{phoneError}</p>
               )}
-            </div>
-            <div className="flex items-end">
-              <label className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
-                <input
-                  type="checkbox"
-                  checked={draft.isActive}
-                  onChange={e => setDraft(prev => ({ ...prev, isActive: e.target.checked }))}
-                />
-                Đang hoạt động
-              </label>
             </div>
             <div>
               <p className="mb-2 text-xs font-semibold text-slate-700">Vĩ độ (latitude)</p>

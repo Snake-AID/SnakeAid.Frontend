@@ -7,7 +7,7 @@ export interface TreatmentFacilityResponse {
   latitude: number;
   longitude: number;
   antivenomIds: number[];
-  isActive?: boolean;
+  isActive: boolean;
 }
 
 export interface UpdateTreatmentFacilityRequest {
