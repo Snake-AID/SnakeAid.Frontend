@@ -53,6 +53,8 @@ export interface ShiftAssignmentResponse {
   rescuerId: string;
   shiftId: string;
   date: Date;
+  shiftStartLocal?: string | null;
+  shiftEndLocal?: string | null;
   status: ShiftAssignmentStatus;
   checkInAt: string | null;
   checkOutAt: string | null;

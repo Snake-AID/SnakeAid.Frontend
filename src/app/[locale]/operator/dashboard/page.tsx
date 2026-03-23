@@ -59,8 +59,6 @@ export default function OperatorDashboardPage() {
       }));
   }, [requests]);
 
-  const [pendingConfirmIncidentId, setPendingConfirmIncidentId] = useState<string | null>(null);
-  const [pendingConfirmRequestId, setPendingConfirmRequestId] = useState<string | null>(null);
   const [detailIncident, setDetailIncident] = useState<DetailSnakebiteIncidentResponse | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -71,7 +69,7 @@ export default function OperatorDashboardPage() {
   const [detailRequestOpen, setDetailRequestOpen] = useState(false);
   const [detailRequestLoading, setDetailRequestLoading] = useState(false);
   const [detailRequestError, setDetailRequestError] = useState<string | null>(null);
-  const [urgentIncidentIds, setUrgentIncidentIds] = useState<Set<string>>(new Set());
+  const [urgentIncidentIds, setUrgentIncidentIds] = useState<Set<string>>(() => new Set());
   const [shiftPanelOpen, setShiftPanelOpen] = useState(false);
 
   const incidentRowRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -113,21 +111,47 @@ export default function OperatorDashboardPage() {
   };
 
   const handleVerify = async (incidentId: string) => {
-    await incidentApi.confirmIncident(incidentId);
+    try {
+      await confirmIncident(incidentId);
+      showToast('Case đã được xác nhận.', { type: 'success' });
+      refreshIncidents();
+    } catch (err) {
+      console.error('Failed to confirm incident', err);
+      showToast('Không thể xác nhận case. Vui lòng thử lại.', { type: 'error' });
+    }
   };
 
   const handleFalseAlarm = async (incidentId: string) => {
-    await incidentApi.markFalseAlarm(incidentId, {
-      reason: 'Operator marked as false alarm',
-    });
+    try {
+      await incidentApi.markFalseAlarm(incidentId, {
+        reason: 'Operator marked as false alarm',
+      });
+      showToast('Case đã được đánh dấu là báo động giả.', { type: 'success' });
+      refreshIncidents();
+    } catch (err) {
+      console.error('Failed to mark false alarm', err);
+      showToast('Không thể đánh dấu case là báo động giả. Vui lòng thử lại.', { type: 'error' });
+    }
   };
 
   const handleDispatch = async (incidentId: string, rescuerId: string) => {
-    await incidentApi.dispatchIncident(incidentId, { rescuerId });
+    try {
+      await incidentApi.dispatchIncident(incidentId, { rescuerId });
+      showToast('Case đã được điều phối.', { type: 'success' });
+    } catch (err) {
+      console.error('Failed to dispatch incident', err);
+      showToast('Không thể điều phối case. Vui lòng thử lại.', { type: 'error' });
+    }
   };
 
   const handleCancelDispatch = async (incidentId: string) => {
-    await incidentApi.cancelDispatch(incidentId);
+    try {
+      await incidentApi.cancelDispatch(incidentId);
+      showToast('Đã hủy điều phối case.', { type: 'success' });
+    } catch (err) {
+      console.error('Failed to cancel dispatch', err);
+      showToast('Không thể hủy điều phối case. Vui lòng thử lại.', { type: 'error' });
+    }
   };
 
   const handleConfirmRequest = async (requestId: string) => {
@@ -170,28 +194,12 @@ export default function OperatorDashboardPage() {
     return liveIncidents.find(i => i.id === focusedIncidentId) ?? null;
   }, [focusedIncidentId, liveIncidents]);
 
-  useEffect(() => {
-    if (!lastCreatedIncidentId) {
-      return;
-    }
-
-    setPendingConfirmIncidentId(lastCreatedIncidentId);
-  }, [lastCreatedIncidentId]);
-
   const focusedRequest = useMemo(() => {
     if (!focusedRequestId) {
       return null;
     }
     return requests.find(r => r.id === focusedRequestId) ?? null;
   }, [focusedRequestId, requests]);
-
-  useEffect(() => {
-    if (!lastCreatedRequestId) {
-      return;
-    }
-
-    setPendingConfirmRequestId(lastCreatedRequestId);
-  }, [lastCreatedRequestId]);
 
   useEffect(() => {
     if (!focusedRequest) {
@@ -263,34 +271,32 @@ export default function OperatorDashboardPage() {
 
   return (
     <main className="relative h-[calc(100vh-81px)] overflow-hidden bg-slate-50">
-      {pendingConfirmIncidentId && (
+      {lastCreatedIncidentId && (
         <PendingIncidentAlert
-          incidentId={pendingConfirmIncidentId}
+          incidentId={lastCreatedIncidentId}
           focusedIncident={focusedIncident}
           onViewDetail={openIncidentDetail}
           onHide={() => {
-            setPendingConfirmIncidentId(null);
             clearLastCreatedIncidentId();
           }}
           onConfirm={async (id) => {
             await confirmIncident(id);
-            setPendingConfirmIncidentId(null);
+            clearLastCreatedIncidentId();
           }}
         />
       )}
 
-      {pendingConfirmRequestId && (
+      {lastCreatedRequestId && (
         <PendingRequestAlert
-          requestId={pendingConfirmRequestId}
+          requestId={lastCreatedRequestId}
           focusedRequest={focusedRequest}
           onViewDetail={openRequestDetail}
           onHide={() => {
-            setPendingConfirmRequestId(null);
             clearLastCreatedRequestId();
           }}
           onConfirm={async (id) => {
             await handleConfirmRequest(id);
-            setPendingConfirmRequestId(null);
+            clearLastCreatedRequestId();
           }}
         />
       )}

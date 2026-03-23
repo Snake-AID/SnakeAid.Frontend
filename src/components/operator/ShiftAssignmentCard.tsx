@@ -39,6 +39,16 @@ const getShiftStartEnd = (shiftDate: Date, shift: { startTime: string; endTime: 
   return { start, end };
 };
 
+const getShiftDate = (assignment: ShiftAssignmentWithStatus) => {
+  if (assignment.shiftStartLocal) {
+    const parsed = new Date(assignment.shiftStartLocal);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed;
+    }
+  }
+  return new Date(assignment.date);
+};
+
 const getShiftBadgeClasses = (shiftDate: Date, shift: { startTime: string; endTime: string }) => {
   const now = new Date();
   const { start, end } = getShiftStartEnd(shiftDate, shift);
@@ -74,7 +84,7 @@ export default function ShiftAssignmentCard({ assignment, showStatus }: Props) {
           <p className="font-semibold text-slate-800">{assignment.fullName}</p>
           <p className="text-xs text-slate-500">
             <span
-              className={`rounded-full px-2 py-0.5 font-semibold ${getShiftBadgeClasses(assignment.date, {
+              className={`rounded-full px-2 py-0.5 font-semibold ${getShiftBadgeClasses(getShiftDate(assignment), {
                 startTime: assignment.shift?.startTime ?? '',
                 endTime: assignment.shift?.endTime ?? '',
               })}`}
@@ -83,11 +93,11 @@ export default function ShiftAssignmentCard({ assignment, showStatus }: Props) {
             </span>
             {' '}
             <span className="ml-2">
-              {assignment.shift?.startTime ?? new Date(assignment.date).toLocaleTimeString()}
+              {assignment.shift?.startTime ?? (assignment.shiftStartLocal ? new Date(assignment.shiftStartLocal).toLocaleTimeString() : new Date(assignment.date).toLocaleTimeString())}
               {' '}
               -
               {' '}
-              {assignment.shift?.endTime ?? new Date(assignment.date).toLocaleTimeString()}
+              {assignment.shift?.endTime ?? (assignment.shiftEndLocal ? new Date(assignment.shiftEndLocal).toLocaleTimeString() : new Date(assignment.date).toLocaleTimeString())}
             </span>
           </p>
         </div>

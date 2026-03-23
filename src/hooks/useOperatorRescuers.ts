@@ -59,8 +59,19 @@ export function useOperatorRescuers() {
     return { start, end };
   };
 
-  const isShiftPast = (shiftDate: Date, shift: { startTime: string; endTime: string }) => {
+  const getShiftDate = (shiftAssignment: ShiftAssignmentResponse): Date => {
+    if (shiftAssignment.shiftStartLocal) {
+      const parsed = new Date(shiftAssignment.shiftStartLocal);
+      if (!Number.isNaN(parsed.getTime())) {
+        return parsed;
+      }
+    }
+    return new Date(shiftAssignment.date);
+  };
+
+  const isShiftPast = (shiftAssignment: ShiftAssignmentResponse, shift: { startTime: string; endTime: string }) => {
     const now = new Date();
+    const shiftDate = getShiftDate(shiftAssignment);
     const { end } = getShiftStartEnd(shiftDate, shift);
     if (!end) {
       return false;
@@ -115,7 +126,7 @@ export function useOperatorRescuers() {
           fullName: snapshot?.fullName ?? profile?.account?.fullName ?? sa.rescuerId,
           isOnline: status?.isOnline ?? false,
           isAvailable: status?.isAvailable ?? false,
-          isPast: isShiftPast(sa.date, sa.shift),
+          isPast: isShiftPast(sa, sa.shift),
         };
       // eslint-disable-next-line react-hooks/exhaustive-deps
       }), [shiftAssignments, shiftStatusByRescuer, onDutySnapshot, rescuerRegistry]);
