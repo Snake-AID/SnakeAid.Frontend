@@ -86,7 +86,7 @@ export function useOperatorRequests(): UseOperatorRequestsResult {
       const mapped = response.items.map((item: OperatorSnakeCatchingRequestSummaryResponse) => ({
         id: item.id,
         status: item.status,
-        address: '',
+        address: item.address ?? '',
         lat: item.locationCoordinates.latitude,
         lng: item.locationCoordinates.longitude,
         distanceKm: null,

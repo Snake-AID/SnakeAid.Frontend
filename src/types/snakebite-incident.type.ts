@@ -150,6 +150,7 @@ export interface CreateIncidentResponse {
   userId: string;
   locationCoordinates: GeoPointResponse;
   status: SnakebiteIncidentStatus;
+  address: string | null;
   incidentOccurredAt: string | null;
   dispatchRequestId: string | null;
   dispatchedRescuerId: string | null;

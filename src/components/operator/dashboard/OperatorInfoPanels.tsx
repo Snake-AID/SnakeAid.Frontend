@@ -34,6 +34,18 @@ const stageLabel: Record<OperatorMapIncident['stage'], string> = {
   FalseAlarm: 'Báo động giả',
 };
 
+const getShortEntityId = (type: 'INC' | 'CAR', id: string) => {
+  const suffix = id.slice(-6).toUpperCase();
+  return `${type}-${suffix}`;
+};
+
+const getDisplayLocation = (_id: string, address?: string | null) => {
+  if (address && address.trim().length > 0) {
+    return address;
+  }
+  return 'Không có địa chỉ';
+};
+
 const getOnlineBadgeClasses = (isOnline: boolean) =>
   isOnline ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600';
 
@@ -61,11 +73,19 @@ export default function OperatorInfoPanels({
   const [activeTab, setActiveTab] = useState<'incidents' | 'requests'>('incidents');
 
   useEffect(() => {
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
     if (focusedRequestId) {
-      setTimeout(() => setActiveTab('requests'), 0);
+      timeoutId = setTimeout(() => setActiveTab('requests'), 0);
     } else if (focusedIncidentId) {
-      setTimeout(() => setActiveTab('incidents'), 0);
+      timeoutId = setTimeout(() => setActiveTab('incidents'), 0);
     }
+
+    return () => {
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
+    };
   }, [focusedRequestId, focusedIncidentId]);
 
   return (
@@ -152,7 +172,7 @@ export default function OperatorInfoPanels({
               }`}
             >
               Requests
-              <span className="ml-2 inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-white/20 px-2 text-xs font-semibold">
+              <span className="ml-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-white/20 px-2 text-xs font-semibold">
                 {requests.length}
               </span>
             </button>
@@ -201,8 +221,8 @@ export default function OperatorInfoPanels({
                                 >
                                   <div className="flex items-start justify-between gap-2">
                                     <div>
-                                      <p className="text-sm font-semibold text-slate-900">{req.id}</p>
-                                      <p className="mt-1 text-xs text-slate-500">{req.address ?? 'Không có địa chỉ'}</p>
+                                      <p className="text-sm font-semibold text-slate-900">{getShortEntityId('CAR', req.id)}</p>
+                                      <p className="mt-1 text-xs text-slate-500">{getDisplayLocation(req.id, req.address)}</p>
                                     </div>
                                     <span className="text-xs text-slate-500">{req.status}</span>
                                   </div>
@@ -234,8 +254,8 @@ export default function OperatorInfoPanels({
                             >
                               <div className="flex items-start justify-between gap-2">
                                 <div>
-                                  <p className="text-sm font-semibold text-slate-900">{inc.code}</p>
-                                  <p className="mt-1 text-xs text-slate-500">{inc.address || 'Không có địa chỉ'}</p>
+                                  <p className="text-sm font-semibold text-slate-900">{getShortEntityId('INC', inc.id)}</p>
+                                  <p className="mt-1 text-xs text-slate-500">{getDisplayLocation(inc.id, inc.address)}</p>
                                 </div>
                                 <div className="flex flex-col items-end gap-1">
                                   <span className="text-xs text-slate-500">{stageLabel[inc.stage]}</span>

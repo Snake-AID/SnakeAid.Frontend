@@ -35,7 +35,7 @@ const toOperatorMapIncident = (incident: OperatorIncidentSummaryResponse): Opera
   stage: incident.status,
   lat: incident.locationCoordinates.latitude,
   lng: incident.locationCoordinates.longitude,
-  address: '',
+  address: incident.address ?? '',
   needsRedispatch: incident.needsRedispatch,
 });
 

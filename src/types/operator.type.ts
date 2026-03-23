@@ -87,6 +87,7 @@ export interface OperatorIncidentSummaryResponse {
   activeMissionStatus: RescueMissionStatus | null;
   needsRedispatch: boolean;
   handlingOperatorId: string | null;
+  address?: string | null;
 }
 
 export interface OperatorSnakeCatchingRequestSummaryResponse {
@@ -97,4 +98,5 @@ export interface OperatorSnakeCatchingRequestSummaryResponse {
   assignedRescuerId: string | null;
   handlingOperatorId: string | null;
   priority: CatchingRequestPriority | null;
+  address?: string | null;
 }
