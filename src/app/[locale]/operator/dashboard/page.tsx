@@ -226,7 +226,7 @@ export default function OperatorDashboardPage() {
 
     // Optionally refresh list so UI state (needsRedispatch etc) stays fresh
     refreshIncidents();
-  }, [refreshIncidents, setFocusedRequestId]);
+  }, [refreshIncidents, setFocusedRequestId, setFocusedIncidentId, showToast]);
 
   useRescuerHub({
     onRescuerAborted: handleRescuerAborted,
