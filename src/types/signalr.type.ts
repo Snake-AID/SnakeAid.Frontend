@@ -36,6 +36,7 @@ export interface NewIncidentCreatedPayload {
   memberId: string;
   latitude: number;
   longitude: number;
+  address?: string | null;
   isNewIncident: boolean;
   updatedAt: string; // ISO date string
 }
