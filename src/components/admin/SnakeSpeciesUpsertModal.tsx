@@ -177,6 +177,7 @@ export default function SnakeSpeciesUpsertModal({
   const [isUploadSuccess, setIsUploadSuccess] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const isPrimaryVenomTypeNone = (draft.primaryVenomType ?? 'None') === 'None';
 
   useEffect(() => {
     if (!selectedImageFile) {
@@ -380,7 +381,15 @@ export default function SnakeSpeciesUpsertModal({
               <p className="mb-2 text-xs font-semibold text-slate-700">Loại độc tố chính</p>
               <select
                 value={draft.primaryVenomType ?? 'None'}
-                onChange={e => setDraft(prev => ({ ...prev, primaryVenomType: e.target.value }))}
+                onChange={(e) => {
+                  const nextPrimaryVenomType = e.target.value;
+                  setDraft(prev => ({
+                    ...prev,
+                    primaryVenomType: nextPrimaryVenomType,
+                    venomIds: nextPrimaryVenomType === 'None' ? [] : prev.venomIds,
+                    antivenomIds: nextPrimaryVenomType === 'None' ? [] : prev.antivenomIds,
+                  }));
+                }}
                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-600"
               >
                 {primaryVenomOptions.map(option => (
@@ -634,27 +643,61 @@ export default function SnakeSpeciesUpsertModal({
                 values={draft.alternativeNames}
                 onChange={next => setDraft(prev => ({ ...prev, alternativeNames: next }))}
               />
-              <div className="mt-4">
-                <p className="mb-2 text-xs font-semibold text-slate-700">Loại độc liên kết</p>
+              {!isPrimaryVenomTypeNone && (
+                <div className="mt-4">
+                  <p className="mb-2 text-xs font-semibold text-slate-700">Loại độc liên kết</p>
+                  <div className="space-y-2 rounded-xl border border-slate-300 bg-white p-3">
+                    {venomTypeOptions.length === 0
+                      ? (
+                          <p className="text-sm text-slate-500">Không có dữ liệu loại độc.</p>
+                        )
+                      : venomTypeOptions.map(option => (
+                          <label
+                            key={option.id}
+                            className="flex cursor-pointer items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 hover:bg-slate-100"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={draft.venomIds.includes(option.id)}
+                              onChange={(e) => {
+                                setDraft((prev) => {
+                                  const next = e.target.checked
+                                    ? [...prev.venomIds, option.id]
+                                    : prev.venomIds.filter(id => id !== option.id);
+                                  return { ...prev, venomIds: next };
+                                });
+                              }}
+                              className="mt-1"
+                            />
+                            <span className="text-sm text-slate-700">{option.label}</span>
+                          </label>
+                        ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            {!isPrimaryVenomTypeNone && (
+              <div>
+                <p className="mb-2 text-xs font-semibold text-slate-700">Huyết thanh kháng nọc liên kết</p>
                 <div className="space-y-2 rounded-xl border border-slate-300 bg-white p-3">
-                  {venomTypeOptions.length === 0
+                  {antivenomOptions.length === 0
                     ? (
-                        <p className="text-sm text-slate-500">Không có dữ liệu loại độc.</p>
+                        <p className="text-sm text-slate-500">Không có dữ liệu huyết thanh.</p>
                       )
-                    : venomTypeOptions.map(option => (
+                    : antivenomOptions.map(option => (
                         <label
                           key={option.id}
                           className="flex cursor-pointer items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 hover:bg-slate-100"
                         >
                           <input
                             type="checkbox"
-                            checked={draft.venomIds.includes(option.id)}
+                            checked={draft.antivenomIds.includes(option.id)}
                             onChange={(e) => {
                               setDraft((prev) => {
                                 const next = e.target.checked
-                                  ? [...prev.venomIds, option.id]
-                                  : prev.venomIds.filter(id => id !== option.id);
-                                return { ...prev, venomIds: next };
+                                  ? [...prev.antivenomIds, option.id]
+                                  : prev.antivenomIds.filter(id => id !== option.id);
+                                return { ...prev, antivenomIds: next };
                               });
                             }}
                             className="mt-1"
@@ -664,37 +707,7 @@ export default function SnakeSpeciesUpsertModal({
                       ))}
                 </div>
               </div>
-            </div>
-            <div>
-              <p className="mb-2 text-xs font-semibold text-slate-700">Huyết thanh kháng nọc liên kết</p>
-              <div className="space-y-2 rounded-xl border border-slate-300 bg-white p-3">
-                {antivenomOptions.length === 0
-                  ? (
-                      <p className="text-sm text-slate-500">Không có dữ liệu huyết thanh.</p>
-                    )
-                  : antivenomOptions.map(option => (
-                      <label
-                        key={option.id}
-                        className="flex cursor-pointer items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 hover:bg-slate-100"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={draft.antivenomIds.includes(option.id)}
-                          onChange={(e) => {
-                            setDraft((prev) => {
-                              const next = e.target.checked
-                                ? [...prev.antivenomIds, option.id]
-                                : prev.antivenomIds.filter(id => id !== option.id);
-                              return { ...prev, antivenomIds: next };
-                            });
-                          }}
-                          className="mt-1"
-                        />
-                        <span className="text-sm text-slate-700">{option.label}</span>
-                      </label>
-                    ))}
-              </div>
-            </div>
+            )}
           </section>
 
           <div className="flex items-center justify-end gap-3 border-t border-slate-200 pt-4">

@@ -15,6 +15,8 @@ import type {
 import {
   CalendarDays,
   Check,
+  ChevronLeft,
+  ChevronRight,
   Clock3,
   Pencil,
   Plus,
@@ -110,6 +112,22 @@ const createDefaultRange = () => {
     start: toDateInput(today),
     end: toDateInput(addDays(today, 6)),
   };
+};
+
+const DAYS_PER_VIEW = 7;
+
+const parseDateInput = (value: string) => {
+  const parsed = new Date(`${value}T00:00:00`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const getWindowEndDate = (startDate: string) => {
+  const parsedStart = parseDateInput(startDate);
+  if (!parsedStart) {
+    return startDate;
+  }
+
+  return toDateInput(addDays(parsedStart, DAYS_PER_VIEW - 1));
 };
 
 const normalizeTimeToApi = (value: string) => {
@@ -317,8 +335,7 @@ const normalizeRescuer = (item: unknown): BriefRescuerProfileResponse | null => 
 export default function WorkShiftsPage() {
   const initialRange = useMemo(() => createDefaultRange(), []);
 
-  const [startDate, setStartDate] = useState(initialRange.start);
-  const [endDate, setEndDate] = useState(initialRange.end);
+  const [windowStartDate, setWindowStartDate] = useState(initialRange.start);
 
   const [shifts, setShifts] = useState<WorkShiftResponse[]>([]);
   const [assignments, setAssignments] = useState<ShiftAssignmentResponse[]>([]);
@@ -348,7 +365,9 @@ export default function WorkShiftsPage() {
   const [assignmentDrafts, setAssignmentDrafts] = useState<Record<string, AssignmentDraft>>({});
   const [isAssignmentSubmitting, setIsAssignmentSubmitting] = useState(false);
 
-  const dateColumns = useMemo(() => getDateRange(startDate, endDate), [startDate, endDate]);
+  const windowEndDate = useMemo(() => getWindowEndDate(windowStartDate), [windowStartDate]);
+
+  const dateColumns = useMemo(() => getDateRange(windowStartDate, windowEndDate), [windowEndDate, windowStartDate]);
 
   const rescuerMap = useMemo(() => {
     return rescuers.reduce<Record<string, BriefRescuerProfileResponse>>((acc, item) => {
@@ -369,13 +388,17 @@ export default function WorkShiftsPage() {
     }, {});
   }, [assignments]);
 
+  const activeShifts = useMemo(() => {
+    return shifts.filter(item => item.isActive);
+  }, [shifts]);
+
   const selectedShift = useMemo(() => {
     if (!selectedCell) {
       return null;
     }
 
-    return shifts.find(item => item.id === selectedCell.shiftId) ?? null;
-  }, [selectedCell, shifts]);
+    return activeShifts.find(item => item.id === selectedCell.shiftId) ?? null;
+  }, [activeShifts, selectedCell]);
 
   const selectedCellAssignments = useMemo(() => {
     if (!selectedCell) {
@@ -443,7 +466,7 @@ export default function WorkShiftsPage() {
         loadShifts(),
         loadRescuers(),
         loadTodayAssignments(),
-        loadAssignments(startDate, endDate),
+        loadAssignments(windowStartDate, windowEndDate),
       ]);
     } catch (error) {
       console.error('Failed to load workshift schedule page', error);
@@ -457,11 +480,18 @@ export default function WorkShiftsPage() {
     setActionError(null);
 
     try {
-      await loadAssignments(startDate, endDate);
+      await loadAssignments(windowStartDate, windowEndDate);
     } catch (error) {
       console.error('Failed to reload assignments', error);
       setActionError('Không thể tải lại lịch phân công.');
     }
+  };
+
+  const moveDateWindow = (days: number) => {
+    setWindowStartDate((prev) => {
+      const parsed = parseDateInput(prev) ?? new Date();
+      return toDateInput(addDays(parsed, days));
+    });
   };
 
   const openCreateShiftModal = () => {
@@ -793,7 +823,7 @@ export default function WorkShiftsPage() {
   useEffect(() => {
     void reloadAssignmentsOnly();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [startDate, endDate]);
+  }, [windowStartDate]);
 
   return (
     <main className="h-[calc(100vh-81px)] overflow-y-auto bg-slate-50 p-6 lg:p-8">
@@ -801,7 +831,7 @@ export default function WorkShiftsPage() {
         <header className="rounded-2xl border border-slate-200 bg-white px-6 py-5 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <h2 className="text-3xl font-bold text-slate-900">Quản lý lịch làm việc rescuer</h2>
+              <h2 className="text-3xl font-bold text-slate-900">Quản lý lịch làm việc nhân viên cứu hộ</h2>
               <p className="mt-1 text-sm text-slate-500">
                 Theo dõi phân công theo ngày và ca, quản lý check-in/check-out và tối ưu nhân sự cứu hộ.
               </p>
@@ -809,11 +839,11 @@ export default function WorkShiftsPage() {
 
             <div className="flex flex-wrap items-end gap-2">
               <div>
-                <p className="mb-1 text-xs font-semibold text-slate-600">Từ ngày</p>
+                <p className="mb-1 text-xs font-semibold text-slate-600">Ngày bắt đầu</p>
                 <input
                   type="date"
-                  value={startDate}
-                  onChange={event => setStartDate(event.target.value)}
+                  value={windowStartDate}
+                  onChange={event => setWindowStartDate(event.target.value)}
                   className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
                 />
               </div>
@@ -821,12 +851,27 @@ export default function WorkShiftsPage() {
                 <p className="mb-1 text-xs font-semibold text-slate-600">Đến ngày</p>
                 <input
                   type="date"
-                  value={endDate}
-                  min={startDate}
-                  onChange={event => setEndDate(event.target.value)}
-                  className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                  value={windowEndDate}
+                  disabled
+                  className="rounded-lg border border-slate-200 bg-slate-100 px-3 py-2 text-sm text-slate-500"
                 />
               </div>
+              <button
+                type="button"
+                onClick={() => moveDateWindow(-DAYS_PER_VIEW)}
+                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+              >
+                <ChevronLeft className="size-4" />
+                Lùi 7 ngày
+              </button>
+              <button
+                type="button"
+                onClick={() => moveDateWindow(DAYS_PER_VIEW)}
+                className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+              >
+                Tới 7 ngày
+                <ChevronRight className="size-4" />
+              </button>
               <button
                 type="button"
                 onClick={() => void reloadPageData()}
@@ -857,18 +902,16 @@ export default function WorkShiftsPage() {
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-base font-bold text-slate-900">Mẫu ca làm việc</h3>
             <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
-              {shifts.length}
+              {activeShifts.length}
               {' '}
               ca
             </span>
           </div>
           <div className="space-y-2">
-            {shifts.map(shift => (
+            {activeShifts.map(shift => (
               <div
                 key={shift.id}
-                className={`flex flex-wrap items-center justify-between gap-3 rounded-xl border px-3 py-2 ${
-                  shift.isActive ? 'border-slate-200 bg-white' : 'border-slate-200 bg-slate-50 opacity-70'
-                }`}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2"
               >
                 <div>
                   <p className="text-sm font-semibold text-slate-800">{shift.name}</p>
@@ -924,7 +967,30 @@ export default function WorkShiftsPage() {
 
           <div className="mb-3 flex items-center justify-between">
             <h3 className="text-base font-bold text-slate-900">Thời khóa biểu theo ngày và ca</h3>
-            {isAssignmentsLoading && <span className="text-xs text-slate-500">Đang tải phân công...</span>}
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => moveDateWindow(-DAYS_PER_VIEW)}
+                className="inline-flex items-center rounded-lg border border-slate-200 bg-white p-1.5 text-slate-700 hover:bg-slate-100"
+                aria-label="Lùi 7 ngày"
+              >
+                <ChevronLeft className="size-4" />
+              </button>
+              <span className="text-xs font-semibold text-slate-600">
+                {windowStartDate}
+                {' - '}
+                {windowEndDate}
+              </span>
+              <button
+                type="button"
+                onClick={() => moveDateWindow(DAYS_PER_VIEW)}
+                className="inline-flex items-center rounded-lg border border-slate-200 bg-white p-1.5 text-slate-700 hover:bg-slate-100"
+                aria-label="Tới 7 ngày"
+              >
+                <ChevronRight className="size-4" />
+              </button>
+              {isAssignmentsLoading && <span className="ml-1 text-xs text-slate-500">Đang tải phân công...</span>}
+            </div>
           </div>
 
           {pageError && (
@@ -961,7 +1027,7 @@ export default function WorkShiftsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {shifts.map(shift => (
+                  {activeShifts.map(shift => (
                     <tr key={shift.id} className="align-top">
                       <td className="border-b border-slate-200 p-3">
                         <p className="text-sm font-bold text-slate-800">{shift.name}</p>
@@ -971,11 +1037,6 @@ export default function WorkShiftsPage() {
                           {' '}
                           {shift.requiredRescuers}
                         </p>
-                        {!shift.isActive && (
-                          <span className="mt-1 inline-block rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
-                            Shift đã tắt
-                          </span>
-                        )}
                       </td>
 
                       {dateColumns.map((date) => {
@@ -1008,7 +1069,7 @@ export default function WorkShiftsPage() {
                                 <p className="text-xs text-slate-500">Chưa có cứu hộ viên.</p>
                               )}
 
-                              {cellAssignments.slice(0, 3).map(item => (
+                              {cellAssignments.slice(0, 4).map(item => (
                                 <div key={item.id} className="rounded border border-slate-200 bg-white p-2">
                                   <p className="line-clamp-1 text-xs font-semibold text-slate-800">{getRescuerName(item)}</p>
                                   <div className="mt-1 flex items-center justify-between gap-2">
@@ -1020,10 +1081,10 @@ export default function WorkShiftsPage() {
                                 </div>
                               ))}
 
-                              {cellAssignments.length > 3 && (
+                              {cellAssignments.length > 4 && (
                                 <p className="text-[11px] text-slate-500">
                                   +
-                                  {cellAssignments.length - 3}
+                                  {cellAssignments.length - 4}
                                   {' cứu hộ viên khác'}
                                 </p>
                               )}
