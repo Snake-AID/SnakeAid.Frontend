@@ -13,6 +13,7 @@ import { useRescuerHub } from '@/hooks/useRescuerHub';
 export interface OperatorRequestSummary {
   id: string;
   status: string;
+  statusLabel: string;
   address?: string | null;
   lat: number;
   lng: number;
@@ -20,6 +21,25 @@ export interface OperatorRequestSummary {
   assignedRescuerId?: string | null;
   needsRedispatch?: boolean;
 }
+
+const translateRequestStatus = (status: string) => {
+  switch (status) {
+    case 'Pending':
+      return 'Chờ xác minh';
+    case 'Confirmed':
+      return 'Đã xác nhận';
+    case 'Assigned':
+      return 'Đã điều phối';
+    case 'Cancelled':
+      return 'Đã hủy';
+    case 'Completed':
+      return 'Hoàn tất';
+    case 'Declined':
+      return 'Từ chối';
+    default:
+      return status;
+  }
+};
 
 export interface UseOperatorRequestsResult {
   requests: OperatorRequestSummary[];
@@ -64,6 +84,7 @@ export function useOperatorRequests(): UseOperatorRequestsResult {
     const newRequest: OperatorRequestSummary = {
       id,
       status: payload.status,
+      statusLabel: translateRequestStatus(payload.status),
       address: payload.address ?? null,
       lat: payload.lat,
       lng: payload.lng,
@@ -86,6 +107,7 @@ export function useOperatorRequests(): UseOperatorRequestsResult {
       const mapped = response.items.map((item: OperatorSnakeCatchingRequestSummaryResponse) => ({
         id: item.id,
         status: item.status,
+        statusLabel: translateRequestStatus(item.status),
         address: item.address ?? '',
         lat: item.locationCoordinates.latitude,
         lng: item.locationCoordinates.longitude,
