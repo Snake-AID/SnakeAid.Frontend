@@ -24,19 +24,9 @@ export interface LiveIncident {
   lat: number;
   lng: number;
   stage: OperatorMapIncident['stage'];
+  stageLabel: string;
   needsRedispatch?: boolean;
 }
-
-const stageLabel: Record<OperatorMapIncident['stage'], string> = {
-  Pending: 'Chờ xác minh',
-  Verified: 'Chờ điều phối',
-  Contacting: 'Đang liên hệ',
-  Dispatched: 'Đã điều phối',
-  Assigned: 'Đã nhận lệnh',
-  EnRoute: 'Đang di chuyển',
-  Completed: 'Hoàn tất',
-  FalseAlarm: 'Báo động giả',
-};
 
 const getIncidentColor = (stage: OperatorMapIncident['stage']) => {
   if (stage === 'Dispatched') {
@@ -49,6 +39,18 @@ const getIncidentColor = (stage: OperatorMapIncident['stage']) => {
 
   if (stage === 'FalseAlarm' || stage === 'Completed') {
     return '#ef4444';
+  }
+
+  if (stage === 'Disputed') {
+    return '#dc2626';
+  }
+
+  if (stage === 'Contacting') {
+    return '#3b82f6';
+  }
+
+  if (stage === 'Verified') {
+    return '#0ea5e9';
   }
 
   return '#2563eb';
@@ -179,7 +181,7 @@ export default function OperatorMap({
                 <div>{incident.address}</div>
                 <div>
                   Stage:
-                  {stageLabel[incident.stage]}
+                  {incident.stageLabel}
                 </div>
               </div>
             </Popup>

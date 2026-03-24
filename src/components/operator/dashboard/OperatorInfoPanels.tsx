@@ -23,17 +23,6 @@ interface OperatorInfoPanelsProps {
   onRefreshRequests: () => Promise<void>;
 }
 
-const stageLabel: Record<OperatorMapIncident['stage'], string> = {
-  Pending: 'Chờ xác minh',
-  Verified: 'Chờ điều phối',
-  Contacting: 'Đang liên hệ',
-  Dispatched: 'Đã điều phối',
-  Assigned: 'Đã nhận lệnh',
-  EnRoute: 'Đang di chuyển',
-  Completed: 'Hoàn tất',
-  FalseAlarm: 'Báo động giả',
-};
-
 const getShortEntityId = (type: 'INC' | 'CAR', id: string) => {
   const suffix = id.slice(-6).toUpperCase();
   return `${type}-${suffix}`;
@@ -224,7 +213,7 @@ export default function OperatorInfoPanels({
                                       <p className="text-sm font-semibold text-slate-900">{getShortEntityId('CAR', req.id)}</p>
                                       <p className="mt-1 text-xs text-slate-500">{getDisplayLocation(req.id, req.address)}</p>
                                     </div>
-                                    <span className="text-xs text-slate-500">{req.status}</span>
+                                    <span className="text-xs text-slate-500">{req.statusLabel ?? req.status}</span>
                                   </div>
                                 </button>
                               );
@@ -258,7 +247,7 @@ export default function OperatorInfoPanels({
                                   <p className="mt-1 text-xs text-slate-500">{getDisplayLocation(inc.id, inc.address)}</p>
                                 </div>
                                 <div className="flex flex-col items-end gap-1">
-                                  <span className="text-xs text-slate-500">{stageLabel[inc.stage]}</span>
+                                  <span className="text-xs text-slate-500">{inc.stageLabel}</span>
                                   {isUrgent && (
                                     <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[11px] font-semibold text-rose-700">Cần xử lý</span>
                                   )}

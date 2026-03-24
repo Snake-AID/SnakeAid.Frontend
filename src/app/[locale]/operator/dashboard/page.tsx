@@ -27,6 +27,8 @@ export default function OperatorDashboardPage() {
     lastCreatedIncidentId,
     clearLastCreatedIncidentId,
     confirmIncident,
+    dispatchIncident,
+    cancelDispatch,
     refreshIncidents,
   } = useOperatorIncidents();
 
@@ -55,7 +57,7 @@ export default function OperatorDashboardPage() {
         address: r.address ?? null,
         lat: r.lat as number,
         lng: r.lng as number,
-        status: r.status,
+        status: r.statusLabel ?? r.status,
       }));
   }, [requests]);
 
@@ -83,6 +85,7 @@ export default function OperatorDashboardPage() {
       lat: i.lat,
       lng: i.lng,
       stage: i.stage,
+      stageLabel: i.stageLabel,
       needsRedispatch: i.needsRedispatch,
     }));
   }, [incidents]);
@@ -114,7 +117,6 @@ export default function OperatorDashboardPage() {
     try {
       await confirmIncident(incidentId);
       showToast('Case đã được xác nhận.', { type: 'success' });
-      refreshIncidents();
     } catch (err) {
       console.error('Failed to confirm incident', err);
       showToast('Không thể xác nhận case. Vui lòng thử lại.', { type: 'error' });
@@ -136,7 +138,7 @@ export default function OperatorDashboardPage() {
 
   const handleDispatch = async (incidentId: string, rescuerId: string) => {
     try {
-      await incidentApi.dispatchIncident(incidentId, { rescuerId });
+      await dispatchIncident(incidentId, rescuerId);
       showToast('Case đã được điều phối.', { type: 'success' });
     } catch (err) {
       console.error('Failed to dispatch incident', err);
@@ -146,7 +148,7 @@ export default function OperatorDashboardPage() {
 
   const handleCancelDispatch = async (incidentId: string) => {
     try {
-      await incidentApi.cancelDispatch(incidentId);
+      await cancelDispatch(incidentId);
       showToast('Đã hủy điều phối case.', { type: 'success' });
     } catch (err) {
       console.error('Failed to cancel dispatch', err);
