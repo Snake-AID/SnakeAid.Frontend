@@ -8,6 +8,7 @@ export interface DetailSnakebiteIncidentResponse {
   status: SnakebiteIncidentStatus;
   assignedAt: string | null;
   assignedRescuerId: string | null;
+  address: string | null;
   cancellationReason: string | null;
   severityLevel: number | null;
   incidentOccurredAt: string | null;

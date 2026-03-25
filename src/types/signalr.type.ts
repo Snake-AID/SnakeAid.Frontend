@@ -4,6 +4,7 @@ export interface RescuerOnlineStatusPayload {
   rescuerId: string;
   isOnline: boolean;
   isAvailable: boolean;
+  inMission?: boolean; // Added to track when rescuer is in active mission
   updatedAt: string; // ISO date string
 }
 
