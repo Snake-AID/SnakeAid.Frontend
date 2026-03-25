@@ -2,7 +2,7 @@
 
 import React, { createContext, use, useCallback, useEffect, useMemo, useState } from 'react';
 
-export type ToastType = 'success' | 'error' | 'info';
+export type ToastType = 'success' | 'error' | 'info' | 'warning';
 
 export interface ToastOptions {
   type?: ToastType;
@@ -54,10 +54,10 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext value={value}>
       {children}
-      <div className="pointer-events-none fixed bottom-4 right-4 z-99999 flex items-end justify-end">
+      <div className="pointer-events-none fixed top-24 left-1/2 z-99999 flex -translate-x-1/2 items-start justify-center">
         <div
           className={`transform transition-all duration-200 ease-out ${
-            visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
+            visible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-4'
           }`}
           aria-live="polite"
         >
@@ -68,7 +68,9 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
                   ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
                   : toast.type === 'error'
                     ? 'bg-rose-50 border-rose-200 text-rose-900'
-                    : 'bg-slate-50 border-slate-200 text-slate-900'
+                    : toast.type === 'warning'
+                      ? 'bg-amber-50 border-amber-200 text-amber-900'
+                      : 'bg-slate-50 border-slate-200 text-slate-900'
               }`}
             >
               <p className="text-sm font-semibold">{toast.message}</p>
