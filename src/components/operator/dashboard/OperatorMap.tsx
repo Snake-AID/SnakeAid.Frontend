@@ -56,7 +56,11 @@ const getIncidentColor = (stage: OperatorMapIncident['stage']) => {
   return '#2563eb';
 };
 
-const getRescuerColor = (status: RescuerStatus) => {
+const getRescuerColor = (status: RescuerStatus, inMission?: boolean) => {
+  if (inMission) {
+    return '#7c3aed'; // Purple for rescuers in active mission
+  }
+
   if (status === 'busy') {
     return '#f59e0b';
   }
@@ -217,8 +221,12 @@ export default function OperatorMap({
           <CircleMarker
             key={`rescuer-${rescuer.id}`}
             center={[rescuer.lat, rescuer.lng]}
-            pathOptions={{ color: getRescuerColor(rescuer.status), fillColor: getRescuerColor(rescuer.status), fillOpacity: 0.9 }}
-            radius={6}
+            pathOptions={{
+              color: getRescuerColor(rescuer.status, rescuer.inMission),
+              fillColor: getRescuerColor(rescuer.status, rescuer.inMission),
+              fillOpacity: 0.9,
+            }}
+            radius={rescuer.inMission ? 8 : 6}
           >
             <Popup>
               <div className="space-y-1 text-xs">
@@ -226,7 +234,14 @@ export default function OperatorMap({
                 <div>
                   Status:
                   {rescuer.status}
+                  {rescuer.inMission && ' (In Mission)'}
                 </div>
+                {rescuer.missionIncidentId && (
+                  <div className="text-purple-600">
+                    Mission: INC-
+                    {rescuer.missionIncidentId.slice(-6).toUpperCase()}
+                  </div>
+                )}
                 <div>
                   Active missions:
                   {rescuer.activeMissions}
