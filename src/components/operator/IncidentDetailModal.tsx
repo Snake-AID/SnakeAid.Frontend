@@ -453,18 +453,25 @@ export default function IncidentDetailModal({
                           </div>
 
                           <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-                            <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">Vị trí</p>
+                            <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">Địa chỉ</p>
                             <p className="mt-1 text-sm text-slate-900">
-                              {incident.locationCoordinates.latitude.toFixed(5)}
-                              ,
-                              {incident.locationCoordinates.longitude.toFixed(5)}
+                              {incident.address}
                             </p>
-                            <button
-                              type="button"
-                              className="mt-3 inline-flex items-center justify-center gap-2 rounded-full border border-emerald-600 bg-white px-3 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-50"
-                            >
-                              Xem trên bản đồ
-                            </button>
+                            <section className="grid">
+                              <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide mt-1">Vị trí</p>
+                              <p className="mt-1 text-sm text-slate-900">
+                                {incident.locationCoordinates.latitude.toFixed(5)}
+                                ,
+                                {incident.locationCoordinates.longitude.toFixed(5)}
+                              </p>
+                              <button
+                                type="button"
+                                className="mt-3 inline-flex items-center justify-center gap-2 rounded-full border border-emerald-600 bg-white px-3 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-50"
+                                onClick={onClose}
+                              >
+                                Xem trên bản đồ
+                              </button>
+                            </section>
                           </div>
                         </div>
 
