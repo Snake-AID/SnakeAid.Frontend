@@ -108,3 +108,17 @@ export interface RescuerAbortedPayload {
   reason?: string;
   updatedAt: string;
 }
+
+export interface RescuerMissionLocationUpdatedPayload {
+  incidentId: string;
+  rescuerId: string;
+  latitude: number;
+  longitude: number;
+  updatedAt: string;
+}
+
+export interface MissionCompletedPayload {
+  incidentId: string;
+  rescuerId: string;
+  completedAt: string;
+}

@@ -2,13 +2,14 @@
 
 import type { OperatorSnakeCatchingRequestSummaryResponse } from '@/types/operator.type';
 import type {
+  SnakeCatchingRequestCancelledPayload,
   SnakeCatchingRequestCreatedPayload,
 } from '@/types/snakecatching-request.type';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { snakeCatchingRequestApi } from '@/apis/snake-catching-request.api';
-import { useRescuerHub } from '@/hooks/useRescuerHub';
+import { useToast } from '@/components/ToastProvider';
 
 export interface OperatorRequestSummary {
   id: string;
@@ -53,6 +54,8 @@ export interface UseOperatorRequestsResult {
   refreshRequests: () => Promise<void>;
   hasError: boolean;
   isLoading: boolean;
+  handleRequestCreated: (payload: SnakeCatchingRequestCreatedPayload) => void;
+  handleRequestCancelled: (payload: SnakeCatchingRequestCancelledPayload) => void;
 }
 
 export function useOperatorRequests(): UseOperatorRequestsResult {
@@ -66,9 +69,12 @@ export function useOperatorRequests(): UseOperatorRequestsResult {
   const [hasError, setHasError] = useState(false);
 
   const requestsRef = useRef<OperatorRequestSummary[]>([]);
+  const { showToast } = useToast();
 
   const addRequestFromSignalR = useCallback((payload: SnakeCatchingRequestCreatedPayload) => {
     const id = payload.id;
+    const requestCode = `CAR-${id.slice(-6).toUpperCase()}`;
+    showToast(`Yêu cầu ${requestCode} đã tạo`, { type: 'info' });
 
     if (requestsRef.current.some(r => r.id === id)) {
       setRequests((prev) => {
@@ -96,7 +102,7 @@ export function useOperatorRequests(): UseOperatorRequestsResult {
     requestsRef.current = [newRequest, ...requestsRef.current];
     setRequests(requestsRef.current);
     setFocusedRequestId(id);
-  }, [setFocusedRequestId]);
+  }, [setFocusedRequestId, showToast]);
 
   const refreshRequests = useCallback(async () => {
     setIsLoading(true);
@@ -135,9 +141,32 @@ export function useOperatorRequests(): UseOperatorRequestsResult {
     setLastCreatedRequestId(payload.id);
   }, [addRequestFromSignalR]);
 
-  useRescuerHub({
-    onSnakeCatchingRequestCreated: handleCreated,
-  });
+  const handleCancelled = useCallback((payload: SnakeCatchingRequestCancelledPayload) => {
+    const id = payload.id;
+    const requestCode = `CAR-${id.slice(-6).toUpperCase()}`;
+    const reason = payload.cancellationReason ? `: ${payload.cancellationReason}` : '';
+
+    setRequests((prev) => {
+      const next = prev.filter(r => r.id !== id);
+      requestsRef.current = next;
+      return next;
+    });
+
+    setFocusedRequestId((current) => {
+      if (current === id) {
+        return requestsRef.current[0]?.id ?? null;
+      }
+      return current;
+    });
+
+    showToast(`Yêu cầu ${requestCode} đã hủy${reason}`, { type: 'info' });
+  }, [showToast]);
+
+  // Don't call useRescuerHub here - will be called centrally in page
+  // useRescuerHub({
+  //   onSnakeCatchingRequestCreated: handleCreated,
+  //   onSnakeCatchingRequestCancelled: handleCancelled,
+  // });
 
   const confirmRequest = useCallback(async (requestId: string) => {
     await snakeCatchingRequestApi.confirmRequest(requestId);
@@ -163,6 +192,8 @@ export function useOperatorRequests(): UseOperatorRequestsResult {
     refreshRequests,
     hasError,
     isLoading,
+    handleRequestCreated: handleCreated,
+    handleRequestCancelled: handleCancelled,
   }), [
     requests,
     focusedRequestId,
@@ -174,6 +205,8 @@ export function useOperatorRequests(): UseOperatorRequestsResult {
     refreshRequests,
     hasError,
     isLoading,
+    handleCreated,
+    handleCancelled,
   ]);
 
   return value;

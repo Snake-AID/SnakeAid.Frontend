@@ -8,6 +8,7 @@ import type {
   IncidentClaimedPayload,
   IncidentFalseAlarmPayload,
   IncidentNoAnswerPayload,
+  MissionCompletedPayload,
   NewIncidentCreatedPayload,
   OperatorContactingPayload,
   OperatorOnlineStatusPayload,
@@ -16,6 +17,7 @@ import type {
   RescuerDeclinedPayload,
   RescuerDispatchedPayload,
   RescuerIdleLocationUpdatedPayload,
+  RescuerMissionLocationUpdatedPayload,
   RescuerOnlineStatusPayload,
 } from '@/types/signalr.type';
 import type {
@@ -52,130 +54,125 @@ export interface RescuerHubEvents {
   onRescuerDispatched?: (payload: RescuerDispatchedPayload) => void;
   onIncidentCancelled?: (payload: IncidentCancelledPayload) => void;
   onRescuerAborted?: (payload: RescuerAbortedPayload) => void;
+  onRescuerMissionLocationUpdated?: (payload: RescuerMissionLocationUpdatedPayload) => void;
+  onMissionCompleted?: (payload: MissionCompletedPayload) => void;
 };
 
 const ACCESS_TOKEN_KEY = 'access_token';
 
 const getAccessToken = () => storage.get<string>(ACCESS_TOKEN_KEY) ?? '';
 
-const attachHandlers = (connection: HubConnection, handlers: RescuerHubEvents) => {
-  if (handlers.onRescuerOnlineStatus) {
-    connection.on('RescuerOnlineStatus', handlers.onRescuerOnlineStatus);
-  }
-  if (handlers.onRescuerIdleLocationUpdated) {
-    connection.on('RescuerIdleLocationUpdated', handlers.onRescuerIdleLocationUpdated);
-  }
-  if (handlers.onRescuerAccepted) {
-    connection.on('RescuerAccepted', handlers.onRescuerAccepted);
-  }
-  if (handlers.onRescuerDeclined) {
-    connection.on('RescuerDeclined', handlers.onRescuerDeclined);
-  }
-  if (handlers.onNewIncidentCreated) {
-    connection.on('NewIncidentCreated', handlers.onNewIncidentCreated);
-  }
-  if (handlers.onSnakeCatchingRequestCreated) {
-    connection.on('SnakeCatchingRequestCreated', handlers.onSnakeCatchingRequestCreated);
-  }
-  if (handlers.onSnakeCatchingRequestAccepted) {
-    connection.on('SnakeCatchingRequestAccepted', handlers.onSnakeCatchingRequestAccepted);
-  }
-  if (handlers.onSnakeCatchingRequestAssigned) {
-    connection.on('SnakeCatchingRequestAssigned', handlers.onSnakeCatchingRequestAssigned);
-  }
-  if (handlers.onSnakeCatchingRequestCancelled) {
-    connection.on('SnakeCatchingRequestCancelled', handlers.onSnakeCatchingRequestCancelled);
-  }
-  if (handlers.onOperatorOnlineStatus) {
-    connection.on('OperatorOnlineStatus', handlers.onOperatorOnlineStatus);
-  }
-  if (handlers.onIncidentClaimed) {
-    connection.on('IncidentClaimed', handlers.onIncidentClaimed);
-  }
-  if (handlers.onOperatorContacting) {
-    connection.on('OperatorContacting', handlers.onOperatorContacting);
-  }
-  if (handlers.onDispatchRequested) {
-    connection.on('DispatchRequested', handlers.onDispatchRequested);
-  }
-  if (handlers.onIncidentFalseAlarm) {
-    connection.on('IncidentFalseAlarm', handlers.onIncidentFalseAlarm);
-  }
-  if (handlers.onIncidentNoAnswer) {
-    connection.on('IncidentNoAnswer', handlers.onIncidentNoAnswer);
-  }
-  if (handlers.onRescuerDispatched) {
-    connection.on('RescuerDispatched', handlers.onRescuerDispatched);
-  }
-  if (handlers.onIncidentCancelled) {
-    connection.on('IncidentCancelled', handlers.onIncidentCancelled);
-  }
-  if (handlers.onRescuerAborted) {
-    connection.on('RescuerAborted', handlers.onRescuerAborted);
-  }
-  if (handlers.onAdminLog) {
-    connection.on('AdminLog', handlers.onAdminLog);
-  }
+const attachHandlers = (connection: HubConnection, handlersRef: React.MutableRefObject<RescuerHubEvents>) => {
+  // Backend sends events in lowercase, so we need to listen with lowercase event names
+  // Use wrapper functions that reference handlersRef.current to always get latest handlers
+  connection.on('rescueronlinestatus', (payload) => {
+    handlersRef.current.onRescuerOnlineStatus?.(payload);
+  });
+
+  connection.on('rescueridlelocationupdated', (payload) => {
+    handlersRef.current.onRescuerIdleLocationUpdated?.(payload);
+  });
+
+  connection.on('rescueraccepted', (payload) => {
+    handlersRef.current.onRescuerAccepted?.(payload);
+  });
+
+  connection.on('rescuerdeclined', (payload) => {
+    handlersRef.current.onRescuerDeclined?.(payload);
+  });
+
+  connection.on('newincidentcreated', (payload) => {
+    handlersRef.current.onNewIncidentCreated?.(payload);
+  });
+
+  connection.on('snakecatchingrequestcreated', (payload) => {
+    handlersRef.current.onSnakeCatchingRequestCreated?.(payload);
+  });
+
+  connection.on('snakecatchingrequestaccepted', (payload) => {
+    handlersRef.current.onSnakeCatchingRequestAccepted?.(payload);
+  });
+
+  connection.on('snakecatchingrequestassigned', (payload) => {
+    handlersRef.current.onSnakeCatchingRequestAssigned?.(payload);
+  });
+
+  connection.on('snakecatchingrequestcancelled', (payload) => {
+    handlersRef.current.onSnakeCatchingRequestCancelled?.(payload);
+  });
+
+  connection.on('operatoronlinestatus', (payload) => {
+    handlersRef.current.onOperatorOnlineStatus?.(payload);
+  });
+
+  connection.on('incidentclaimed', (payload) => {
+    handlersRef.current.onIncidentClaimed?.(payload);
+  });
+
+  connection.on('operatorcontacting', (payload) => {
+    handlersRef.current.onOperatorContacting?.(payload);
+  });
+
+  connection.on('dispatchrequested', (payload) => {
+    handlersRef.current.onDispatchRequested?.(payload);
+  });
+
+  connection.on('incidentfalsealarm', (payload) => {
+    handlersRef.current.onIncidentFalseAlarm?.(payload);
+  });
+
+  connection.on('incidentnoanswer', (payload) => {
+    handlersRef.current.onIncidentNoAnswer?.(payload);
+  });
+
+  connection.on('rescuerdispatched', (payload) => {
+    handlersRef.current.onRescuerDispatched?.(payload);
+  });
+
+  connection.on('incidentcancelled', (payload) => {
+    handlersRef.current.onIncidentCancelled?.(payload);
+  });
+
+  connection.on('rescueraborted', (payload: RescuerAbortedPayload) => {
+    handlersRef.current.onRescuerAborted?.(payload);
+  });
+
+  connection.on('adminlog', (payload) => {
+    handlersRef.current.onAdminLog?.(payload);
+  });
+
+  connection.on('rescuermissionlocationupdated', (payload) => {
+    handlersRef.current.onRescuerMissionLocationUpdated?.(payload);
+  });
+
+  connection.on('missioncompleted', (payload) => {
+    handlersRef.current.onMissionCompleted?.(payload);
+  });
 };
 
-const detachHandlers = (connection: HubConnection, handlers: RescuerHubEvents) => {
-  if (handlers.onRescuerOnlineStatus) {
-    connection.off('RescuerOnlineStatus', handlers.onRescuerOnlineStatus);
-  }
-  if (handlers.onRescuerIdleLocationUpdated) {
-    connection.off('RescuerIdleLocationUpdated', handlers.onRescuerIdleLocationUpdated);
-  }
-  if (handlers.onRescuerAccepted) {
-    connection.off('RescuerAccepted', handlers.onRescuerAccepted);
-  }
-  if (handlers.onRescuerDeclined) {
-    connection.off('RescuerDeclined', handlers.onRescuerDeclined);
-  }
-  if (handlers.onNewIncidentCreated) {
-    connection.off('NewIncidentCreated', handlers.onNewIncidentCreated);
-  }
-  if (handlers.onSnakeCatchingRequestCreated) {
-    connection.off('SnakeCatchingRequestCreated', handlers.onSnakeCatchingRequestCreated);
-  }
-  if (handlers.onSnakeCatchingRequestAccepted) {
-    connection.off('SnakeCatchingRequestAccepted', handlers.onSnakeCatchingRequestAccepted);
-  }
-  if (handlers.onSnakeCatchingRequestAssigned) {
-    connection.off('SnakeCatchingRequestAssigned', handlers.onSnakeCatchingRequestAssigned);
-  }
-  if (handlers.onSnakeCatchingRequestCancelled) {
-    connection.off('SnakeCatchingRequestCancelled', handlers.onSnakeCatchingRequestCancelled);
-  }
-  if (handlers.onOperatorOnlineStatus) {
-    connection.off('OperatorOnlineStatus', handlers.onOperatorOnlineStatus);
-  }
-  if (handlers.onIncidentClaimed) {
-    connection.off('IncidentClaimed', handlers.onIncidentClaimed);
-  }
-  if (handlers.onOperatorContacting) {
-    connection.off('OperatorContacting', handlers.onOperatorContacting);
-  }
-  if (handlers.onDispatchRequested) {
-    connection.off('DispatchRequested', handlers.onDispatchRequested);
-  }
-  if (handlers.onIncidentFalseAlarm) {
-    connection.off('IncidentFalseAlarm', handlers.onIncidentFalseAlarm);
-  }
-  if (handlers.onIncidentNoAnswer) {
-    connection.off('IncidentNoAnswer', handlers.onIncidentNoAnswer);
-  }
-  if (handlers.onRescuerDispatched) {
-    connection.off('RescuerDispatched', handlers.onRescuerDispatched);
-  }
-  if (handlers.onIncidentCancelled) {
-    connection.off('IncidentCancelled', handlers.onIncidentCancelled);
-  }
-  if (handlers.onRescuerAborted) {
-    connection.off('RescuerAborted', handlers.onRescuerAborted);
-  }
-  if (handlers.onAdminLog) {
-    connection.off('AdminLog', handlers.onAdminLog);
-  }
+const detachHandlers = (connection: HubConnection) => {
+  // Remove all listeners - we use wrapper functions now so we don't need specific handler references
+  connection.off('rescueronlinestatus');
+  connection.off('rescueridlelocationupdated');
+  connection.off('rescueraccepted');
+  connection.off('rescuerdeclined');
+  connection.off('newincidentcreated');
+  connection.off('snakecatchingrequestcreated');
+  connection.off('snakecatchingrequestaccepted');
+  connection.off('snakecatchingrequestassigned');
+  connection.off('snakecatchingrequestcancelled');
+  connection.off('operatoronlinestatus');
+  connection.off('incidentclaimed');
+  connection.off('operatorcontacting');
+  connection.off('dispatchrequested');
+  connection.off('incidentfalsealarm');
+  connection.off('incidentnoanswer');
+  connection.off('rescuerdispatched');
+  connection.off('incidentcancelled');
+  connection.off('rescueraborted');
+  connection.off('rescuermissionlocationupdated');
+  connection.off('adminlog');
+  connection.off('missioncompleted');
 };
 
 export interface UseRescuerHubOptions {
@@ -196,8 +193,14 @@ export function useRescuerHub(handlers: RescuerHubEvents = {}, options: UseRescu
   const [error, setError] = useState<string | null>(null);
 
   const connectionRef = useRef<HubConnection | null>(null);
+  const handlersRef = useRef<RescuerHubEvents>(handlers);
 
   const token = getAccessToken();
+
+  // Update handlers ref when handlers change (without triggering reconnect)
+  useEffect(() => {
+    handlersRef.current = handlers;
+  }, [handlers]);
 
   useEffect(() => {
     const connection = createRescuerHubConnection(token);
@@ -215,6 +218,9 @@ export function useRescuerHub(handlers: RescuerHubEvents = {}, options: UseRescu
           setError('No access token available for SignalR connection');
           return;
         }
+
+        // Use handlersRef.current to get latest handlers without causing reconnect
+        attachHandlers(connection, handlersRef);
 
         await connection.start();
         if (!mounted) {
@@ -249,26 +255,15 @@ export function useRescuerHub(handlers: RescuerHubEvents = {}, options: UseRescu
       }
 
       try {
+        // Detach handlers before disconnecting
+        detachHandlers(connectionRef.current);
         connectionRef.current.invoke('LeaveAsOperator').catch(() => undefined);
         connectionRef.current.stop().catch(() => undefined);
       } catch {
         // ignore
       }
     };
-  }, [token, operatorId, autoJoin]);
-
-  useEffect(() => {
-    const connection = connectionRef.current;
-    if (!connected || !connection) {
-      return;
-    }
-
-    attachHandlers(connection, handlers);
-
-    return () => {
-      detachHandlers(connection, handlers);
-    };
-  }, [connected, handlers]);
+  }, [token, resolvedOperatorId, autoJoin]);
 
   return { connected, error };
 }

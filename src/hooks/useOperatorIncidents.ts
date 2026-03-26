@@ -1,12 +1,12 @@
 'use client';
 
 import type { OperatorIncidentSummaryResponse } from '@/types/operator.type';
-import type { IncidentCancelledPayload, NewIncidentCreatedPayload } from '@/types/signalr.type';
+import type { IncidentCancelledPayload, NewIncidentCreatedPayload, RescuerDispatchedPayload } from '@/types/signalr.type';
 import type { CreateIncidentResponse } from '@/types/snakebite-incident.type';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { incidentApi } from '@/apis/incident.api';
-import { useRescuerHub } from '@/hooks/useRescuerHub';
+import { useToast } from '@/components/ToastProvider';
 
 export interface OperatorMapIncident {
   id: string;
@@ -48,12 +48,20 @@ export interface UseOperatorIncidentsResult {
   setFocusedIncidentId: (id: string | null) => void;
   lastCreatedIncidentId: string | null;
   clearLastCreatedIncidentId: () => void;
+  abortedIncident: { incidentId: string; reason?: string } | null;
+  setAbortedIncident: (incident: { incidentId: string; reason?: string } | null) => void;
+  clearAbortedIncident: () => void;
   confirmIncident: (incidentId: string) => Promise<void>;
   dispatchIncident: (incidentId: string, rescuerId: string) => Promise<void>;
-  cancelDispatch: (incidentId: string) => Promise<void>;
   refreshIncidents: () => Promise<void>;
   hasError: boolean;
   isLoading: boolean;
+  urgentIncidentIds: Set<string>;
+  setUrgentIncidentIds: React.Dispatch<React.SetStateAction<Set<string>>>;
+  clearUrgentIncident: (incidentId: string) => void;
+  handleIncidentCreated: (payload: NewIncidentCreatedPayload) => void;
+  handleIncidentCancelled: (payload: IncidentCancelledPayload) => void;
+  handleRescuerDispatched: (payload: RescuerDispatchedPayload) => void;
 }
 
 const toOperatorMapIncident = (incident: OperatorIncidentSummaryResponse): OperatorMapIncident => ({
@@ -78,17 +86,30 @@ const mapCreateIncidentResponseToOperatorMapIncident = (incident: CreateIncident
   needsRedispatch: false,
 });
 
-export function useOperatorIncidents(): UseOperatorIncidentsResult {
+export function useOperatorIncidents(clearRequestFocus?: () => void): UseOperatorIncidentsResult {
   const [incidents, setIncidents] = useState<OperatorMapIncident[]>([]);
   const [focusedIncidentId, setFocusedIncidentId] = useState<string | null>(null);
   const [lastCreatedIncidentId, setLastCreatedIncidentId] = useState<string | null>(null);
   const clearLastCreatedIncidentId = useCallback(() => {
     setLastCreatedIncidentId(null);
   }, []);
+  const [abortedIncident, setAbortedIncident] = useState<{ incidentId: string; reason?: string } | null>(null);
+  const clearAbortedIncident = useCallback(() => {
+    setAbortedIncident(null);
+  }, []);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
+  const [urgentIncidentIds, setUrgentIncidentIds] = useState<Set<string>>(() => new Set());
+  const clearUrgentIncident = useCallback((incidentId: string) => {
+    setUrgentIncidentIds((prev) => {
+      const next = new Set(prev);
+      next.delete(incidentId);
+      return next;
+    });
+  }, []);
 
   const incidentsRef = useRef<OperatorMapIncident[]>([]);
+  const { showToast } = useToast();
 
   useEffect(() => {
     (async () => {
@@ -111,7 +132,7 @@ export function useOperatorIncidents(): UseOperatorIncidentsResult {
     })();
   }, []);
 
-  const addIncidentFromSignalR = (payload: NewIncidentCreatedPayload) => {
+  const addIncidentFromSignalR = useCallback((payload: NewIncidentCreatedPayload) => {
     const id = payload.incidentId;
     if (incidentsRef.current.some(i => i.id === id)) {
       // Update coordinates if location changed
@@ -140,9 +161,15 @@ export function useOperatorIncidents(): UseOperatorIncidentsResult {
 
     incidentsRef.current = [newIncident, ...incidentsRef.current];
     setIncidents(incidentsRef.current);
+
+    // Clear request focus before setting incident focus
+    if (clearRequestFocus) {
+      clearRequestFocus();
+    }
+
     setFocusedIncidentId(id);
     setLastCreatedIncidentId(id);
-  };
+  }, [clearRequestFocus]);
 
   const upsertIncidentByResponse = (response: CreateIncidentResponse) => {
     const mapped = mapCreateIncidentResponseToOperatorMapIncident(response);
@@ -156,8 +183,13 @@ export function useOperatorIncidents(): UseOperatorIncidentsResult {
     });
   };
 
-  const removeIncidentFromSignalR = (payload: IncidentCancelledPayload) => {
+  const removeIncidentFromSignalR = useCallback((payload: IncidentCancelledPayload) => {
     const removedId = payload.incidentId;
+    const incidentCode = `INC-${removedId.slice(-6).toUpperCase()}`;
+    const reasonText = payload.reason ? `: ${payload.reason}` : '';
+
+    showToast(`Ca ${incidentCode} đã hủy bởi người dùng${reasonText}`, { type: 'info' });
+
     setIncidents((prev) => {
       const next = prev.filter(incident => incident.id !== removedId);
       incidentsRef.current = next;
@@ -170,7 +202,7 @@ export function useOperatorIncidents(): UseOperatorIncidentsResult {
       }
       return current;
     });
-  };
+  }, [showToast]);
 
   const confirmIncident = useCallback(async (incidentId: string) => {
     try {
@@ -192,16 +224,6 @@ export function useOperatorIncidents(): UseOperatorIncidentsResult {
     }
   }, []);
 
-  const cancelDispatch = useCallback(async (incidentId: string) => {
-    try {
-      const response = await incidentApi.cancelDispatch(incidentId);
-      upsertIncidentByResponse(response);
-    } catch (err) {
-      console.error('Failed to cancel incident dispatch', err);
-      throw err;
-    }
-  }, []);
-
   const refreshIncidents = useCallback(async () => {
     try {
       const response = await incidentApi.getActiveIncidents({ page: 1, pageSize: 100 });
@@ -214,10 +236,22 @@ export function useOperatorIncidents(): UseOperatorIncidentsResult {
     }
   }, []);
 
-  useRescuerHub({
-    onNewIncidentCreated: addIncidentFromSignalR,
-    onIncidentCancelled: removeIncidentFromSignalR,
-  });
+  const handleRescuerDispatched = useCallback((payload: RescuerDispatchedPayload) => {
+    // Update incident status to Assigned
+    setIncidents((prev) => {
+      const next = prev.map(incident =>
+        incident.id === payload.incidentId
+          ? { ...incident, stage: 'Assigned', stageLabel: translateIncidentStage('Assigned') }
+          : incident,
+      );
+      incidentsRef.current = next;
+      return next;
+    });
+
+    // Show toast notification
+    const incidentCode = `INC-${payload.incidentId.slice(-6).toUpperCase()}`;
+    showToast(`Rescuer đã chấp nhận nhiệm vụ cho case ${incidentCode}`, { type: 'success' });
+  }, [showToast]);
 
   const value = useMemo(() => ({
     incidents,
@@ -225,13 +259,21 @@ export function useOperatorIncidents(): UseOperatorIncidentsResult {
     setFocusedIncidentId,
     lastCreatedIncidentId,
     clearLastCreatedIncidentId,
+    abortedIncident,
+    setAbortedIncident,
+    clearAbortedIncident,
     confirmIncident,
     dispatchIncident,
-    cancelDispatch,
     refreshIncidents,
     hasError,
     isLoading,
-  }), [incidents, focusedIncidentId, lastCreatedIncidentId, clearLastCreatedIncidentId, confirmIncident, dispatchIncident, cancelDispatch, refreshIncidents, hasError, isLoading]);
+    urgentIncidentIds,
+    setUrgentIncidentIds,
+    clearUrgentIncident,
+    handleIncidentCreated: addIncidentFromSignalR,
+    handleIncidentCancelled: removeIncidentFromSignalR,
+    handleRescuerDispatched,
+  }), [incidents, focusedIncidentId, lastCreatedIncidentId, clearLastCreatedIncidentId, abortedIncident, clearAbortedIncident, confirmIncident, dispatchIncident, refreshIncidents, hasError, isLoading, urgentIncidentIds, clearUrgentIncident, addIncidentFromSignalR, removeIncidentFromSignalR, handleRescuerDispatched]);
 
   return value;
 }
