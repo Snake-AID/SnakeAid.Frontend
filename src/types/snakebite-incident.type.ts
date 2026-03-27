@@ -8,6 +8,7 @@ export interface DetailSnakebiteIncidentResponse {
   status: SnakebiteIncidentStatus;
   assignedAt: string | null;
   assignedRescuerId: string | null;
+  address: string | null;
   cancellationReason: string | null;
   severityLevel: number | null;
   incidentOccurredAt: string | null;
@@ -150,6 +151,7 @@ export interface CreateIncidentResponse {
   userId: string;
   locationCoordinates: GeoPointResponse;
   status: SnakebiteIncidentStatus;
+  address: string | null;
   incidentOccurredAt: string | null;
   dispatchRequestId: string | null;
   dispatchedRescuerId: string | null;

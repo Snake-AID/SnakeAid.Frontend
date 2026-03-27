@@ -4,6 +4,7 @@ export interface RescuerOnlineStatusPayload {
   rescuerId: string;
   isOnline: boolean;
   isAvailable: boolean;
+  inMission?: boolean; // Added to track when rescuer is in active mission
   updatedAt: string; // ISO date string
 }
 
@@ -36,6 +37,7 @@ export interface NewIncidentCreatedPayload {
   memberId: string;
   latitude: number;
   longitude: number;
+  address?: string | null;
   isNewIncident: boolean;
   updatedAt: string; // ISO date string
 }
@@ -105,4 +107,18 @@ export interface RescuerAbortedPayload {
   rescuerId: string;
   reason?: string;
   updatedAt: string;
+}
+
+export interface RescuerMissionLocationUpdatedPayload {
+  incidentId: string;
+  rescuerId: string;
+  latitude: number;
+  longitude: number;
+  updatedAt: string;
+}
+
+export interface MissionCompletedPayload {
+  incidentId: string;
+  rescuerId: string;
+  completedAt: string;
 }

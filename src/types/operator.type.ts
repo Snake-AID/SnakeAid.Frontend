@@ -5,11 +5,14 @@ import type { CatchingRequestPriority, CatchingRequestStatus } from './snakecatc
 export interface BriefRescuerProfileResponse {
   accountId: string;
   isOnline: boolean;
+  isAvailable: boolean;
   phoneNumber: string;
   rating: number;
   ratingCount: number;
   type: RescuerType;
   lastLocationUpdate: string | null;
+  latitude: number | null;
+  longitude: number | null;
   totalMissions: number;
   completedMissions: number;
   account: UserInfo;
@@ -53,6 +56,8 @@ export interface ShiftAssignmentResponse {
   rescuerId: string;
   shiftId: string;
   date: Date;
+  shiftStartLocal?: string | null;
+  shiftEndLocal?: string | null;
   status: ShiftAssignmentStatus;
   checkInAt: string | null;
   checkOutAt: string | null;
@@ -85,6 +90,7 @@ export interface OperatorIncidentSummaryResponse {
   activeMissionStatus: RescueMissionStatus | null;
   needsRedispatch: boolean;
   handlingOperatorId: string | null;
+  address?: string | null;
 }
 
 export interface OperatorSnakeCatchingRequestSummaryResponse {
@@ -95,4 +101,5 @@ export interface OperatorSnakeCatchingRequestSummaryResponse {
   assignedRescuerId: string | null;
   handlingOperatorId: string | null;
   priority: CatchingRequestPriority | null;
+  address?: string | null;
 }

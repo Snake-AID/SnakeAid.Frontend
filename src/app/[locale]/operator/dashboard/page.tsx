@@ -11,6 +11,7 @@ import OperatorInfoPanels from '@/components/operator/dashboard/OperatorInfoPane
 import OperatorMap from '@/components/operator/dashboard/OperatorMap';
 import PendingIncidentAlert from '@/components/operator/dashboard/PendingIncidentAlert';
 import PendingRequestAlert from '@/components/operator/dashboard/PendingRequestAlert';
+import RescuerAbortAlert from '@/components/operator/dashboard/RescuerAbortAlert';
 import ShiftSchedulePanel from '@/components/operator/dashboard/ShiftSchedulePanel';
 import IncidentDetailModal from '@/components/operator/IncidentDetailModal';
 import { useToast } from '@/components/ToastProvider';
@@ -20,18 +21,8 @@ import { useOperatorRescuers } from '@/hooks/useOperatorRescuers';
 import { useRescuerHub } from '@/hooks/useRescuerHub';
 
 export default function OperatorDashboardPage() {
-  const {
-    incidents,
-    focusedIncidentId,
-    setFocusedIncidentId,
-    lastCreatedIncidentId,
-    clearLastCreatedIncidentId,
-    confirmIncident,
-    refreshIncidents,
-  } = useOperatorIncidents();
-
   const { showToast } = useToast();
-  const { rescuerRegistry, liveRescuers, shiftAssignmentsWithStatus } = useOperatorRescuers();
+  const [focusTrigger, setFocusTrigger] = useState(0);
 
   const {
     requests,
@@ -45,7 +36,88 @@ export default function OperatorDashboardPage() {
     cancelRequest,
     isLoading: isRequestsLoading,
     hasError: hasRequestsError,
+    handleRequestCreated,
+    handleRequestCancelled,
   } = useOperatorRequests();
+
+  const {
+    incidents,
+    focusedIncidentId,
+    setFocusedIncidentId,
+    lastCreatedIncidentId,
+    clearLastCreatedIncidentId,
+    abortedIncident,
+    setAbortedIncident,
+    clearAbortedIncident,
+    confirmIncident,
+    dispatchIncident,
+    refreshIncidents,
+    urgentIncidentIds,
+    setUrgentIncidentIds,
+    clearUrgentIncident,
+    handleIncidentCreated,
+    handleIncidentCancelled,
+    handleRescuerDispatched,
+  } = useOperatorIncidents(() => setFocusedRequestId(null));
+
+  const {
+    rescuerRegistry,
+    liveRescuers,
+    shiftAssignmentsWithStatus,
+    loadRescuerData,
+    loadOnlineRescuers,
+    clearMissionLocation,
+    handleRescuerOnlineStatus,
+    handleRescuerIdleLocationUpdated,
+    handleRescuerMissionLocationUpdated,
+    handleMissionCompleted,
+    handleIncidentCompleted,
+  } = useOperatorRescuers();
+
+  // Handle rescuer abort at page level to ensure toast and alert work properly
+  const handleRescuerAborted = useCallback((payload: any) => {
+    // Clear request focus when rescuer aborts
+    setFocusedRequestId(null);
+
+    // Clear mission location for this rescuer
+    clearMissionLocation(payload.rescuerId);
+
+    // Mark incident as urgent
+    setUrgentIncidentIds(prev => new Set(prev).add(payload.incidentId));
+
+    // Focus on this incident so operator can re-dispatch
+    setFocusedIncidentId(payload.incidentId);
+
+    // Set aborted incident to show alert
+    setAbortedIncident({
+      incidentId: payload.incidentId,
+      reason: payload.reason,
+    });
+
+    // Show toast notification
+    showToast(`Rescuer đã abort mission${payload.reason ? `: ${payload.reason}` : ''}. Incident đã được reset về Verified để điều phối lại.`, { type: 'warning' });
+
+    // Refresh incidents to get updated status from backend
+    refreshIncidents();
+
+    // Reload rescuer data to get updated status
+    loadRescuerData();
+  }, [setFocusedRequestId, setFocusedIncidentId, setAbortedIncident, setUrgentIncidentIds, clearMissionLocation, showToast, refreshIncidents, loadRescuerData]);
+
+  // Central SignalR hub connection with all handlers merged
+  useRescuerHub({
+    onNewIncidentCreated: handleIncidentCreated,
+    onIncidentCancelled: handleIncidentCancelled,
+    onRescuerAborted: handleRescuerAborted,
+    onRescuerDispatched: handleRescuerDispatched,
+    onSnakeCatchingRequestCreated: handleRequestCreated,
+    onSnakeCatchingRequestCancelled: handleRequestCancelled,
+    onRescuerOnlineStatus: handleRescuerOnlineStatus,
+    onRescuerIdleLocationUpdated: handleRescuerIdleLocationUpdated,
+    onRescuerMissionLocationUpdated: handleRescuerMissionLocationUpdated,
+    onMissionCompleted: handleMissionCompleted,
+    onIncidentCompleted: handleIncidentCompleted,
+  });
 
   const liveRequests = useMemo(() => {
     return requests
@@ -55,12 +127,10 @@ export default function OperatorDashboardPage() {
         address: r.address ?? null,
         lat: r.lat as number,
         lng: r.lng as number,
-        status: r.status,
+        status: r.statusLabel ?? r.status,
       }));
   }, [requests]);
 
-  const [pendingConfirmIncidentId, setPendingConfirmIncidentId] = useState<string | null>(null);
-  const [pendingConfirmRequestId, setPendingConfirmRequestId] = useState<string | null>(null);
   const [detailIncident, setDetailIncident] = useState<DetailSnakebiteIncidentResponse | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -71,7 +141,6 @@ export default function OperatorDashboardPage() {
   const [detailRequestOpen, setDetailRequestOpen] = useState(false);
   const [detailRequestLoading, setDetailRequestLoading] = useState(false);
   const [detailRequestError, setDetailRequestError] = useState<string | null>(null);
-  const [urgentIncidentIds, setUrgentIncidentIds] = useState<Set<string>>(new Set());
   const [shiftPanelOpen, setShiftPanelOpen] = useState(false);
 
   const incidentRowRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -85,6 +154,7 @@ export default function OperatorDashboardPage() {
       lat: i.lat,
       lng: i.lng,
       stage: i.stage,
+      stageLabel: i.stageLabel,
       needsRedispatch: i.needsRedispatch,
     }));
   }, [incidents]);
@@ -113,21 +183,36 @@ export default function OperatorDashboardPage() {
   };
 
   const handleVerify = async (incidentId: string) => {
-    await incidentApi.confirmIncident(incidentId);
+    try {
+      await confirmIncident(incidentId);
+      showToast('Case đã được xác nhận.', { type: 'success' });
+    } catch (err) {
+      console.error('Failed to confirm incident', err);
+      showToast('Không thể xác nhận case. Vui lòng thử lại.', { type: 'error' });
+    }
   };
 
   const handleFalseAlarm = async (incidentId: string) => {
-    await incidentApi.markFalseAlarm(incidentId, {
-      reason: 'Operator marked as false alarm',
-    });
+    try {
+      await incidentApi.markFalseAlarm(incidentId, {
+        reason: 'Operator marked as false alarm',
+      });
+      showToast('Case đã được đánh dấu là báo động giả.', { type: 'success' });
+      refreshIncidents();
+    } catch (err) {
+      console.error('Failed to mark false alarm', err);
+      showToast('Không thể đánh dấu case là báo động giả. Vui lòng thử lại.', { type: 'error' });
+    }
   };
 
   const handleDispatch = async (incidentId: string, rescuerId: string) => {
-    await incidentApi.dispatchIncident(incidentId, { rescuerId });
-  };
-
-  const handleCancelDispatch = async (incidentId: string) => {
-    await incidentApi.cancelDispatch(incidentId);
+    try {
+      await dispatchIncident(incidentId, rescuerId);
+      showToast('Case đã được điều phối.', { type: 'success' });
+    } catch (err) {
+      console.error('Failed to dispatch incident', err);
+      showToast('Không thể điều phối case. Vui lòng thử lại.', { type: 'error' });
+    }
   };
 
   const handleConfirmRequest = async (requestId: string) => {
@@ -170,14 +255,6 @@ export default function OperatorDashboardPage() {
     return liveIncidents.find(i => i.id === focusedIncidentId) ?? null;
   }, [focusedIncidentId, liveIncidents]);
 
-  useEffect(() => {
-    if (!lastCreatedIncidentId) {
-      return;
-    }
-
-    setPendingConfirmIncidentId(lastCreatedIncidentId);
-  }, [lastCreatedIncidentId]);
-
   const focusedRequest = useMemo(() => {
     if (!focusedRequestId) {
       return null;
@@ -186,12 +263,15 @@ export default function OperatorDashboardPage() {
   }, [focusedRequestId, requests]);
 
   useEffect(() => {
-    if (!lastCreatedRequestId) {
+    if (!focusedIncident) {
       return;
     }
 
-    setPendingConfirmRequestId(lastCreatedRequestId);
-  }, [lastCreatedRequestId]);
+    const el = incidentRowRefs.current[focusedIncident.id];
+    if (el) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [focusedIncident]);
 
   useEffect(() => {
     if (!focusedRequest) {
@@ -204,38 +284,25 @@ export default function OperatorDashboardPage() {
     }
   }, [focusedRequest]);
 
-  const handleRescuerAborted = useCallback((payload: { incidentId: string; rescuerId: string; reason?: string }) => {
-    showToast('Rescuer đã abort. Vui lòng xử lý case này.', { type: 'info' });
-    setUrgentIncidentIds(prev => new Set(prev).add(payload.incidentId));
-    setFocusedRequestId(null);
-    setFocusedIncidentId(payload.incidentId);
+  // Scroll incident row into view when aborted incident is focused
+  useEffect(() => {
+    if (!abortedIncident) {
+      return;
+    }
 
-    // Scroll item into view if rendered
-    const el = incidentRowRefs.current[payload.incidentId];
+    const el = incidentRowRefs.current[abortedIncident.incidentId];
     if (el) {
       el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
-
-    // Optionally refresh list so UI state (needsRedispatch etc) stays fresh
-    refreshIncidents();
-  }, [refreshIncidents, setFocusedRequestId]);
-
-  useRescuerHub({
-    onRescuerAborted: handleRescuerAborted,
-    onNewIncidentCreated: () => setFocusedRequestId(null),
-    onSnakeCatchingRequestCreated: () => setFocusedIncidentId(null),
-  });
+  }, [abortedIncident]);
 
   const handleIncidentClick = useCallback((incidentId: string) => {
     setFocusedRequestId(null);
     setFocusedIncidentId(incidentId);
+    setFocusTrigger(prev => prev + 1);
     openIncidentDetail(incidentId);
-    setUrgentIncidentIds((prev) => {
-      const next = new Set(prev);
-      next.delete(incidentId);
-      return next;
-    });
-  }, [setFocusedIncidentId, setFocusedRequestId, setUrgentIncidentIds]);
+    clearUrgentIncident(incidentId);
+  }, [setFocusedIncidentId, setFocusedRequestId, clearUrgentIncident]);
 
   const openRequestDetail = async (requestId: string) => {
     setDetailRequestError(null);
@@ -258,39 +325,51 @@ export default function OperatorDashboardPage() {
   const handleRequestClick = useCallback((requestId: string) => {
     setFocusedIncidentId(null);
     setFocusedRequestId(requestId);
+    setFocusTrigger(prev => prev + 1);
     openRequestDetail(requestId);
   }, [setFocusedIncidentId, setFocusedRequestId]);
 
   return (
     <main className="relative h-[calc(100vh-81px)] overflow-hidden bg-slate-50">
-      {pendingConfirmIncidentId && (
+      {lastCreatedIncidentId && (
         <PendingIncidentAlert
-          incidentId={pendingConfirmIncidentId}
+          incidentId={lastCreatedIncidentId}
           focusedIncident={focusedIncident}
           onViewDetail={openIncidentDetail}
           onHide={() => {
-            setPendingConfirmIncidentId(null);
             clearLastCreatedIncidentId();
           }}
           onConfirm={async (id) => {
             await confirmIncident(id);
-            setPendingConfirmIncidentId(null);
+            clearLastCreatedIncidentId();
           }}
         />
       )}
 
-      {pendingConfirmRequestId && (
+      {lastCreatedRequestId && (
         <PendingRequestAlert
-          requestId={pendingConfirmRequestId}
+          requestId={lastCreatedRequestId}
           focusedRequest={focusedRequest}
           onViewDetail={openRequestDetail}
           onHide={() => {
-            setPendingConfirmRequestId(null);
             clearLastCreatedRequestId();
           }}
           onConfirm={async (id) => {
             await handleConfirmRequest(id);
-            setPendingConfirmRequestId(null);
+            clearLastCreatedRequestId();
+          }}
+        />
+      )}
+
+      {abortedIncident && (
+        <RescuerAbortAlert
+          incidentId={abortedIncident.incidentId}
+          reason={abortedIncident.reason}
+          onViewDetail={openIncidentDetail}
+          onDismiss={clearAbortedIncident}
+          onRedispatch={(id) => {
+            openIncidentDetail(id);
+            clearAbortedIncident();
           }}
         />
       )}
@@ -304,7 +383,6 @@ export default function OperatorDashboardPage() {
         onVerify={handleVerify}
         onFalseAlarm={handleFalseAlarm}
         onDispatch={handleDispatch}
-        onCancelDispatch={handleCancelDispatch}
         onRefresh={refreshIncidents}
       />
 
@@ -332,6 +410,7 @@ export default function OperatorDashboardPage() {
         liveRescuers={liveRescuers}
         focusedIncidentId={focusedIncidentId}
         focusedRequestId={focusedRequestId}
+        focusTrigger={focusTrigger}
         onIncidentClick={handleIncidentClick}
         onRequestClick={handleRequestClick}
       />
@@ -351,6 +430,8 @@ export default function OperatorDashboardPage() {
         isRequestsLoading={isRequestsLoading}
         hasRequestsError={hasRequestsError}
         onRefreshRequests={refreshRequests}
+        onRefreshIncidents={refreshIncidents}
+        onRefreshRescuers={loadOnlineRescuers}
       />
 
       <ShiftSchedulePanel

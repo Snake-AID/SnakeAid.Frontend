@@ -1,10 +1,34 @@
 'use client';
 
 import type { CreateSnakeCatchingRequestResponse } from '@/types/snakecatching-request.type';
-import { X } from 'lucide-react';
+import { AlertCircle, CheckCircle, MapPin, RotateCcw, Send, User, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { SnakeCatchingRequestStatus } from '@/types/snakecatching-request.type';
 import DispatchRescuerModal from './DispatchRescuerModal';
+
+const getShortRequestId = (id: string) => {
+  const suffix = id.slice(-6).toUpperCase();
+  return `CAR-${suffix}`;
+};
+
+const getStatusPalette = (status: string) => {
+  switch (status) {
+    case 'Pending':
+      return { border: 'border-amber-300', bg: 'bg-amber-50', text: 'text-amber-800', label: 'Chờ xử lý' };
+    case 'Confirmed':
+      return { border: 'border-emerald-300', bg: 'bg-emerald-50', text: 'text-emerald-800', label: 'Đã xác nhận' };
+    case 'Assigned':
+      return { border: 'border-sky-300', bg: 'bg-sky-50', text: 'text-sky-800', label: 'Đã phân công' };
+    case 'Dispatched':
+      return { border: 'border-sky-300', bg: 'bg-sky-50', text: 'text-sky-800', label: 'Đã điều phối' };
+    case 'Completed':
+      return { border: 'border-slate-300', bg: 'bg-slate-50', text: 'text-slate-800', label: 'Hoàn thành' };
+    case 'Cancelled':
+      return { border: 'border-rose-300', bg: 'bg-rose-50', text: 'text-rose-800', label: 'Đã hủy' };
+    default:
+      return { border: 'border-slate-300', bg: 'bg-slate-50', text: 'text-slate-800', label: status };
+  }
+};
 
 export interface CatchingRequestDetailModalProps {
   request: CreateSnakeCatchingRequestResponse | null;
@@ -48,12 +72,6 @@ export default function CatchingRequestDetailModal({
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [isOpen, onClose]);
-
-  useEffect(() => {
-    if (!isOpen) {
-      setIsDispatchModalOpen(false);
-    }
-  }, [isOpen]);
 
   if (!isOpen) {
     return null;
@@ -121,6 +139,7 @@ export default function CatchingRequestDetailModal({
     setIsActionLoading(true);
     try {
       await onAssign(request.id, rescuerId);
+      setIsDispatchModalOpen(false);
       onRefresh?.();
       onClose();
     } catch (err) {
@@ -153,163 +172,264 @@ export default function CatchingRequestDetailModal({
 
   const renderUser = () => {
     if (!request?.user) {
-      return <p className="text-sm text-slate-500">Không có thông tin người báo.</p>;
+      return <p className="mt-3 text-sm text-slate-500">Không có thông tin người yêu cầu.</p>;
     }
 
     const user = request.user as any;
 
     return (
-      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-        <p className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Người báo</p>
-        <div className="mt-2 text-sm text-slate-700">
-          <p>
-            <span className="font-semibold">Tên:</span>
-            {' '}
+      <div className="mt-3 flex flex-row items-center gap-3 rounded-xl border border-slate-200 bg-white p-3">
+        <img
+          className="h-12 w-12 rounded-full border border-slate-200 object-cover"
+          src={user.account?.avatarUrl ?? 'https://d11a6trkgmumsb.cloudfront.net/original/3X/d/8/d8b5d0a738295345ebd8934b859fa1fca1c8c6ad.jpeg'}
+          alt={user.account?.fullName ?? user.userName ?? 'User'}
+        />
+        <div className="flex-1">
+          <p className="text-sm font-semibold text-slate-900">
             {user.account?.fullName ?? user.userName ?? 'N/A'}
           </p>
-          <p>
+          <p className="text-xs text-slate-500">
             <span className="font-semibold">SĐT:</span>
             {' '}
-            {user.phoneNumber ?? 'N/A'}
+            {user.phoneNumber ?? 'Không có số điện thoại'}
           </p>
-          <p>
-            <span className="font-semibold">Email:</span>
-            {' '}
-            {user.email ?? 'N/A'}
-          </p>
+          {user.email && (
+            <p className="text-xs text-slate-500">
+              <span className="font-semibold">Email:</span>
+              {' '}
+              {user.email}
+            </p>
+          )}
         </div>
       </div>
     );
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-lg">
-        <div className="flex items-start justify-between gap-4">
+    <div className="fixed inset-0 z-99999 flex items-center justify-center bg-black/40 p-4">
+      <div className="relative w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-xl">
+        <div className="flex items-start justify-between border-b border-slate-200 px-5 py-4">
           <div>
-            <h2 className="text-lg font-bold text-slate-900">Request Detail</h2>
-            <p className="text-xs text-slate-500">
-              ID:
-              {requestId ?? 'N/A'}
-            </p>
+            <h2 className="text-lg font-bold text-slate-900">Chi tiết yêu cầu bắt rắn</h2>
+            {requestId && (
+              <p className="text-xs font-semibold text-slate-600">
+                {getShortRequestId(requestId)}
+              </p>
+            )}
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg px-3 py-2 text-sm font-semibold text-slate-500 hover:bg-slate-100"
+            className="text-sm font-semibold text-slate-600 hover:text-slate-900"
           >
             <X className="size-4" />
           </button>
         </div>
 
-        <div className="mt-6">
+        <div className="p-5">
           {isLoading
             ? (
-                <div className="text-sm text-slate-500">Loading request...</div>
+                <p className="text-sm text-slate-500">Đang tải...</p>
               )
             : error
               ? (
-                  <div className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
-                    {error}
-                  </div>
+                  <p className="text-sm text-rose-600">{error}</p>
                 )
-              : request
-                ? (
-                    <div className="space-y-5 text-sm text-slate-700">
-                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                        <p className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Trạng thái</p>
-                        <p className="mt-1 text-sm font-semibold text-slate-900">{request.status}</p>
-                      </div>
+              : !request
+                  ? (
+                      <p className="text-sm text-slate-500">Chọn yêu cầu để xem chi tiết.</p>
+                    )
+                  : (
+                      <div className="space-y-5">
+                        {(() => {
+                          const palette = getStatusPalette(request.status);
+                          return (
+                            <div className={`rounded-xl border ${palette.border} ${palette.bg} p-4`}>
+                              <p className={`text-xs font-semibold uppercase tracking-wide ${palette.text}`}>Trạng thái</p>
+                              <p className={`mt-1 text-sm font-semibold ${palette.text}`}>{palette.label}</p>
+                            </div>
+                          );
+                        })()}
 
-                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                        <p className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Chi tiết</p>
-                        <div className="mt-2 space-y-2">
-                          <p>
-                            <span className="font-semibold">Địa chỉ:</span>
-                            {' '}
-                            {request.address ?? 'N/A'}
-                          </p>
-                          <p>
-                            <span className="font-semibold">Ưu tiên:</span>
-                            {' '}
-                            {(request.priority as string | null) ?? 'N/A'}
-                          </p>
-                          <p>
-                            <span className="font-semibold">Thời gian yêu cầu:</span>
-                            {' '}
-                            {(request.requestDate as string | null) ?? 'N/A'}
-                          </p>
-                          <p>
-                            <span className="font-semibold">Ghi chú:</span>
-                            {' '}
-                            {(request.notes as string | null) ?? (request.additionalDetails as string | null) ?? 'N/A'}
+                        <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Thời gian yêu cầu</p>
+                          <p className="mt-1 text-sm font-semibold text-slate-900">
+                            {request.createdAt
+                              ? new Date(request.createdAt).toLocaleString('vi-VN')
+                              : 'Không xác định'}
                           </p>
                         </div>
-                      </div>
 
-                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                        <p className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Hành động</p>
-                        <div className="mt-3 flex flex-col gap-2">
-                          {request.status === SnakeCatchingRequestStatus.Pending && (
-                            <button
-                              type="button"
-                              onClick={handleConfirm}
-                              disabled={isActionLoading || !onConfirm}
-                              className="w-full rounded-full bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              Xác nhận
-                            </button>
+                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                          {request.estimatedPrice != null && (
+                            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                              <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">Giá ước tính</p>
+                              <p className="mt-1 text-lg font-bold text-emerald-900">
+                                {new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(request.estimatedPrice)}
+                              </p>
+                            </div>
                           )}
 
-                          {request.status === SnakeCatchingRequestStatus.Confirmed && (
-                            <button
-                              type="button"
-                              onClick={() => setIsDispatchModalOpen(true)}
-                              disabled={isActionLoading || !onAssign}
-                              className="w-full rounded-full bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              Điều phối rescuer
-                            </button>
-                          )}
-
-                          {(request.status === SnakeCatchingRequestStatus.Assigned || request.status === SnakeCatchingRequestStatus.Confirmed) && (
-                            <button
-                              type="button"
-                              onClick={handleCancel}
-                              disabled={isActionLoading || !onCancel}
-                              className="w-full rounded-full bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              Hủy yêu cầu
-                            </button>
+                          {request.distanceKm != null && (
+                            <div className="rounded-xl border border-sky-200 bg-sky-50 p-4">
+                              <p className="text-xs font-semibold text-sky-700 uppercase tracking-wide">Khoảng cách</p>
+                              <p className="mt-1 text-lg font-bold text-sky-900">
+                                {request.distanceKm.toFixed(2)}
+                                {' '}
+                                km
+                              </p>
+                            </div>
                           )}
                         </div>
-                      </div>
 
-                      {renderUser()}
+                        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                          <div className="flex items-center gap-2">
+                            <MapPin className="size-4 text-emerald-700" />
+                            <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">Địa chỉ</p>
+                          </div>
+                          <p className="mt-2 text-sm text-slate-900">
+                            {request.address ?? 'Không có địa chỉ'}
+                          </p>
+                          {request.locationCoordinates && (
+                            <p className="mt-1 text-xs text-slate-600">
+                              {request.locationCoordinates.latitude.toFixed(5)}
+                              ,
+                              {' '}
+                              {request.locationCoordinates.longitude.toFixed(5)}
+                            </p>
+                          )}
+                          <button
+                            type="button"
+                            className="mt-3 inline-flex items-center justify-center gap-2 rounded-full border border-emerald-600 bg-white px-3 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-50"
+                            onClick={onClose}
+                          >
+                            Xem trên bản đồ
+                          </button>
+                        </div>
 
-                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                        <p className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Thông tin loài</p>
-                        <div className="mt-2">{renderDetails()}</div>
-                      </div>
+                        {request.additionalDetails && (
+                          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                            <p className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Ghi chú / Chi tiết bổ sung</p>
+                            <p className="mt-2 text-sm text-slate-700">{request.additionalDetails}</p>
+                          </div>
+                        )}
 
-                      <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
-                        <p className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Hình ảnh</p>
-                        <div className="mt-2">{renderMedia()}</div>
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                          <div className="flex items-center gap-2">
+                            <User className="size-4 text-emerald-700" />
+                            <p className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Người yêu cầu</p>
+                          </div>
+                          {renderUser()}
+                        </div>
+
+                        <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                          <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide">Thông tin loài rắn</p>
+                          <div className="mt-2">{renderDetails()}</div>
+                        </div>
+
+                        <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                          <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">Hình ảnh / bằng chứng</p>
+                          <div className="mt-2">{renderMedia()}</div>
+                        </div>
+
+                        {request.isPrePaid && (
+                          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                            <div className="flex items-center gap-2">
+                              <CheckCircle className="size-4 text-emerald-700" />
+                              <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide">Đã thanh toán trước</p>
+                            </div>
+                            {request.prePaidAt && (
+                              <p className="mt-1 text-xs text-slate-600">
+                                Thanh toán lúc:
+                                {' '}
+                                {new Date(request.prePaidAt).toLocaleString('vi-VN')}
+                              </p>
+                            )}
+                          </div>
+                        )}
+
+                        {request.assignedRescuerId && (
+                          <div className="rounded-xl border border-sky-200 bg-sky-50 p-4">
+                            <p className="text-xs font-semibold text-sky-700 uppercase tracking-wide">Rescuer được phân công</p>
+                            <p className="mt-1 text-sm text-slate-900">
+                              ID:
+                              {' '}
+                              {request.assignedRescuerId}
+                            </p>
+                            {request.assignedAt && (
+                              <p className="mt-1 text-xs text-slate-600">
+                                Phân công lúc:
+                                {' '}
+                                {new Date(request.assignedAt).toLocaleString('vi-VN')}
+                              </p>
+                            )}
+                          </div>
+                        )}
+
+                        {request.cancellationReason && (
+                          <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
+                            <div className="flex items-center gap-2">
+                              <AlertCircle className="size-4 text-rose-700" />
+                              <p className="text-xs font-semibold text-rose-700 uppercase tracking-wide">Lý do hủy</p>
+                            </div>
+                            <p className="mt-2 text-sm text-slate-900">{request.cancellationReason}</p>
+                          </div>
+                        )}
+
+                        {/* Action Buttons */}
+                        <div className="border-t border-slate-200 pt-4">
+                          <div className="flex flex-col gap-2">
+                            {request.status === SnakeCatchingRequestStatus.Pending && (
+                              <button
+                                type="button"
+                                onClick={handleConfirm}
+                                disabled={isActionLoading || !onConfirm}
+                                className="w-full inline-flex items-center justify-center gap-2 rounded-full border border-emerald-600 bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                <CheckCircle className="size-4" />
+                                Xác nhận yêu cầu
+                              </button>
+                            )}
+
+                            {request.status === SnakeCatchingRequestStatus.Confirmed && (
+                              <button
+                                type="button"
+                                onClick={() => setIsDispatchModalOpen(true)}
+                                disabled={isActionLoading || !onAssign}
+                                className="w-full inline-flex items-center justify-center gap-2 rounded-full border border-sky-600 bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                <Send className="size-4" />
+                                Điều phối rescuer
+                              </button>
+                            )}
+
+                            {(request.status === SnakeCatchingRequestStatus.Assigned || request.status === SnakeCatchingRequestStatus.Confirmed) && (
+                              <button
+                                type="button"
+                                onClick={handleCancel}
+                                disabled={isActionLoading || !onCancel}
+                                className="w-full inline-flex items-center justify-center gap-2 rounded-full border border-rose-600 bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                <RotateCcw className="size-4" />
+                                Hủy yêu cầu
+                              </button>
+                            )}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  )
-                : (
-                    <div className="text-sm text-slate-500">No data available.</div>
-                  )}
+                    )}
         </div>
-      </div>
 
-      <DispatchRescuerModal
-        catchingRequestId={request?.id ?? requestId ?? ''}
-        isOpen={isDispatchModalOpen}
-        onClose={() => setIsDispatchModalOpen(false)}
-        onDispatch={handleAssign}
-      />
+        {/* Dispatch Rescuer Modal */}
+        {isOpen && (
+          <DispatchRescuerModal
+            catchingRequestId={request?.id ?? requestId ?? ''}
+            isOpen={isDispatchModalOpen}
+            onClose={() => setIsDispatchModalOpen(false)}
+            onDispatch={handleAssign}
+          />
+        )}
+      </div>
     </div>
   );
 }
