@@ -17,6 +17,16 @@ L.Icon.Default.mergeOptions({
   shadowUrl: markerShadowUrl,
 });
 
+const getShortIncidentId = (id: string) => {
+  const suffix = id.slice(-6).toUpperCase();
+  return `INC-${suffix}`;
+};
+
+const getShortRequestId = (id: string) => {
+  const suffix = id.slice(-6).toUpperCase();
+  return `CAR-${suffix}`;
+};
+
 export interface LiveIncident {
   id: string;
   code: string;
@@ -86,8 +96,9 @@ interface OperatorMapProps {
   liveRescuers: LiveRescuer[];
   focusedIncidentId?: string | null;
   focusedRequestId?: string | null;
-  onIncidentClick: (incidentId: string, lat: number, lng: number) => void;
-  onRequestClick?: (requestId: string, lat: number, lng: number) => void;
+  focusTrigger?: number;
+  onIncidentClick: (incidentId: string) => void;
+  onRequestClick?: (requestId: string) => void;
 }
 
 export default function OperatorMap({
@@ -96,6 +107,7 @@ export default function OperatorMap({
   liveRescuers,
   focusedIncidentId,
   focusedRequestId,
+  focusTrigger,
   onIncidentClick,
   onRequestClick,
 }: OperatorMapProps) {
@@ -137,21 +149,18 @@ export default function OperatorMap({
   }, [updateMapCenter]);
 
   useEffect(() => {
-    const focusId = focusedRequestId ?? focusedIncidentId;
-    if (!focusId) {
-      return;
+    if (focusedRequestId) {
+      const focusItem = liveRequestsRef.current.find(item => item.id === focusedRequestId);
+      if (focusItem) {
+        updateMapCenter(focusItem.lat, focusItem.lng);
+      }
+    } else if (focusedIncidentId) {
+      const focusItem = liveIncidentsRef.current.find(item => item.id === focusedIncidentId);
+      if (focusItem) {
+        updateMapCenter(focusItem.lat, focusItem.lng);
+      }
     }
-
-    const focusItem = focusedRequestId
-      ? liveRequestsRef.current.find(item => item.id === String(focusId))
-      : liveIncidentsRef.current.find(item => item.id === String(focusId));
-
-    if (!focusItem) {
-      return;
-    }
-
-    updateMapCenter(focusItem.lat, focusItem.lng);
-  }, [focusedIncidentId, focusedRequestId, updateMapCenter]);
+  }, [focusedIncidentId, focusedRequestId, focusTrigger, updateMapCenter]);
 
   return (
     <div className="absolute inset-0 z-0">
@@ -175,16 +184,17 @@ export default function OperatorMap({
             radius={incident.needsRedispatch ? 12 : 8}
             eventHandlers={{
               click: () => {
-                onIncidentClick(incident.id, incident.lat, incident.lng);
+                onIncidentClick(incident.id);
               },
             }}
           >
             <Popup>
               <div className="space-y-1 text-xs">
-                <div className="font-semibold">{incident.code}</div>
+                <div className="font-semibold">{getShortIncidentId(incident.id)}</div>
                 <div>{incident.address}</div>
                 <div>
-                  Stage:
+                  Giai đoạn:
+                  {' '}
                   {incident.stageLabel}
                 </div>
               </div>
@@ -200,16 +210,17 @@ export default function OperatorMap({
             radius={8}
             eventHandlers={{
               click: () => {
-                onRequestClick?.(request.id, request.lat, request.lng);
+                onRequestClick?.(request.id);
               },
             }}
           >
             <Popup>
               <div className="space-y-1 text-xs">
-                <div className="font-semibold">{request.id}</div>
-                <div>{request.address ?? 'No address'}</div>
+                <div className="font-semibold">{getShortRequestId(request.id)}</div>
+                <div>{request.address ?? 'Không có địa chỉ'}</div>
                 <div>
-                  Status:
+                  Trạng thái:
+                  {' '}
                   {request.status}
                 </div>
               </div>
@@ -232,18 +243,20 @@ export default function OperatorMap({
               <div className="space-y-1 text-xs">
                 <div className="font-semibold">{rescuer.name}</div>
                 <div>
-                  Status:
-                  {rescuer.status}
-                  {rescuer.inMission && ' (In Mission)'}
+                  Trạng thái:
+                  {' '}
+                  {rescuer.status === 'available' ? 'Sẵn sàng' : rescuer.status === 'busy' ? 'Bận' : 'Offline'}
+                  {rescuer.inMission && ' (Đang làm nhiệm vụ)'}
                 </div>
                 {rescuer.missionIncidentId && (
                   <div className="text-purple-600">
-                    Mission: INC-
+                    Nhiệm vụ: INC-
                     {rescuer.missionIncidentId.slice(-6).toUpperCase()}
                   </div>
                 )}
                 <div>
-                  Active missions:
+                  Nhiệm vụ đang thực hiện:
+                  {' '}
                   {rescuer.activeMissions}
                 </div>
               </div>

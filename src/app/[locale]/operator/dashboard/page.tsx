@@ -22,6 +22,7 @@ import { useRescuerHub } from '@/hooks/useRescuerHub';
 
 export default function OperatorDashboardPage() {
   const { showToast } = useToast();
+  const [focusTrigger, setFocusTrigger] = useState(0);
 
   const {
     requests,
@@ -211,17 +212,6 @@ export default function OperatorDashboardPage() {
     }
   };
 
-  const handleCancelDispatch = async (incidentId: string) => {
-    try {
-      await incidentApi.cancelDispatch(incidentId);
-      showToast('Đã hủy điều phối case.', { type: 'success' });
-      refreshIncidents();
-    } catch (err) {
-      console.error('Failed to cancel dispatch', err);
-      showToast('Không thể hủy điều phối case. Vui lòng thử lại.', { type: 'error' });
-    }
-  };
-
   const handleConfirmRequest = async (requestId: string) => {
     try {
       await confirmRequest(requestId);
@@ -306,6 +296,7 @@ export default function OperatorDashboardPage() {
   const handleIncidentClick = useCallback((incidentId: string) => {
     setFocusedRequestId(null);
     setFocusedIncidentId(incidentId);
+    setFocusTrigger(prev => prev + 1);
     openIncidentDetail(incidentId);
     clearUrgentIncident(incidentId);
   }, [setFocusedIncidentId, setFocusedRequestId, clearUrgentIncident]);
@@ -328,9 +319,10 @@ export default function OperatorDashboardPage() {
     }
   };
 
-  const handleRequestClick = useCallback((requestId: string, _lat?: number, _lng?: number) => {
+  const handleRequestClick = useCallback((requestId: string) => {
     setFocusedIncidentId(null);
     setFocusedRequestId(requestId);
+    setFocusTrigger(prev => prev + 1);
     openRequestDetail(requestId);
   }, [setFocusedIncidentId, setFocusedRequestId]);
 
@@ -388,7 +380,6 @@ export default function OperatorDashboardPage() {
         onVerify={handleVerify}
         onFalseAlarm={handleFalseAlarm}
         onDispatch={handleDispatch}
-        onCancelDispatch={handleCancelDispatch}
         onRefresh={refreshIncidents}
       />
 
@@ -416,6 +407,7 @@ export default function OperatorDashboardPage() {
         liveRescuers={liveRescuers}
         focusedIncidentId={focusedIncidentId}
         focusedRequestId={focusedRequestId}
+        focusTrigger={focusTrigger}
         onIncidentClick={handleIncidentClick}
         onRequestClick={handleRequestClick}
       />

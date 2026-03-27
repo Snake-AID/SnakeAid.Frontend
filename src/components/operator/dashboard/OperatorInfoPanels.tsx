@@ -16,8 +16,8 @@ interface OperatorInfoPanelsProps {
   urgentIncidentIds: Set<string>;
   incidentRowRefs: MutableRefObject<Record<string, HTMLButtonElement | null>>;
   requestRowRefs: MutableRefObject<Record<string, HTMLButtonElement | null>>;
-  onIncidentClick: (incidentId: string, lat: number, lng: number) => void;
-  onRequestClick: (requestId: string, lat: number, lng: number) => void;
+  onIncidentClick: (incidentId: string) => void;
+  onRequestClick: (requestId: string) => void;
   isRequestsLoading: boolean;
   hasRequestsError: boolean;
   onRefreshRequests: () => Promise<void>;
@@ -108,12 +108,12 @@ export default function OperatorInfoPanels({
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <h3 className="mb-4 flex items-center gap-2 text-base font-bold text-slate-900">
             <UserCheck className="size-4.5 text-teal-700" />
-            Rescuers online
+            Cứu hộ viên trực tuyến
           </h3>
 
           {liveRescuers.length === 0
             ? (
-                <p className="text-sm text-slate-500">No rescuers currently online.</p>
+                <p className="text-sm text-slate-500">Chưa có cứu hộ viên nào trực tuyến.</p>
               )
             : (
                 <div className="space-y-3 max-h-[26vh] overflow-y-auto pr-1">
@@ -121,15 +121,15 @@ export default function OperatorInfoPanels({
                     <div key={rescuer.id} className="rounded-xl border border-slate-200 p-3">
                       <p className="font-semibold text-slate-800">{rescuer.name}</p>
                       <p className="text-xs text-slate-500">
-                        {rescuerRegistry[rescuer.id]?.phoneNumber ?? 'No phone'}
+                        {rescuerRegistry[rescuer.id]?.phoneNumber ?? 'Chưa có SĐT'}
                       </p>
                       <p className="text-sm text-slate-500">
                         <span
                           className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${getOnlineBadgeClasses(rescuer.status === 'available' || rescuer.status === 'busy')}`}
                         >
-                          {rescuer.status === 'available' ? 'Online' : 'Busy'}
+                          {rescuer.status === 'available' ? 'Sẵn sàng' : rescuer.status === 'busy' ? 'Bận' : 'Offline'}
                         </span>
-                        {rescuerRegistry[rescuer.id]?.totalMissions != null ? ` • Missions: ${rescuerRegistry[rescuer.id]?.totalMissions}` : ''}
+                        {rescuerRegistry[rescuer.id]?.totalMissions != null ? ` • Nhiệm vụ: ${rescuerRegistry[rescuer.id]?.totalMissions}` : ''}
                       </p>
                     </div>
                   ))}
@@ -151,7 +151,7 @@ export default function OperatorInfoPanels({
                 activeTab === 'incidents' ? 'bg-teal-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
-              Incidents
+              Cấp cứu
             </button>
             <button
               type="button"
@@ -160,7 +160,7 @@ export default function OperatorInfoPanels({
                 activeTab === 'requests' ? 'bg-teal-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
               }`}
             >
-              Requests
+              Bắt rắn
               <span className="ml-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-white/20 px-2 text-xs font-semibold">
                 {requests.length}
               </span>
@@ -203,7 +203,7 @@ export default function OperatorInfoPanels({
                                   ref={(el) => {
                                     requestRowRefs.current[req.id] = el;
                                   }}
-                                  onClick={() => onRequestClick(req.id, req.lat ?? 0, req.lng ?? 0)}
+                                  onClick={() => onRequestClick(req.id)}
                                   className={`w-full rounded-xl border px-3 py-3 text-left transition ${
                                     isFocused ? 'border-teal-500 bg-teal-50' : 'border-slate-200 bg-white hover:bg-slate-50'
                                   }`}
@@ -238,7 +238,7 @@ export default function OperatorInfoPanels({
                               ref={(el) => {
                                 incidentRowRefs.current[inc.id] = el;
                               }}
-                              onClick={() => onIncidentClick(inc.id, inc.lat, inc.lng)}
+                              onClick={() => onIncidentClick(inc.id)}
                               className={`w-full rounded-xl border px-3 py-3 text-left transition ${isFocused ? 'border-teal-500 bg-teal-50' : 'border-slate-200 bg-white hover:bg-slate-50'}`}
                             >
                               <div className="flex items-start justify-between gap-2">
