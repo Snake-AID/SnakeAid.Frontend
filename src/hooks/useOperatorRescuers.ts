@@ -27,11 +27,16 @@ export interface LiveRescuer {
   missionIncidentId?: string;
 }
 
+export type ShiftBadgeColor = 'blue' | 'emerald' | 'slate';
+
 export type ShiftAssignmentWithStatus = ShiftAssignmentResponse & {
   fullName: string;
   isOnline: boolean;
   isAvailable: boolean;
   isPast: boolean;
+  isCurrent: boolean;
+  isUpcoming: boolean;
+  shiftBadgeColor: ShiftBadgeColor;
 };
 
 export function useOperatorRescuers() {
@@ -64,54 +69,9 @@ export function useOperatorRescuers() {
   }, []);
 
   useEffect(() => {
-    loadRescuerData();
-  }, [loadRescuerData]);
-
-  const getShiftStartEnd = (shiftDate: Date, shift: { startTime: string; endTime: string }) => {
-    const [startHourStr, startMinStr] = (shift.startTime ?? '').split(':');
-    const [endHourStr, endMinStr] = (shift.endTime ?? '').split(':');
-
-    const startHour = Number(startHourStr);
-    const startMin = Number(startMinStr);
-    const endHour = Number(endHourStr);
-    const endMin = Number(endMinStr);
-
-    const start = new Date(shiftDate);
-    const end = new Date(shiftDate);
-
-    if (Number.isNaN(startHour) || Number.isNaN(startMin) || Number.isNaN(endHour) || Number.isNaN(endMin)) {
-      return { start: null, end: null };
-    }
-
-    start.setHours(startHour, startMin, 0, 0);
-    end.setHours(endHour, endMin, 0, 0);
-
-    if (end <= start) {
-      end.setDate(end.getDate() + 1);
-    }
-
-    return { start, end };
-  };
-
-  const getShiftDate = (shiftAssignment: ShiftAssignmentResponse): Date => {
-    if (shiftAssignment.shiftStartLocal) {
-      const parsed = new Date(shiftAssignment.shiftStartLocal);
-      if (!Number.isNaN(parsed.getTime())) {
-        return parsed;
-      }
-    }
-    return new Date(shiftAssignment.date);
-  };
-
-  const isShiftPast = (shiftAssignment: ShiftAssignmentResponse, shift: { startTime: string; endTime: string }) => {
-    const now = new Date();
-    const shiftDate = getShiftDate(shiftAssignment);
-    const { end } = getShiftStartEnd(shiftDate, shift);
-    if (!end) {
-      return false;
-    }
-    return now > end;
-  };
+    void loadRescuerData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const shiftStatusByRescuer = useMemo(() => {
     const map = new Map<string, { isOnline: boolean; isAvailable: boolean }>();
@@ -154,21 +114,50 @@ export function useOperatorRescuers() {
     return list;
   }, [onDutySnapshot, rescuerRegistry, missionLocations]);
 
-  const shiftAssignmentsWithStatus = useMemo<ShiftAssignmentWithStatus[]>(() =>
-    shiftAssignments
-      .map((sa) => {
-        const status = shiftStatusByRescuer.get(sa.rescuerId);
-        const snapshot = onDutySnapshot.find(r => r.rescuerId === sa.rescuerId);
-        const profile = rescuerRegistry[sa.rescuerId];
-        return {
-          ...sa,
-          fullName: snapshot?.fullName ?? profile?.account?.fullName ?? sa.rescuerId,
-          isOnline: status?.isOnline ?? false,
-          isAvailable: status?.isAvailable ?? false,
-          isPast: isShiftPast(sa, sa.shift),
-        };
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-      }), [shiftAssignments, shiftStatusByRescuer, onDutySnapshot, rescuerRegistry]);
+  const shiftAssignmentsWithStatus = useMemo<ShiftAssignmentWithStatus[]>(() => {
+    const now = new Date();
+    const eightHoursLater = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+
+    return shiftAssignments.map((sa) => {
+      const status = shiftStatusByRescuer.get(sa.rescuerId);
+      const snapshot = onDutySnapshot.find(r => r.rescuerId === sa.rescuerId);
+      const profile = rescuerRegistry[sa.rescuerId];
+
+      let isCurrent = false;
+      let isUpcoming = false;
+      let isPast = false;
+      let shiftBadgeColor: ShiftBadgeColor = 'slate';
+
+      if (sa.shiftStartLocal && sa.shiftEndLocal) {
+        const start = new Date(sa.shiftStartLocal);
+        const end = new Date(sa.shiftEndLocal);
+
+        isCurrent = start <= now && now <= end;
+        isPast = now > end;
+        isUpcoming = !isCurrent && !isPast && start <= eightHoursLater;
+
+        // Determine badge color based on shift timing
+        if (isCurrent) {
+          shiftBadgeColor = 'emerald';
+        } else if (isUpcoming) {
+          shiftBadgeColor = 'blue';
+        } else {
+          shiftBadgeColor = 'slate';
+        }
+      }
+
+      return {
+        ...sa,
+        fullName: snapshot?.fullName ?? profile?.account?.fullName ?? sa.rescuerId,
+        isOnline: status?.isOnline ?? false,
+        isAvailable: status?.isAvailable ?? false,
+        isPast,
+        isCurrent,
+        isUpcoming,
+        shiftBadgeColor,
+      };
+    });
+  }, [shiftAssignments, shiftStatusByRescuer, onDutySnapshot, rescuerRegistry]);
 
   const handleRescuerOnlineStatus = useCallback((payload: RescuerOnlineStatusPayload) => {
     // eslint-disable-next-line no-console
