@@ -15,6 +15,8 @@ export const operatorApi = {
     maxDistanceKm?: number;
   }) => api.get<OnDutyRescuerSnapshotResponse>('/monitoring/on-duty', { params }),
 
+  getOnlineRescuers: () => api.get<BriefRescuerProfileResponse[]>('/monitoring/online-rescuers'),
+
   getRescuerRegistry: () => api.get<BriefRescuerProfileResponse[]>('/monitoring/rescuers'),
 
   getRescuerById: (rescuerId: string) => api.get<BriefRescuerProfileResponse>(`/monitoring/rescuers/${rescuerId}`),
