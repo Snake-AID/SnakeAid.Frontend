@@ -3,7 +3,7 @@ import type { OperatorMapIncident } from '@/hooks/useOperatorIncidents';
 import type { OperatorRequestSummary } from '@/hooks/useOperatorRequests';
 import type { LiveRescuer } from '@/hooks/useOperatorRescuers';
 import type { BriefRescuerProfileResponse } from '@/types/operator.type';
-import { MapPin, ShieldCheck, UserCheck } from 'lucide-react';
+import { MapPin, RefreshCw, ShieldCheck, UserCheck } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 interface OperatorInfoPanelsProps {
@@ -21,6 +21,8 @@ interface OperatorInfoPanelsProps {
   isRequestsLoading: boolean;
   hasRequestsError: boolean;
   onRefreshRequests: () => Promise<void>;
+  onRefreshIncidents: () => Promise<void>;
+  onRefreshRescuers?: () => Promise<void>;
 }
 
 const getShortEntityId = (type: 'INC' | 'CAR', id: string) => {
@@ -53,13 +55,19 @@ export default function OperatorInfoPanels({
   isRequestsLoading,
   hasRequestsError,
   onRefreshRequests,
+  onRefreshIncidents,
+  onRefreshRescuers,
 }: OperatorInfoPanelsProps) {
+  // Note: EnRoute is a RescueMissionStatus, not SnakebiteIncidentStatus
+  // Incidents only have: Pending, Verified, Assigned, Finished, Completed, FalseAlarm, Cancelled, NoRescuerFound, Disputed
   const queueCount = incidents.filter(item => item.stage === 'Pending' || item.stage === 'Verified').length;
   const contactingCount = incidents.filter(item => item.stage === 'Contacting' || item.stage === 'Pending').length;
-  const assignedCount = incidents.filter(item => item.stage === 'Assigned' || item.stage === 'EnRoute').length;
+  const assignedCount = incidents.filter(item => item.stage === 'Assigned').length;
   const disputeCount = incidents.filter(item => item.needsRedispatch).length;
 
   const [activeTab, setActiveTab] = useState<'incidents' | 'requests'>('incidents');
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isRefreshingRescuers, setIsRefreshingRescuers] = useState(false);
 
   useEffect(() => {
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
@@ -77,6 +85,31 @@ export default function OperatorInfoPanels({
     };
   }, [focusedRequestId, focusedIncidentId]);
 
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      if (activeTab === 'incidents') {
+        await onRefreshIncidents();
+      } else {
+        await onRefreshRequests();
+      }
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  const handleRefreshRescuers = async () => {
+    if (!onRefreshRescuers) {
+      return;
+    }
+    setIsRefreshingRescuers(true);
+    try {
+      await onRefreshRescuers();
+    } finally {
+      setIsRefreshingRescuers(false);
+    }
+  };
+
   return (
     <div className="absolute inset-0 z-10 pointer-events-none">
       <div className="absolute top-4 right-4 w-[min(420px,calc(100%-2rem))] max-h-[calc(100%-2rem)] overflow-y-auto space-y-6 pointer-events-auto">
@@ -87,7 +120,7 @@ export default function OperatorInfoPanels({
           </h3>
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div className="rounded-xl bg-amber-50 p-3">
-              <p className="text-amber-700">Chờ điều phối</p>
+              <p className="text-amber-700">Chờ xử lý</p>
               <p className="text-xl font-bold text-amber-900">{queueCount}</p>
             </div>
             <div className="rounded-2xl bg-blue-50 p-3">
@@ -95,7 +128,7 @@ export default function OperatorInfoPanels({
               <p className="text-xl font-bold text-blue-900">{contactingCount}</p>
             </div>
             <div className="rounded-xl bg-emerald-50 p-3">
-              <p className="text-emerald-700">Đã nhận lệnh</p>
+              <p className="text-emerald-700">Đang thực thi</p>
               <p className="text-xl font-bold text-emerald-900">{assignedCount}</p>
             </div>
             <div className="rounded-xl bg-rose-50 p-3">
@@ -106,10 +139,24 @@ export default function OperatorInfoPanels({
         </div>
 
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 className="mb-4 flex items-center gap-2 text-base font-bold text-slate-900">
-            <UserCheck className="size-4.5 text-teal-700" />
-            Cứu hộ viên trực tuyến
-          </h3>
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="flex items-center gap-2 text-base font-bold text-slate-900">
+              <UserCheck className="size-4.5 text-teal-700" />
+              Cứu hộ viên trực tuyến
+            </h3>
+            {onRefreshRescuers && (
+              <button
+                type="button"
+                onClick={handleRefreshRescuers}
+                disabled={isRefreshingRescuers}
+                className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-teal-700 transition hover:bg-teal-50 disabled:opacity-50"
+                title="Làm mới danh sách cứu hộ viên"
+              >
+                <RefreshCw className={`size-3.5 ${isRefreshingRescuers ? 'animate-spin' : ''}`} />
+                Làm mới
+              </button>
+            )}
+          </div>
 
           {liveRescuers.length === 0
             ? (
@@ -138,10 +185,22 @@ export default function OperatorInfoPanels({
         </div>
 
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 className="mb-4 flex items-center gap-2 text-base font-bold text-slate-900">
-            <MapPin className="size-4.5 text-teal-700" />
-            Danh sách sự cố đang hoạt động
-          </h3>
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="flex items-center gap-2 text-base font-bold text-slate-900">
+              <MapPin className="size-4.5 text-teal-700" />
+              Danh sách sự cố đang hoạt động
+            </h3>
+            <button
+              type="button"
+              onClick={handleRefresh}
+              disabled={isRefreshing}
+              className="flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold text-teal-700 transition hover:bg-teal-50 disabled:opacity-50"
+              title="Làm mới danh sách"
+            >
+              <RefreshCw className={`size-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+              Làm mới
+            </button>
+          </div>
 
           <div className="mb-4 flex gap-2">
             <button
@@ -231,9 +290,10 @@ export default function OperatorInfoPanels({
                         incidents.map((inc) => {
                           const isFocused = inc.id === focusedIncidentId;
                           const isUrgent = urgentIncidentIds.has(inc.id);
+
                           return (
                             <button
-                              key={inc.id}
+                              key={`${inc.id}-${inc.stage}`}
                               type="button"
                               ref={(el) => {
                                 incidentRowRefs.current[inc.id] = el;
