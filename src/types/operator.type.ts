@@ -5,11 +5,14 @@ import type { CatchingRequestPriority, CatchingRequestStatus } from './snakecatc
 export interface BriefRescuerProfileResponse {
   accountId: string;
   isOnline: boolean;
+  isAvailable: boolean;
   phoneNumber: string;
   rating: number;
   ratingCount: number;
   type: RescuerType;
   lastLocationUpdate: string | null;
+  latitude: number | null;
+  longitude: number | null;
   totalMissions: number;
   completedMissions: number;
   account: UserInfo;

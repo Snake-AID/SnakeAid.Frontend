@@ -31,12 +31,18 @@ const translateIncidentStage = (stage: string) => {
       return 'Đã điều phối';
     case 'Assigned':
       return 'Đã nhận lệnh';
-    case 'EnRoute':
-      return 'Đang di chuyển';
+    case 'Finished':
+      return 'Đã kết thúc';
     case 'Completed':
-      return 'Hoàn tất';
+      return 'Hoàn thành';
     case 'FalseAlarm':
       return 'Báo động giả';
+    case 'Cancelled':
+      return 'Đã hủy';
+    case 'NoRescuerFound':
+      return 'Không tìm được cứu hộ';
+    case 'Disputed':
+      return 'Tranh chấp';
     default:
       return stage;
   }
@@ -227,7 +233,13 @@ export function useOperatorIncidents(clearRequestFocus?: () => void): UseOperato
   const refreshIncidents = useCallback(async () => {
     try {
       const response = await incidentApi.getActiveIncidents({ page: 1, pageSize: 100 });
-      const mapped = response.items.map(toOperatorMapIncident);
+
+      // Map and ensure each object is a new reference
+      const mapped = response.items.map((item) => {
+        const incident = toOperatorMapIncident(item);
+        return { ...incident }; // Force new object
+      });
+
       incidentsRef.current = mapped;
       setIncidents(mapped);
     } catch (err) {

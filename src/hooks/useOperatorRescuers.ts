@@ -41,9 +41,19 @@ export type ShiftAssignmentWithStatus = ShiftAssignmentResponse & {
 
 export function useOperatorRescuers() {
   const [rescuerRegistry, setRescuerRegistry] = useState<Record<string, BriefRescuerProfileResponse>>({});
+  const [onlineRescuers, setOnlineRescuers] = useState<BriefRescuerProfileResponse[]>([]);
   const [onDutySnapshot, setOnDutySnapshot] = useState<OnDutyRescuerItemResponse[]>([]);
   const [shiftAssignments, setShiftAssignments] = useState<ShiftAssignmentResponse[]>([]);
   const [missionLocations, setMissionLocations] = useState<Record<string, { lat: number; lng: number; incidentId: string }>>({});
+
+  const loadOnlineRescuers = useCallback(async () => {
+    try {
+      const online = await operatorApi.getOnlineRescuers();
+      setOnlineRescuers(online);
+    } catch (err) {
+      console.error('Failed to load online rescuers', err);
+    }
+  }, []);
 
   const loadRescuerData = useCallback(async () => {
     try {
@@ -52,6 +62,8 @@ export function useOperatorRescuers() {
     } catch (err) {
       console.error('Failed to load rescuer registry', err);
     }
+
+    await loadOnlineRescuers();
 
     try {
       const snapshot = await operatorApi.getOnDutyRescuers();
@@ -66,7 +78,7 @@ export function useOperatorRescuers() {
     } catch (err) {
       console.error('Failed to load today shift assignments', err);
     }
-  }, []);
+  }, [loadOnlineRescuers]);
 
   useEffect(() => {
     void loadRescuerData();
@@ -80,11 +92,11 @@ export function useOperatorRescuers() {
   }, [onDutySnapshot]);
 
   const liveRescuers = useMemo<LiveRescuer[]>(() => {
-    const list = onDutySnapshot
-      .filter(r => r.isOnline)
+    const list = onlineRescuers
       .map((r) => {
-        const missionLoc = missionLocations[r.rescuerId];
+        const missionLoc = missionLocations[r.accountId];
 
+        // Priority: mission location > lastLocation from API > skip if no location
         const lat = missionLoc?.lat ?? r.latitude;
         const lng = missionLoc?.lng ?? r.longitude;
 
@@ -92,14 +104,13 @@ export function useOperatorRescuers() {
           return null;
         }
 
-        const profile = rescuerRegistry[r.rescuerId];
-        const name = profile?.account?.fullName ?? r.fullName ?? r.rescuerId;
-        const activeMissions = profile?.totalMissions ?? 0;
+        const name = r.account?.fullName ?? r.accountId;
+        const activeMissions = r.totalMissions ?? 0;
 
-        const status: RescuerStatus = r.isAvailable ? 'available' : 'busy';
+        const status: RescuerStatus = r.isOnline ? (r.isAvailable ? 'available' : 'busy') : 'offline';
 
         return {
-          id: r.rescuerId,
+          id: r.accountId,
           name,
           status,
           lat,
@@ -112,7 +123,7 @@ export function useOperatorRescuers() {
       .filter(Boolean) as LiveRescuer[];
 
     return list;
-  }, [onDutySnapshot, rescuerRegistry, missionLocations]);
+  }, [onlineRescuers, missionLocations]);
 
   const shiftAssignmentsWithStatus = useMemo<ShiftAssignmentWithStatus[]>(() => {
     const now = new Date();
@@ -163,24 +174,78 @@ export function useOperatorRescuers() {
     // eslint-disable-next-line no-console
     console.log('🟢 RescuerOnlineStatus event:', payload);
 
-    setOnDutySnapshot((prev) => {
-      const exists = prev.some(r => r.rescuerId === payload.rescuerId);
-      if (exists) {
-        return prev.map(r =>
-          r.rescuerId === payload.rescuerId
-            ? { ...r, isOnline: payload.isOnline, isAvailable: payload.isAvailable }
-            : r,
-        );
+    // Update online rescuers list
+    setOnlineRescuers((prev) => {
+      const existingIndex = prev.findIndex(r => r.accountId === payload.rescuerId);
+
+      if (existingIndex >= 0) {
+        // Update existing rescuer
+        // eslint-disable-next-line no-console
+        console.log(`   ✅ Updating online rescuer ${payload.rescuerId}: online=${payload.isOnline}, available=${payload.isAvailable}`);
+
+        if (!payload.isOnline) {
+          // Remove from online list if went offline
+          return prev.filter(r => r.accountId !== payload.rescuerId);
+        }
+
+        // Update status
+        const updated = [...prev];
+        updated[existingIndex] = {
+          ...updated[existingIndex]!,
+          isOnline: payload.isOnline,
+          isAvailable: payload.isAvailable,
+        };
+        return updated;
       }
-      loadRescuerData();
+
+      if (payload.isOnline) {
+        // Rescuer came online - reload to get full data
+        // eslint-disable-next-line no-console
+        console.log(`   ⚠️ Rescuer ${payload.rescuerId} came online, reloading online rescuers...`);
+        loadOnlineRescuers();
+      }
+
       return prev;
     });
-  }, [loadRescuerData]);
+
+    // Also update on-duty snapshot if rescuer is there
+    setOnDutySnapshot((prev) => {
+      const existingIndex = prev.findIndex(r => r.rescuerId === payload.rescuerId);
+
+      if (existingIndex >= 0) {
+        const updated = [...prev];
+        const existing = updated[existingIndex]!;
+        updated[existingIndex] = {
+          ...existing,
+          isOnline: payload.isOnline,
+          isAvailable: payload.isAvailable,
+        };
+        return updated;
+      }
+
+      return prev;
+    });
+  }, [loadOnlineRescuers]);
 
   const handleRescuerIdleLocationUpdated = useCallback((payload: RescuerIdleLocationUpdatedPayload) => {
     // eslint-disable-next-line no-console
     console.log('📍 RescuerIdleLocationUpdated event:', payload);
 
+    // Update online rescuers location
+    setOnlineRescuers((prev) => {
+      return prev.map(r =>
+        r.accountId === payload.rescuerId
+          ? {
+              ...r,
+              lastLocationUpdate: new Date().toISOString(),
+              latitude: payload.latitude,
+              longitude: payload.longitude,
+            }
+          : r,
+      );
+    });
+
+    // Also update on-duty snapshot
     setOnDutySnapshot((prev) => {
       return prev.map(r =>
         r.rescuerId === payload.rescuerId
@@ -206,16 +271,34 @@ export function useOperatorRescuers() {
 
   const handleMissionCompleted = useCallback((payload: MissionCompletedPayload) => {
     // eslint-disable-next-line no-console
-    console.log('✅ MissionCompleted event:', payload);
+    console.log('✅ MissionCompleted event (rescuer disconnected from mission):', payload);
 
+    // Clear mission location when rescuer disconnects from mission hub
     setMissionLocations((prev) => {
       const next = { ...prev };
       delete next[payload.rescuerId];
       return next;
     });
 
+    // Note: Do NOT reload rescuer data here - rescuer may reconnect to RescuerHub
+    // and status will be updated via RescuerOnlineStatus event
+  }, []);
+
+  const handleIncidentCompleted = useCallback((payload: { incidentId: string; rescuerId: string; completedAt: string }) => {
+    // eslint-disable-next-line no-console
+    console.log('🎉 IncidentCompleted event (mission actually completed):', payload);
+
+    // Clear mission location
+    setMissionLocations((prev) => {
+      const next = { ...prev };
+      delete next[payload.rescuerId];
+      return next;
+    });
+
+    // Reload data to update incident status and rescuer availability
+    loadOnlineRescuers();
     loadRescuerData();
-  }, [loadRescuerData]);
+  }, [loadOnlineRescuers, loadRescuerData]);
 
   const clearMissionLocation = useCallback((rescuerId: string) => {
     setMissionLocations((prev) => {
@@ -230,10 +313,12 @@ export function useOperatorRescuers() {
     liveRescuers,
     shiftAssignmentsWithStatus,
     loadRescuerData,
+    loadOnlineRescuers,
     clearMissionLocation,
     handleRescuerOnlineStatus,
     handleRescuerIdleLocationUpdated,
     handleRescuerMissionLocationUpdated,
     handleMissionCompleted,
+    handleIncidentCompleted,
   };
 }
