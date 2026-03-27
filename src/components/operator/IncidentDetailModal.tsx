@@ -278,19 +278,26 @@ export default function IncidentDetailModal({
       case 'Pending':
         return { border: 'border-amber-300', bg: 'bg-amber-50', text: 'text-amber-800', label: 'Chờ xác minh' };
       case 'Verified':
-        return { border: 'border-emerald-300', bg: 'bg-emerald-50', text: 'text-emerald-800', label: 'Đã xác minh' };
+        return { border: 'border-emerald-300', bg: 'bg-emerald-50', text: 'text-emerald-800', label: 'Chờ điều phối' };
       case 'Assigned':
-        return { border: 'border-sky-300', bg: 'bg-sky-50', text: 'text-sky-800', label: 'Đã phân công' };
-      case 'Dispatched':
-        return { border: 'border-sky-300', bg: 'bg-sky-50', text: 'text-sky-800', label: 'Đã điều phối' };
-      case 'EnRoute':
-        return { border: 'border-sky-300', bg: 'bg-sky-50', text: 'text-sky-800', label: 'Đang di chuyển' };
+        return { border: 'border-sky-300', bg: 'bg-sky-50', text: 'text-sky-800', label: 'Đã nhận lệnh' };
+      case 'Finished':
+        return { border: 'border-purple-300', bg: 'bg-purple-50', text: 'text-purple-800', label: 'Đã kết thúc' };
       case 'Completed':
-        return { border: 'border-slate-300', bg: 'bg-slate-50', text: 'text-slate-800', label: 'Hoàn thành' };
+        return { border: 'border-emerald-300', bg: 'bg-emerald-50', text: 'text-emerald-800', label: 'Hoàn thành' };
       case 'FalseAlarm':
         return { border: 'border-rose-300', bg: 'bg-rose-50', text: 'text-rose-800', label: 'Báo động giả' };
+      case 'Cancelled':
+        return { border: 'border-slate-300', bg: 'bg-slate-50', text: 'text-slate-800', label: 'Đã hủy' };
+      case 'NoRescuerFound':
+        return { border: 'border-orange-300', bg: 'bg-orange-50', text: 'text-orange-800', label: 'Không tìm được cứu hộ' };
       case 'Disputed':
         return { border: 'border-violet-300', bg: 'bg-violet-50', text: 'text-violet-800', label: 'Tranh chấp' };
+      // Legacy statuses (may not be used anymore)
+      case 'Dispatched':
+        return { border: 'border-sky-300', bg: 'bg-sky-50', text: 'text-sky-800', label: 'Đã điều phối' };
+      case 'Contacting':
+        return { border: 'border-blue-300', bg: 'bg-blue-50', text: 'text-blue-800', label: 'Đang liên hệ' };
       default:
         return { border: 'border-slate-300', bg: 'bg-slate-50', text: 'text-slate-800', label: status };
     }
@@ -500,10 +507,8 @@ export default function IncidentDetailModal({
                           </div>
                         </div>
 
-                        {/* Active Mission - Show for Assigned, Dispatched, EnRoute, RescuerArrived statuses */}
-                        {(incident.status === SnakebiteIncidentStatus.Assigned
-                          || incident.status === SnakebiteIncidentStatus.Finished
-                          || incident.status === SnakebiteIncidentStatus.Completed) && (
+                        {/* Active Mission - Only show for Assigned status (mission is active) */}
+                        {incident.status === SnakebiteIncidentStatus.Assigned && (
                           <div className="rounded-xl border border-purple-200 bg-purple-50 p-4">
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2">
