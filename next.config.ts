@@ -14,6 +14,38 @@ const baseConfig: NextConfig = {
   outputFileTracingIncludes: {
     '/': ['./migrations/**/*'],
   },
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'vietnamsnakes.com',
+      },
+      {
+        protocol: 'https',
+        hostname: 'res.cloudinary.com',
+      },
+      {
+        protocol: 'https',
+        hostname: 'www.cakhotranluan.com',
+      },
+      {
+        protocol: 'https',
+        hostname: 'cakhotranluan.com',
+      },
+      {
+        protocol: 'https',
+        hostname: '**.dev.snakeaid.tech',
+      },
+      {
+        protocol: 'https',
+        hostname: '**',
+      },
+      {
+        protocol: 'http',
+        hostname: '**',
+      },
+    ],
+  },
 };
 
 // Initialize the Next-Intl plugin

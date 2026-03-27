@@ -1,13 +1,41 @@
 import type { CreateTreatmentFacilityRequest, TreatmentFacilityResponse, UpdateTreatmentFacilityRequest } from '@/types/treatment-facility.type';
-import { api } from './client';
+import { api, ApiClientError } from './client';
+
+const endpointCandidates = [
+  '/treatment-facilities',
+  '/treatmemt-facilities',
+] as const;
+
+const withFallback = async <T>(run: (basePath: string) => Promise<T>): Promise<T> => {
+  try {
+    return await run(endpointCandidates[0]);
+  } catch (error) {
+    if (!(error instanceof ApiClientError)) {
+      throw error;
+    }
+
+    // Some environments expose different route spellings or method wiring.
+    // Retry the secondary endpoint for route/method/server failures.
+    if (![404, 405, 500].includes(error.statusCode)) {
+      throw error;
+    }
+
+    return run(endpointCandidates[1]);
+  }
+};
 
 // Treatment Facility API endpoints
 export const treatmentFacilityApi = {
-  getAllTreatmentFacilities: () => api.get<TreatmentFacilityResponse[]>('/treatment-facilities'),
+  getAllTreatmentFacilities: () => withFallback(path => api.get<TreatmentFacilityResponse[]>(path)),
 
-  createTreatmentFacility: (data: CreateTreatmentFacilityRequest) => api.post<TreatmentFacilityResponse>('/treatment-facilities', { body: data }),
+  getTreatmentFacilityById: (id: number | string) =>
+    withFallback(path => api.get<TreatmentFacilityResponse>(`${path}/${id}`)),
 
-  updateTreatmentFacility: (id: number, data: Partial<UpdateTreatmentFacilityRequest>) => api.put<TreatmentFacilityResponse>(`/treatment-facilities/${id}`, { body: data }),
+  createTreatmentFacility: (data: CreateTreatmentFacilityRequest) =>
+    withFallback(path => api.post<TreatmentFacilityResponse>(path, data)),
 
-  deleteTreatmentFacility: (id: number) => api.delete(`/treatment-facilities/${id}`),
+  updateTreatmentFacility: (id: number | string, data: UpdateTreatmentFacilityRequest) =>
+    withFallback(path => api.put<TreatmentFacilityResponse>(`${path}/${id}`, data)),
+
+  deleteTreatmentFacility: (id: number | string) => withFallback(path => api.delete<void>(`${path}/${id}`)),
 };

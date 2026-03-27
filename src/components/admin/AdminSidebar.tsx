@@ -2,12 +2,10 @@
 
 import {
   Building2,
-  DollarSign,
+  CalendarDays,
+  FlaskConical,
   LayoutDashboard,
-  Settings,
   Shield,
-  TrendingUp,
-  UserCheck,
   Users,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -27,8 +25,15 @@ export default function AdminSidebar({
     {
       id: 'dashboard',
       icon: LayoutDashboard,
-      label: 'Dashboard',
+      label: 'Bảng điều khiển',
       href: '/admin/dashboard',
+      enabled: true,
+    },
+    {
+      id: 'workshifts',
+      icon: CalendarDays,
+      label: 'Quản lý lịch làm việc',
+      href: '/admin/workshifts',
       enabled: true,
     },
     {
@@ -39,39 +44,24 @@ export default function AdminSidebar({
       enabled: true,
     },
     {
-      id: 'approvals',
-      icon: UserCheck,
-      label: 'Phê duyệt tài khoản',
-      href: '/admin/approvals',
-      enabled: true,
-    },
-    {
       id: 'snakes',
       icon: Shield,
-      label: 'Cơ sở dữ liệu loài rắn',
+      label: 'Quản lý loài rắn',
       href: '/admin/snakes',
       enabled: true,
     },
     {
-      id: 'hospitals',
+      id: 'antivenoms',
+      icon: FlaskConical,
+      label: 'Quản lý huyết thanh',
+      href: '/admin/antivenoms',
+      enabled: true,
+    },
+    {
+      id: 'treatment-facilities',
       icon: Building2,
-      label: 'Quản lý bệnh viện',
-      href: '/admin/hospitals',
-      enabled: true,
-    },
-    { id: 'finance', icon: DollarSign, label: 'Tài chính', href: '/admin/finance', enabled: true },
-    {
-      id: 'reports',
-      icon: TrendingUp,
-      label: 'Báo cáo & Phân tích',
-      href: '/admin/reports',
-      enabled: true,
-    },
-    {
-      id: 'settings',
-      icon: Settings,
-      label: 'Cài đặt hệ thống',
-      href: '/admin/settings',
+      label: 'Quản lý cơ sở điều trị',
+      href: '/admin/treatment-facilities',
       enabled: true,
     },
   ];
@@ -80,7 +70,7 @@ export default function AdminSidebar({
     <aside className="sticky top-0 hidden h-screen w-72 shrink-0 border-r border-blue-500/25 bg-[#213f6b] text-white lg:block">
       <div className="border-b border-blue-300/25 px-5 py-5">
         <p className="text-xs font-semibold uppercase tracking-widest text-blue-100">SnakeAid</p>
-        <h2 className="mt-1 text-xl font-bold">Admin Portal</h2>
+        <h2 className="mt-1 text-xl font-bold">Cổng quản trị</h2>
       </div>
 
       <nav className="space-y-1 p-3">
@@ -103,7 +93,7 @@ export default function AdminSidebar({
                   <IconComponent className="size-4.5" />
                   <span className="text-sm font-medium">{item.label}</span>
                 </div>
-                <span className="rounded-full border border-blue-200/30 px-2 py-0.5 text-[10px]">Soon</span>
+                <span className="rounded-full border border-blue-200/30 px-2 py-0.5 text-[10px]">Sắp có</span>
               </div>
             );
           }
