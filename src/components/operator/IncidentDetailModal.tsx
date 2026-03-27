@@ -1,7 +1,7 @@
 'use client';
 
 import type { DetailSnakebiteIncidentResponse, DispatchRequestItem } from '@/types/snakebite-incident.type';
-import { AlertCircle, CheckCircle, RotateCcw, Send, User, X } from 'lucide-react';
+import { AlertCircle, CheckCircle, Clock, MapPin, Send, User, X } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { incidentApi } from '@/apis/incident.api';
 import { useToast } from '@/components/ToastProvider';
@@ -17,9 +17,13 @@ export interface IncidentDetailModalProps {
   onVerify?: (incidentId: string) => Promise<void>;
   onFalseAlarm?: (incidentId: string) => Promise<void>;
   onDispatch?: (incidentId: string, rescuerId: string) => Promise<void>;
-  onCancelDispatch?: (incidentId: string) => Promise<void>;
   onRefresh?: () => void;
 }
+
+const getShortIncidentId = (id: string) => {
+  const suffix = id.slice(-6).toUpperCase();
+  return `INC-${suffix}`;
+};
 
 export default function IncidentDetailModal({
   incident,
@@ -30,7 +34,6 @@ export default function IncidentDetailModal({
   onVerify,
   onFalseAlarm,
   onDispatch,
-  onCancelDispatch,
   onRefresh,
 }: IncidentDetailModalProps) {
   const [isDispatchModalOpen, setIsDispatchModalOpen] = useState(false);
@@ -67,6 +70,46 @@ export default function IncidentDetailModal({
 
     loadDispatchRequests();
   }, [isOpen, loadDispatchRequests]);
+
+  const getMissionStatusLabel = (status: string) => {
+    switch (status) {
+      case 'Preparing':
+        return 'Đang chuẩn bị';
+      case 'EnRoute':
+        return 'Đang di chuyển';
+      case 'RescuerArrived':
+        return 'Đã đến nơi';
+      case 'MissionCompleted':
+        return 'Hoàn thành';
+      case 'MissionUncompleted':
+        return 'Chưa hoàn thành';
+      case 'MissionAborted':
+        return 'Đã hủy';
+      case 'Cancelled':
+        return 'Đã hủy';
+      default:
+        return status;
+    }
+  };
+
+  const getMissionStatusColor = (status: string) => {
+    switch (status) {
+      case 'Preparing':
+        return 'bg-amber-100 text-amber-800';
+      case 'EnRoute':
+        return 'bg-blue-100 text-blue-800';
+      case 'RescuerArrived':
+        return 'bg-purple-100 text-purple-800';
+      case 'MissionCompleted':
+        return 'bg-emerald-100 text-emerald-800';
+      case 'MissionUncompleted':
+      case 'MissionAborted':
+      case 'Cancelled':
+        return 'bg-rose-100 text-rose-800';
+      default:
+        return 'bg-slate-100 text-slate-800';
+    }
+  };
 
   if (!isOpen) {
     return null;
@@ -129,25 +172,6 @@ export default function IncidentDetailModal({
       showToast('Điều phối thất bại. Vui lòng thử lại.', { type: 'error' });
     } finally {
       await loadDispatchRequests();
-    }
-  };
-
-  const handleCancelDispatch = async () => {
-    if (!incident?.id || !onCancelDispatch) {
-      return;
-    }
-
-    setIsActionLoading(true);
-    try {
-      await onCancelDispatch(incident.id);
-      onRefresh?.();
-      onClose();
-      showToast('Đã hủy điều phối.', { type: 'success' });
-    } catch (err) {
-      console.error('Failed to cancel dispatch', err);
-      showToast('Hủy điều phối thất bại. Vui lòng thử lại.', { type: 'error' });
-    } finally {
-      setIsActionLoading(false);
     }
   };
 
@@ -252,21 +276,23 @@ export default function IncidentDetailModal({
   const getStatusPalette = (status: string) => {
     switch (status) {
       case 'Pending':
-        return { border: 'border-amber-300', bg: 'bg-amber-50', text: 'text-amber-800' };
+        return { border: 'border-amber-300', bg: 'bg-amber-50', text: 'text-amber-800', label: 'Chờ xác minh' };
       case 'Verified':
-        return { border: 'border-emerald-300', bg: 'bg-emerald-50', text: 'text-emerald-800' };
+        return { border: 'border-emerald-300', bg: 'bg-emerald-50', text: 'text-emerald-800', label: 'Đã xác minh' };
       case 'Assigned':
+        return { border: 'border-sky-300', bg: 'bg-sky-50', text: 'text-sky-800', label: 'Đã phân công' };
       case 'Dispatched':
+        return { border: 'border-sky-300', bg: 'bg-sky-50', text: 'text-sky-800', label: 'Đã điều phối' };
       case 'EnRoute':
-        return { border: 'border-sky-300', bg: 'bg-sky-50', text: 'text-sky-800' };
+        return { border: 'border-sky-300', bg: 'bg-sky-50', text: 'text-sky-800', label: 'Đang di chuyển' };
       case 'Completed':
-        return { border: 'border-slate-300', bg: 'bg-slate-50', text: 'text-slate-800' };
+        return { border: 'border-slate-300', bg: 'bg-slate-50', text: 'text-slate-800', label: 'Hoàn thành' };
       case 'FalseAlarm':
-        return { border: 'border-rose-300', bg: 'bg-rose-50', text: 'text-rose-800' };
+        return { border: 'border-rose-300', bg: 'bg-rose-50', text: 'text-rose-800', label: 'Báo động giả' };
       case 'Disputed':
-        return { border: 'border-violet-300', bg: 'bg-violet-50', text: 'text-violet-800' };
+        return { border: 'border-violet-300', bg: 'bg-violet-50', text: 'text-violet-800', label: 'Tranh chấp' };
       default:
-        return { border: 'border-slate-300', bg: 'bg-slate-50', text: 'text-slate-800' };
+        return { border: 'border-slate-300', bg: 'bg-slate-50', text: 'text-slate-800', label: status };
     }
   };
 
@@ -380,11 +406,10 @@ export default function IncidentDetailModal({
       <div className="relative w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-xl">
         <div className="flex items-start justify-between border-b border-slate-200 px-5 py-4">
           <div>
-            <h2 className="text-lg font-bold text-slate-900">Chi tiết case</h2>
+            <h2 className="text-lg font-bold text-slate-900">Chi tiết yêu cầu cấp cứu</h2>
             {incident && (
               <p className="text-xs font-semibold text-slate-600">
-                ID:
-                {incident.id}
+                {getShortIncidentId(incident.id)}
               </p>
             )}
           </div>
@@ -417,7 +442,7 @@ export default function IncidentDetailModal({
                           return (
                             <div className={`rounded-xl border ${palette.border} ${palette.bg} p-4`}>
                               <p className={`text-xs font-semibold uppercase tracking-wide ${palette.text}`}>Trạng thái</p>
-                              <p className={`mt-1 text-sm font-semibold ${palette.text}`}>{incident.status}</p>
+                              <p className={`mt-1 text-sm font-semibold ${palette.text}`}>{palette.label}</p>
                             </div>
                           );
                         })()}
@@ -474,6 +499,150 @@ export default function IncidentDetailModal({
                             </section>
                           </div>
                         </div>
+
+                        {/* Active Mission - Show for Assigned, Dispatched, EnRoute, RescuerArrived statuses */}
+                        {(incident.status === SnakebiteIncidentStatus.Assigned
+                          || incident.status === SnakebiteIncidentStatus.Finished
+                          || incident.status === SnakebiteIncidentStatus.Completed) && (
+                          <div className="rounded-xl border border-purple-200 bg-purple-50 p-4">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <div className="h-2 w-2 rounded-full bg-purple-600 animate-pulse" />
+                                <p className="text-xs font-semibold text-purple-700 uppercase tracking-wide">
+                                  Nhiệm vụ đang thực thi
+                                </p>
+                              </div>
+                              <span className="rounded-full bg-purple-600 px-2 py-0.5 text-[10px] font-bold text-white">
+                                LIVE
+                              </span>
+                            </div>
+
+                            {!incident.activeMission
+                              ? (
+                                  <div className="mt-3 rounded-lg border border-dashed border-purple-300 bg-white p-6 text-center">
+                                    <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-purple-100">
+                                      <Clock className="h-5 w-5 text-purple-600 animate-pulse" />
+                                    </div>
+                                    <p className="text-sm font-medium text-purple-700">Đang chờ rescuer chấp nhận nhiệm vụ...</p>
+                                    <p className="mt-1 text-xs text-purple-500">Mission sẽ được tạo khi rescuer xác nhận</p>
+                                  </div>
+                                )
+                              : (
+                                  <div className="mt-3 space-y-3">
+                                    <div className="rounded-xl border border-purple-200 bg-white p-3 shadow-sm">
+                                      <div className="flex items-start gap-3">
+                                        {incident.assignedRescuer?.account?.avatarUrl
+                                          ? (
+                                              <img
+                                                src={incident.assignedRescuer.account.avatarUrl}
+                                                className="h-12 w-12 rounded-full border-2 border-purple-300 object-cover"
+                                                alt={incident.assignedRescuer.account.fullName ?? 'Rescuer'}
+                                              />
+                                            )
+                                          : (
+                                              <div className="flex h-12 w-12 items-center justify-center rounded-full border-2 border-purple-300 bg-purple-100">
+                                                <User className="h-6 w-6 text-purple-600" />
+                                              </div>
+                                            )}
+                                        <div className="flex-1">
+                                          <p className="text-sm font-semibold text-slate-900">
+                                            {incident.assignedRescuer?.account?.fullName ?? 'Rescuer'}
+                                          </p>
+                                          <p className="text-xs text-slate-500">
+                                            {incident.assignedRescuer?.phoneNumber ?? 'Không có SĐT'}
+                                          </p>
+                                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                                            <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${getMissionStatusColor(incident.activeMission.status)}`}>
+                                              {getMissionStatusLabel(incident.activeMission.status)}
+                                            </span>
+                                            {incident.activeMission.price > 0 && (
+                                              <span className="text-xs text-slate-500">
+                                                Giá:
+                                                {' '}
+                                                {incident.activeMission.price.toLocaleString()}
+                                                {' '}
+                                                đ
+                                              </span>
+                                            )}
+                                          </div>
+                                        </div>
+                                      </div>
+
+                                      {/* Mission Timeline */}
+                                      <div className="mt-3 space-y-2 border-t border-purple-100 pt-3">
+                                        {incident.activeMission.startedAt && (
+                                          <div className="flex items-center gap-2 text-xs">
+                                            <Clock className="h-3.5 w-3.5 text-purple-600" />
+                                            <span className="text-slate-600">Bắt đầu:</span>
+                                            <span className="font-medium text-slate-900">
+                                              {new Date(incident.activeMission.startedAt).toLocaleString()}
+                                            </span>
+                                          </div>
+                                        )}
+                                        {incident.activeMission.arrivedAt && (
+                                          <div className="flex items-center gap-2 text-xs">
+                                            <MapPin className="h-3.5 w-3.5 text-purple-600" />
+                                            <span className="text-slate-600">Đến nơi:</span>
+                                            <span className="font-medium text-slate-900">
+                                              {new Date(incident.activeMission.arrivedAt).toLocaleString()}
+                                            </span>
+                                          </div>
+                                        )}
+                                        {incident.activeMission.completedAt && (
+                                          <div className="flex items-center gap-2 text-xs">
+                                            <CheckCircle className="h-3.5 w-3.5 text-emerald-600" />
+                                            <span className="text-slate-600">Hoàn thành:</span>
+                                            <span className="font-medium text-slate-900">
+                                              {new Date(incident.activeMission.completedAt).toLocaleString()}
+                                            </span>
+                                          </div>
+                                        )}
+                                        {incident.activeMission.notes && (
+                                          <div className="rounded-lg bg-slate-50 p-2 text-xs text-slate-700">
+                                            <span className="font-semibold">Ghi chú:</span>
+                                            {' '}
+                                            {incident.activeMission.notes}
+                                          </div>
+                                        )}
+                                        {incident.activeMission.cancellationReason && (
+                                          <div className="rounded-lg bg-rose-50 p-2 text-xs text-rose-700">
+                                            <span className="font-semibold">Lý do hủy:</span>
+                                            {' '}
+                                            {incident.activeMission.cancellationReason}
+                                          </div>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    {/* Mission Stats */}
+                                    {(incident.activeMission.estimatedCost || incident.activeMission.actualCost) && (
+                                      <div className="grid grid-cols-2 gap-2">
+                                        {incident.activeMission.estimatedCost && (
+                                          <div className="rounded-lg border border-purple-200 bg-white p-2">
+                                            <p className="text-[10px] font-semibold text-purple-600 uppercase">Chi phí ước tính</p>
+                                            <p className="text-sm font-bold text-slate-900">
+                                              {incident.activeMission.estimatedCost.toLocaleString()}
+                                              {' '}
+                                              đ
+                                            </p>
+                                          </div>
+                                        )}
+                                        {incident.activeMission.actualCost && (
+                                          <div className="rounded-lg border border-emerald-200 bg-white p-2">
+                                            <p className="text-[10px] font-semibold text-emerald-600 uppercase">Chi phí thực tế</p>
+                                            <p className="text-sm font-bold text-slate-900">
+                                              {incident.activeMission.actualCost.toLocaleString()}
+                                              {' '}
+                                              đ
+                                            </p>
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                          </div>
+                        )}
 
                         <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                           <div className="flex items-center gap-2">
@@ -549,25 +718,13 @@ export default function IncidentDetailModal({
                                 Điều phối đội cứu hộ
                               </button>
                             )}
-
-                            {incident.status === SnakebiteIncidentStatus.Assigned && (
-                              <button
-                                type="button"
-                                onClick={handleCancelDispatch}
-                                disabled={isActionLoading || !onCancelDispatch}
-                                className="w-full inline-flex items-center justify-center gap-2 rounded-full border border-amber-600 bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                              >
-                                <RotateCcw className="size-4" />
-                                Hủy điều phối
-                              </button>
-                            )}
                           </div>
                         </div>
 
-                        {/* Dispatch requests (history) */}
+                        {/* Dispatch requests (history) - Always visible */}
                         <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                           <div className="flex items-center justify-between">
-                            <p className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Yêu cầu dispatch</p>
+                            <p className="text-xs font-semibold text-slate-700 uppercase tracking-wide">Lịch sử điều phối</p>
                             <span className="text-xs text-slate-500">
                               {dispatchRequests.length}
                               {' '}
@@ -577,22 +734,56 @@ export default function IncidentDetailModal({
 
                           {isDispatchRequestsLoading
                             ? (
-                                <p className="mt-3 text-sm text-slate-500">Đang tải danh sách yêu cầu...</p>
+                                <div className="mt-3 flex items-center justify-center rounded-lg border border-slate-200 bg-white p-6">
+                                  <div className="flex items-center gap-2">
+                                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" />
+                                    <p className="text-sm text-slate-500">Đang tải danh sách yêu cầu...</p>
+                                  </div>
+                                </div>
                               )
                             : dispatchRequestError
                               ? (
-                                  <p className="mt-3 text-sm text-rose-600">{dispatchRequestError}</p>
+                                  <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50 p-4">
+                                    <p className="text-sm text-rose-700">{dispatchRequestError}</p>
+                                    <button
+                                      type="button"
+                                      onClick={loadDispatchRequests}
+                                      className="mt-2 text-xs font-semibold text-rose-600 hover:underline"
+                                    >
+                                      Thử lại
+                                    </button>
+                                  </div>
                                 )
                               : dispatchRequests.length === 0
                                 ? (
-                                    <p className="mt-3 text-sm text-slate-500">Chưa có yêu cầu dispatch nào.</p>
+                                    <div className="mt-3 rounded-lg border border-dashed border-slate-300 bg-white p-6 text-center">
+                                      <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-slate-100">
+                                        <Send className="h-5 w-5 text-slate-400" />
+                                      </div>
+                                      <p className="text-sm font-medium text-slate-600">Chưa có yêu cầu điều phối nào</p>
+                                      {incident.status === SnakebiteIncidentStatus.Verified && (
+                                        <p className="mt-1 text-xs text-slate-400">
+                                          Nhấn nút "Điều phối đội cứu hộ" bên dưới để bắt đầu
+                                        </p>
+                                      )}
+                                      {(incident.status === SnakebiteIncidentStatus.Pending) && (
+                                        <p className="mt-1 text-xs text-slate-400">
+                                          Xác minh case trước khi điều phối
+                                        </p>
+                                      )}
+                                      {(incident.status === SnakebiteIncidentStatus.Completed || incident.status === SnakebiteIncidentStatus.FalseAlarm) && (
+                                        <p className="mt-1 text-xs text-slate-400">
+                                          Case đã kết thúc
+                                        </p>
+                                      )}
+                                    </div>
                                   )
                                 : (
                                     <div className="mt-3 space-y-3">
                                       {dispatchRequests.map(request => (
                                         <div
                                           key={request.requestId}
-                                          className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-3"
+                                          className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-white p-3 shadow-sm"
                                         >
                                           <div className="flex items-start justify-between gap-3">
                                             <div>
@@ -610,24 +801,33 @@ export default function IncidentDetailModal({
                                                       : 'bg-slate-100 text-slate-600'
                                               }`}
                                             >
-                                              {request.status}
+                                              {request.status === 'Pending'
+                                                ? 'Chờ phản hồi'
+                                                : request.status === 'Accepted'
+                                                  ? 'Đã chấp nhận'
+                                                  : request.status === 'Declined'
+                                                    ? 'Đã từ chối'
+                                                    : request.status}
                                             </span>
                                           </div>
 
                                           <div className="flex flex-col gap-1 text-xs text-slate-500">
                                             <p>
                                               Gửi:
+                                              {' '}
                                               {new Date(request.createdAt).toLocaleString()}
                                             </p>
                                             {request.responseAt && (
                                               <p>
                                                 Phản hồi:
+                                                {' '}
                                                 {new Date(request.responseAt).toLocaleString()}
                                               </p>
                                             )}
                                             {request.declineReason && (
-                                              <p>
-                                                Lý do:
+                                              <p className="rounded bg-rose-50 px-2 py-1 text-rose-700">
+                                                Lý do từ chối:
+                                                {' '}
                                                 {request.declineReason}
                                               </p>
                                             )}
@@ -637,7 +837,7 @@ export default function IncidentDetailModal({
                                             <button
                                               type="button"
                                               onClick={() => handleCancelDispatchRequest(request.requestId)}
-                                              className="mt-2 rounded-full border border-rose-600 bg-white px-3 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50"
+                                              className="mt-2 rounded-full border border-rose-600 bg-white px-3 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-50 transition"
                                             >
                                               Hủy yêu cầu
                                             </button>
