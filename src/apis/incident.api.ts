@@ -39,9 +39,6 @@ export const incidentApi = {
   dispatchIncident: (incidentId: string, payload: DispatchIncidentRequest) =>
     api.post<CreateIncidentResponse>(`/incidents/${incidentId}/dispatch`, payload),
 
-  cancelDispatch: (incidentId: string) =>
-    api.post<CreateIncidentResponse>(`/incidents/${incidentId}/cancel-dispatch`),
-
   getDispatchRequests: (incidentId: string) =>
     api.get<DispatchRequestItem[]>(`/incidents/${incidentId}/dispatch-requests`),
 
