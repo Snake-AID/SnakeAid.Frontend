@@ -56,6 +56,7 @@ export interface RescuerHubEvents {
   onRescuerAborted?: (payload: RescuerAbortedPayload) => void;
   onRescuerMissionLocationUpdated?: (payload: RescuerMissionLocationUpdatedPayload) => void;
   onMissionCompleted?: (payload: MissionCompletedPayload) => void;
+  onIncidentCompleted?: (payload: { incidentId: string; rescuerId: string; completedAt: string }) => void;
 };
 
 const ACCESS_TOKEN_KEY = 'access_token';
@@ -148,6 +149,10 @@ const attachHandlers = (connection: HubConnection, handlersRef: React.MutableRef
   connection.on('missioncompleted', (payload) => {
     handlersRef.current.onMissionCompleted?.(payload);
   });
+
+  connection.on('incidentcompleted', (payload) => {
+    handlersRef.current.onIncidentCompleted?.(payload);
+  });
 };
 
 const detachHandlers = (connection: HubConnection) => {
@@ -173,6 +178,7 @@ const detachHandlers = (connection: HubConnection) => {
   connection.off('rescuermissionlocationupdated');
   connection.off('adminlog');
   connection.off('missioncompleted');
+  connection.off('incidentcompleted');
 };
 
 export interface UseRescuerHubOptions {
