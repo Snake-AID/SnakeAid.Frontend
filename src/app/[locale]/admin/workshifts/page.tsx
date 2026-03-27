@@ -314,11 +314,14 @@ const normalizeRescuer = (item: unknown): BriefRescuerProfileResponse | null => 
   return {
     accountId,
     isOnline: safeBoolean(source.isOnline, false),
+    isAvailable: safeBoolean(source.isAvailable, false),
     phoneNumber: safeString(source.phoneNumber),
     rating: safeNumber(source.rating, 0),
     ratingCount: safeNumber(source.ratingCount, 0),
     type: (source.type ?? 'Both') as BriefRescuerProfileResponse['type'],
     lastLocationUpdate: typeof source.lastLocationUpdate === 'string' ? source.lastLocationUpdate : null,
+    latitude: typeof source.latitude === 'number' ? source.latitude : null,
+    longitude: typeof source.longitude === 'number' ? source.longitude : null,
     totalMissions: safeNumber(source.totalMissions, 0),
     completedMissions: safeNumber(source.completedMissions, 0),
     account: {

@@ -65,11 +65,13 @@ export default function OperatorDashboardPage() {
     liveRescuers,
     shiftAssignmentsWithStatus,
     loadRescuerData,
+    loadOnlineRescuers,
     clearMissionLocation,
     handleRescuerOnlineStatus,
     handleRescuerIdleLocationUpdated,
     handleRescuerMissionLocationUpdated,
     handleMissionCompleted,
+    handleIncidentCompleted,
   } = useOperatorRescuers();
 
   // Handle rescuer abort at page level to ensure toast and alert work properly
@@ -114,6 +116,7 @@ export default function OperatorDashboardPage() {
     onRescuerIdleLocationUpdated: handleRescuerIdleLocationUpdated,
     onRescuerMissionLocationUpdated: handleRescuerMissionLocationUpdated,
     onMissionCompleted: handleMissionCompleted,
+    onIncidentCompleted: handleIncidentCompleted,
   });
 
   const liveRequests = useMemo(() => {
@@ -427,6 +430,8 @@ export default function OperatorDashboardPage() {
         isRequestsLoading={isRequestsLoading}
         hasRequestsError={hasRequestsError}
         onRefreshRequests={refreshRequests}
+        onRefreshIncidents={refreshIncidents}
+        onRefreshRescuers={loadOnlineRescuers}
       />
 
       <ShiftSchedulePanel
