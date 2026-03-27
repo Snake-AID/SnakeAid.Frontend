@@ -25,8 +25,8 @@ export default function AdminTopbar() {
     <header className="sticky top-0 z-20 border-b border-slate-200 bg-white">
       <div className="mx-auto flex max-w-360 items-center justify-between px-6 py-4">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-blue-700">Admin Portal</p>
-          <h1 className="text-2xl font-bold text-slate-900">Control Dashboard</h1>
+          <p className="text-sm font-semibold uppercase tracking-wide text-blue-700">Cổng quản trị</p>
+          <h1 className="text-2xl font-bold text-slate-900">Bảng điều khiển</h1>
         </div>
 
         <div className="flex items-center gap-3">
