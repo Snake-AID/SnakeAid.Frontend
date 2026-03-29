@@ -2,7 +2,6 @@ import type { NextConfig } from 'next';
 import withBundleAnalyzer from '@next/bundle-analyzer';
 import { withSentryConfig } from '@sentry/nextjs';
 import createNextIntlPlugin from 'next-intl/plugin';
-import './src/libs/Env';
 
 // Define the base Next.js configuration
 const baseConfig: NextConfig = {
@@ -14,6 +13,38 @@ const baseConfig: NextConfig = {
   reactCompiler: true,
   outputFileTracingIncludes: {
     '/': ['./migrations/**/*'],
+  },
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'vietnamsnakes.com',
+      },
+      {
+        protocol: 'https',
+        hostname: 'res.cloudinary.com',
+      },
+      {
+        protocol: 'https',
+        hostname: 'www.cakhotranluan.com',
+      },
+      {
+        protocol: 'https',
+        hostname: 'cakhotranluan.com',
+      },
+      {
+        protocol: 'https',
+        hostname: '**.dev.snakeaid.tech',
+      },
+      {
+        protocol: 'https',
+        hostname: '**',
+      },
+      {
+        protocol: 'http',
+        hostname: '**',
+      },
+    ],
   },
 };
 
