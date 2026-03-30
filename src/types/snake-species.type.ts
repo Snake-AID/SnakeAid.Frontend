@@ -34,6 +34,12 @@ export interface SnakeVenomInfo {
   description: string;
 }
 
+export interface SnakeAntivenomInfo {
+  antivenomName: string;
+  manufacturer?: string | null;
+  effectiveness?: string | null;
+}
+
 export interface SnakeSpeciesSummary {
   id: number;
   scientificName: string;
@@ -55,14 +61,13 @@ export interface SnakeSpeciesSummary {
 export interface SnakeSpeciesDetail extends SnakeSpeciesSummary {
   alternativeNames: string[];
   venoms: SnakeVenomInfo[];
-  antivenoms: SnakeVenomInfo[];
+  antivenoms: Array<SnakeVenomInfo | SnakeAntivenomInfo>;
   venomIds?: number[];
   antivenomIds?: number[];
 }
 
 export interface SnakeSpeciesUpsertPayload {
   scientificName: string;
-  slug: string;
   commonName: string;
   mediaId: string;
   description: string;
