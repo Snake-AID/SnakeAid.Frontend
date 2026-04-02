@@ -60,14 +60,17 @@ function SectionBody({ body, accentColor }: { body: string; accentColor: string 
   const lines = body.split('\n');
   return (
     <div className="space-y-1 px-4 py-3">
+      { }
       {lines.map((line, i) => {
         const trimmed = line.trim();
         if (!trimmed) {
+          // eslint-disable-next-line react/no-array-index-key
           return <div key={i} className="h-1.5" />;
         }
         if (/^[-•]/.test(trimmed)) {
           const text = trimmed.replace(/^[-•]\s*/, '');
           return (
+            // eslint-disable-next-line react/no-array-index-key
             <div key={i} className="flex items-start gap-2.5">
               <span
                 className="mt-1.75 size-1.5 shrink-0 rounded-full"
@@ -77,6 +80,7 @@ function SectionBody({ body, accentColor }: { body: string; accentColor: string 
             </div>
           );
         }
+
         return (
           <p key={i} className="text-sm leading-relaxed text-slate-700">{trimmed}</p>
         );
@@ -136,6 +140,7 @@ export default function LessonContentPreview({ content, category = 'Catching' }:
 
       <div className="space-y-2">
         {sections.map((section, i) => (
+          // eslint-disable-next-line react/no-array-index-key -- sections parsed from plain-text have no stable id
           <div key={i} className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
             {section.heading && (
               <div

@@ -233,7 +233,9 @@ export default function LessonsPage() {
 
   useEffect(() => {
     if (selectedId == null) {
+      // eslint-disable-next-line react-hooks-extra/no-direct-set-state-in-use-effect
       setSelectedDetail(null);
+      // eslint-disable-next-line react-hooks-extra/no-direct-set-state-in-use-effect
       setDetailError(null);
       return;
     }
