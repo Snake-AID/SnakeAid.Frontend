@@ -28,11 +28,11 @@ const TRANSACTION_TYPE_LABEL_MAP: Record<string, string> = {
 };
 
 const PAYMENT_METHOD_LABEL_MAP: Record<string, string> = {
-  Internal: 'Nội bộ',
+  Internal: 'SnakeAidPay',
   PayOS: 'PayOS',
   Cash: 'Tiền mặt',
   BankTransfer: 'Chuyển khoản',
-  Wallet: 'Ví',
+  Wallet: 'SnakeAidPay',
 };
 
 const DEFAULT_PAGINATION: PaginationMeta = {
