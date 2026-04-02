@@ -60,7 +60,6 @@ function SectionBody({ body, accentColor }: { body: string; accentColor: string 
   const lines = body.split('\n');
   return (
     <div className="space-y-1 px-4 py-3">
-      { }
       {lines.map((line, i) => {
         const trimmed = line.trim();
         if (!trimmed) {
@@ -80,10 +79,8 @@ function SectionBody({ body, accentColor }: { body: string; accentColor: string 
             </div>
           );
         }
-
-        return (
-          <p key={i} className="text-sm leading-relaxed text-slate-700">{trimmed}</p>
-        );
+        // eslint-disable-next-line react/no-array-index-key
+        return <p key={i} className="text-sm leading-relaxed text-slate-700">{trimmed}</p>;
       })}
     </div>
   );
