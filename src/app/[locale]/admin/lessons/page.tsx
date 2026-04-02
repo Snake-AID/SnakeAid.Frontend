@@ -1,7 +1,7 @@
 'use client';
 
 import type { LessonItem, LessonUpsertPayload } from '@/types/lesson.type';
-import { BookOpenText, Eye, EyeOff, Pencil, Plus, RefreshCcw, Tag, Trash2 } from 'lucide-react';
+import { Eye, EyeOff, Pencil, Plus, RefreshCcw, Tag, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { ApiClientError } from '@/apis/client';
 import { lessonApi } from '@/apis/lesson.api';
@@ -385,18 +385,14 @@ export default function LessonsPage() {
                     <div className="min-w-0 flex-1">
                       <h3 className="text-xl font-bold text-slate-900">{selectedDetail.title}</h3>
                       <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-slate-500">
-                        <span className="inline-flex items-center gap-1">
-                          <BookOpenText className="size-3.5" />
-                          Mã bài học:
-                          {' '}
-                          {selectedDetail.id}
-                        </span>
                         <span>
                           Tạo lúc:
+                          {' '}
                           {toVNDateTime(selectedDetail.createdAt)}
                         </span>
                         <span>
                           Cập nhật:
+                          {' '}
                           {toVNDateTime(selectedDetail.updatedAt)}
                         </span>
                       </div>
