@@ -372,7 +372,7 @@ export default function BlogsPage() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <BookOpen className="size-5 text-blue-700" />
-                <h2 className="text-base font-bold text-slate-900">Quản lý Blog</h2>
+                <h2 className="text-base font-bold text-slate-900">Quản lý bài viết</h2>
               </div>
               <div className="flex items-center gap-1">
                 <button
