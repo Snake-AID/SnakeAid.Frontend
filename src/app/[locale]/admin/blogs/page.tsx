@@ -173,14 +173,17 @@ export default function BlogsPage() {
 
   useEffect(() => {
     loadList();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     if (selectedId) {
       loadDetail(selectedId);
     } else {
+      // eslint-disable-next-line react-hooks-extra/no-direct-set-state-in-use-effect
       setSelectedDetail(null);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId]);
 
   // ─── Filtered list ───────────────────────────────────────────────────────
