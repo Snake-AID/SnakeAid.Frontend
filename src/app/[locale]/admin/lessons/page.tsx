@@ -5,6 +5,7 @@ import { BookOpenText, Eye, EyeOff, Pencil, Plus, RefreshCcw, Tag, Trash2 } from
 import { useEffect, useMemo, useState } from 'react';
 import { ApiClientError } from '@/apis/client';
 import { lessonApi } from '@/apis/lesson.api';
+import LessonContentPreview from '@/components/admin/LessonContentPreview';
 import LessonUpsertModal from '@/components/admin/LessonUpsertModal';
 import { useToast } from '@/components/ToastProvider';
 
@@ -54,35 +55,6 @@ const toVNDateTime = (iso: string) => {
 
 const toCategoryLabel = (value: string) => CATEGORY_LABEL_MAP[value] ?? value;
 
-const extractYoutubeVideoId = (rawUrl: string): string | null => {
-  try {
-    const parsed = new URL(rawUrl);
-    const host = parsed.hostname.replace(/^www\./, '').toLowerCase();
-
-    if (host === 'youtu.be') {
-      return parsed.pathname.replace('/', '').trim() || null;
-    }
-
-    if (host === 'youtube.com' || host === 'm.youtube.com') {
-      if (parsed.pathname === '/watch') {
-        return parsed.searchParams.get('v');
-      }
-
-      if (parsed.pathname.startsWith('/shorts/')) {
-        return parsed.pathname.replace('/shorts/', '').split('/')[0] || null;
-      }
-
-      if (parsed.pathname.startsWith('/embed/')) {
-        return parsed.pathname.replace('/embed/', '').split('/')[0] || null;
-      }
-    }
-
-    return null;
-  } catch {
-    return null;
-  }
-};
-
 export default function LessonsPage() {
   const { showToast } = useToast();
   const [items, setItems] = useState<LessonItem[]>([]);
@@ -106,19 +78,6 @@ export default function LessonsPage() {
     () => items.find(item => item.id === selectedId) ?? null,
     [items, selectedId],
   );
-
-  const lessonYoutubeVideoIds = useMemo(() => {
-    if (!selectedDetail?.content) {
-      return [];
-    }
-
-    const urlMatches = selectedDetail.content.match(/https?:\/\/[^\s)]+/g) ?? [];
-    const ids = urlMatches
-      .map(url => extractYoutubeVideoId(url.replace(/[.,!?;:]+$/, '')))
-      .filter((id): id is string => Boolean(id));
-
-    return [...new Set(ids)];
-  }, [selectedDetail?.content]);
 
   const loadList = async (preferredId?: string | null, pinToTop = false) => {
     setIsListLoading(true);
@@ -462,32 +421,9 @@ export default function LessonsPage() {
                     </div>
                   </div>
 
-                  <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
-                    <p className="mb-2 text-sm font-semibold text-slate-800">Nội dung bài học</p>
-                    <p className="whitespace-pre-line text-sm leading-6 text-slate-700">{selectedDetail.content}</p>
+                  <div className="mt-4">
+                    <LessonContentPreview content={selectedDetail.content} category={selectedDetail.category} />
                   </div>
-
-                  {lessonYoutubeVideoIds.length > 0 && (
-                    <div className="mt-4 rounded-xl border border-slate-200 bg-white p-4">
-                      <p className="mb-3 text-sm font-semibold text-slate-800">Video YouTube</p>
-                      <div className="space-y-3">
-                        {lessonYoutubeVideoIds.map(videoId => (
-                          <div key={videoId} className="overflow-hidden rounded-xl border border-slate-200">
-                            <div className="aspect-video w-full">
-                              <iframe
-                                src={`https://www.youtube.com/embed/${videoId}`}
-                                title={`YouTube video ${videoId}`}
-                                className="h-full w-full"
-                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                                referrerPolicy="strict-origin-when-cross-origin"
-                                allowFullScreen
-                              />
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
 
                   <div className="mt-4 flex items-center gap-2 text-xs text-slate-600">
                     {selectedDetail.isPublished

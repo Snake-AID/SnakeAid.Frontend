@@ -1,8 +1,9 @@
 'use client';
 
 import type { LessonCategory, LessonUpsertPayload } from '@/types/lesson.type';
-import { X } from 'lucide-react';
-import { useState } from 'react';
+import { Eye, Pencil, X } from 'lucide-react';
+import { useRef, useState } from 'react';
+import LessonContentPreview from './LessonContentPreview';
 
 interface LessonUpsertModalProps {
   isOpen: boolean;
@@ -19,6 +20,16 @@ const CATEGORY_OPTIONS: Array<{ value: LessonCategory; label: string }> = [
   { value: 'FirstAid', label: 'Sơ cứu' },
 ];
 
+const TOOLBAR_BUTTONS = [
+  { label: '🛡️', title: 'Section mới với 🛡️', insert: '\n🛡️ TIÊU ĐỀ:\n' },
+  { label: '🔍', title: 'Section mới với 🔍', insert: '\n🔍 TIÊU ĐỀ:\n' },
+  { label: '⚠️', title: 'Section mới với ⚠️', insert: '\n⚠️ TIÊU ĐỀ:\n' },
+  { label: '✅', title: 'Section mới với ✅', insert: '\n✅ TIÊU ĐỀ:\n' },
+  { label: '🏥', title: 'Section mới với 🏥', insert: '\n🏥 TIÊU ĐỀ:\n' },
+  { label: '-', title: 'Bullet point', insert: '\n- ' },
+  { label: '📹', title: 'Chèn URL YouTube', insert: '\nhttps://youtu.be/VIDEO_ID\n' },
+] as const;
+
 export default function LessonUpsertModal({
   isOpen,
   mode,
@@ -29,10 +40,29 @@ export default function LessonUpsertModal({
 }: LessonUpsertModalProps) {
   const [draft, setDraft] = useState<LessonUpsertPayload>(initialValue);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [editorTab, setEditorTab] = useState<'edit' | 'preview'>('edit');
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   if (!isOpen) {
     return null;
   }
+
+  const insertAtCursor = (text: string) => {
+    const el = textareaRef.current;
+    if (!el) {
+      setDraft(prev => ({ ...prev, content: prev.content + text }));
+      return;
+    }
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    const newContent = draft.content.slice(0, start) + text + draft.content.slice(end);
+    setDraft(prev => ({ ...prev, content: newContent }));
+    requestAnimationFrame(() => {
+      el.focus();
+      const newPos = start + text.length;
+      el.setSelectionRange(newPos, newPos);
+    });
+  };
 
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -116,14 +146,71 @@ export default function LessonUpsertModal({
           </div>
 
           <div>
-            <p className="mb-2 text-xs font-semibold text-slate-700">Nội dung</p>
-            <textarea
-              required
-              rows={14}
-              value={draft.content}
-              onChange={e => setDraft(prev => ({ ...prev, content: e.target.value }))}
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-600"
-            />
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-xs font-semibold text-slate-700">Nội dung bài học</p>
+              <div className="flex overflow-hidden rounded-lg border border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setEditorTab('edit')}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold transition ${
+                    editorTab === 'edit'
+                      ? 'bg-teal-700 text-white'
+                      : 'bg-white text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  <Pencil className="size-3" />
+                  Soạn thảo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditorTab('preview')}
+                  className={`inline-flex items-center gap-1.5 border-l border-slate-200 px-3 py-1.5 text-xs font-semibold transition ${
+                    editorTab === 'preview'
+                      ? 'bg-teal-700 text-white'
+                      : 'bg-white text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  <Eye className="size-3" />
+                  Xem trước
+                </button>
+              </div>
+            </div>
+
+            {editorTab === 'edit' && (
+              <div className="overflow-hidden rounded-lg border border-slate-300 focus-within:border-teal-600">
+                <div className="flex flex-wrap items-center gap-1 border-b border-slate-200 bg-slate-50 px-2 py-1.5">
+                  {TOOLBAR_BUTTONS.map(btn => (
+                    <button
+                      key={btn.label}
+                      type="button"
+                      title={btn.title}
+                      onClick={() => insertAtCursor(btn.insert)}
+                      className="rounded px-2 py-1 text-sm hover:bg-slate-200"
+                    >
+                      {btn.label}
+                    </button>
+                  ))}
+                  <span className="ml-auto hidden text-xs text-slate-400 sm:block">
+                    Dòng bắt đầu bằng emoji = tiêu đề section
+                  </span>
+                </div>
+                <textarea
+                  ref={textareaRef}
+                  required
+                  rows={16}
+                  value={draft.content}
+                  onChange={e => setDraft(prev => ({ ...prev, content: e.target.value }))}
+                  className="w-full px-3 py-2 font-mono text-sm leading-relaxed text-slate-800 outline-none"
+                  placeholder={`🛡️ TIÊU ĐỀ SECTION:\n- Điểm quan trọng thứ nhất\n- Điểm quan trọng thứ hai\n\n⚠️ LƯU Ý:\n- Cảnh báo quan trọng\n\nhttps://youtu.be/VIDEO_ID`}
+                />
+              </div>
+            )}
+
+            {editorTab === 'preview' && (
+              <div className="min-h-100 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                <LessonContentPreview content={draft.content} category={draft.category} />
+              </div>
+            )}
           </div>
 
           <div className="flex items-center justify-end gap-3 border-t border-slate-200 pt-4">
