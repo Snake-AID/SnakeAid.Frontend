@@ -16,6 +16,7 @@ import {
   Pencil,
   Plus,
   RefreshCcw,
+  Search,
   Trash2,
   User,
   X,
@@ -103,6 +104,7 @@ export default function BlogsPage() {
   // List state
   const [items, setItems] = useState<BlogSummary[]>([]);
   const [statusFilter, setStatusFilter] = useState<BlogStatus | 'All'>('All');
+  const [searchQuery, setSearchQuery] = useState('');
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedDetail, setSelectedDetail] = useState<BlogDetail | null>(null);
 
@@ -187,8 +189,17 @@ export default function BlogsPage() {
   const adminVisibleItems = useMemo(() =>
     items.filter(b => b.status !== 'Draft' || b.account?.role === 'Admin'), [items]);
 
-  const filteredItems = useMemo(() =>
-    statusFilter === 'All' ? adminVisibleItems : adminVisibleItems.filter(b => b.status === statusFilter), [adminVisibleItems, statusFilter]);
+  const filteredItems = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    const byStatus = statusFilter === 'All' ? adminVisibleItems : adminVisibleItems.filter(b => b.status === statusFilter);
+    if (!q) {
+      return byStatus;
+    }
+    return byStatus.filter(b =>
+      b.title.toLowerCase().includes(q)
+      || (b.account?.fullName ?? '').toLowerCase().includes(q),
+    );
+  }, [adminVisibleItems, statusFilter, searchQuery]);
 
   const countByStatus = useMemo(() => {
     const map: Record<string, number> = { All: adminVisibleItems.length };
@@ -200,7 +211,16 @@ export default function BlogsPage() {
 
   const handleFilterChange = (filter: BlogStatus | 'All') => {
     setStatusFilter(filter);
-    const first = items.find(b => filter === 'All' || b.status === filter);
+    const q = searchQuery.trim().toLowerCase();
+    const first = adminVisibleItems.find((b) => {
+      if (filter !== 'All' && b.status !== filter) {
+        return false;
+      }
+      if (q && !b.title.toLowerCase().includes(q) && !(b.account?.fullName ?? '').toLowerCase().includes(q)) {
+        return false;
+      }
+      return true;
+    });
     setSelectedId(first?.id ?? null);
   };
 
@@ -392,6 +412,29 @@ export default function BlogsPage() {
                   Tạo bài
                 </button>
               </div>
+            </div>
+          </div>
+
+          {/* Search */}
+          <div className="border-b border-slate-200 px-3 py-2">
+            <div className="relative">
+              <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                placeholder="Tìm tiêu đề, tác giả..."
+                className="w-full rounded-lg border border-slate-200 bg-slate-50 py-1.5 pl-7 pr-8 text-xs text-slate-800 outline-none focus:border-blue-400 focus:bg-white"
+              />
+              {searchQuery && (
+                <button
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                >
+                  <X className="size-3.5" />
+                </button>
+              )}
             </div>
           </div>
 

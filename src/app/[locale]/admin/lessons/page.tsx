@@ -1,7 +1,7 @@
 'use client';
 
 import type { LessonItem, LessonUpsertPayload } from '@/types/lesson.type';
-import { Eye, EyeOff, Pencil, Plus, RefreshCcw, Tag, Trash2 } from 'lucide-react';
+import { Eye, EyeOff, Pencil, Plus, RefreshCcw, Search, Tag, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { ApiClientError } from '@/apis/client';
 import { lessonApi } from '@/apis/lesson.api';
@@ -55,11 +55,38 @@ const toVNDateTime = (iso: string) => {
 
 const toCategoryLabel = (value: string) => CATEGORY_LABEL_MAP[value] ?? value;
 
+type CategoryFilter = 'All' | 'Safety' | 'Catching' | 'FirstAid';
+type PublishFilter = 'All' | 'published' | 'draft';
+
+const CATEGORY_FILTER_TABS: CategoryFilter[] = ['All', 'Safety', 'Catching', 'FirstAid'];
+const CATEGORY_FILTER_LABEL: Record<CategoryFilter, string> = {
+  All: 'Tất cả',
+  Safety: 'An toàn',
+  Catching: 'Bắt rắn',
+  FirstAid: 'Sơ cứu',
+};
+
+const CATEGORY_CHIP: Record<string, string> = {
+  Safety: 'bg-emerald-50 text-emerald-700',
+  Catching: 'bg-orange-50 text-orange-700',
+  FirstAid: 'bg-rose-50 text-rose-700',
+};
+
+const PUBLISH_FILTER_TABS: PublishFilter[] = ['All', 'published', 'draft'];
+const PUBLISH_FILTER_LABEL: Record<PublishFilter, string> = {
+  All: 'Tất cả',
+  published: 'Xuất bản',
+  draft: 'Nháp',
+};
+
 export default function LessonsPage() {
   const { showToast } = useToast();
   const [items, setItems] = useState<LessonItem[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [selectedDetail, setSelectedDetail] = useState<LessonItem | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>('All');
+  const [publishFilter, setPublishFilter] = useState<PublishFilter>('All');
 
   const [isListLoading, setIsListLoading] = useState(true);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
@@ -78,6 +105,33 @@ export default function LessonsPage() {
     () => items.find(item => item.id === selectedId) ?? null,
     [items, selectedId],
   );
+
+  const filteredItems = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return items.filter((item) => {
+      if (categoryFilter !== 'All' && item.category !== categoryFilter) {
+        return false;
+      }
+      if (publishFilter === 'published' && !item.isPublished) {
+        return false;
+      }
+      if (publishFilter === 'draft' && item.isPublished) {
+        return false;
+      }
+      if (q && !item.title.toLowerCase().includes(q)) {
+        return false;
+      }
+      return true;
+    });
+  }, [items, searchQuery, categoryFilter, publishFilter]);
+
+  const countByCategory = useMemo(() => {
+    const map: Record<string, number> = { All: items.length };
+    for (const item of items) {
+      map[item.category] = (map[item.category] ?? 0) + 1;
+    }
+    return map;
+  }, [items]);
 
   const loadList = async (preferredId?: string | null, pinToTop = false) => {
     setIsListLoading(true);
@@ -226,6 +280,48 @@ export default function LessonsPage() {
     }
   };
 
+  const handleCategoryChange = (cat: CategoryFilter) => {
+    setCategoryFilter(cat);
+    const q = searchQuery.trim().toLowerCase();
+    const first = items.find((item) => {
+      if (cat !== 'All' && item.category !== cat) {
+        return false;
+      }
+      if (publishFilter === 'published' && !item.isPublished) {
+        return false;
+      }
+      if (publishFilter === 'draft' && item.isPublished) {
+        return false;
+      }
+      if (q && !item.title.toLowerCase().includes(q)) {
+        return false;
+      }
+      return true;
+    });
+    setSelectedId(first?.id ?? null);
+  };
+
+  const handlePublishChange = (pub: PublishFilter) => {
+    setPublishFilter(pub);
+    const q = searchQuery.trim().toLowerCase();
+    const first = items.find((item) => {
+      if (categoryFilter !== 'All' && item.category !== categoryFilter) {
+        return false;
+      }
+      if (pub === 'published' && !item.isPublished) {
+        return false;
+      }
+      if (pub === 'draft' && item.isPublished) {
+        return false;
+      }
+      if (q && !item.title.toLowerCase().includes(q)) {
+        return false;
+      }
+      return true;
+    });
+    setSelectedId(first?.id ?? null);
+  };
+
   useEffect(() => {
     void loadList();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -282,10 +378,77 @@ export default function LessonsPage() {
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-bold text-slate-900">Danh sách bài học</h3>
                 <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">
-                  {items.length}
+                  {filteredItems.length !== items.length
+                    ? `${filteredItems.length}/${items.length}`
+                    : items.length}
                   {' '}
                   bài
                 </span>
+              </div>
+
+              <div className="space-y-2">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    value={searchQuery}
+                    onChange={e => setSearchQuery(e.target.value)}
+                    placeholder="Tìm kiếm bài học..."
+                    className="w-full rounded-lg border border-slate-200 bg-slate-50 py-1.5 pl-7 pr-8 text-xs text-slate-800 outline-none focus:border-teal-500 focus:bg-white"
+                  />
+                  {searchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    >
+                      <X className="size-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap gap-1">
+                  {CATEGORY_FILTER_TABS.map(cat => (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => handleCategoryChange(cat)}
+                      className={`rounded-full px-2.5 py-1 text-xs font-semibold transition ${
+                        categoryFilter === cat
+                          ? 'bg-teal-700 text-white'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      {CATEGORY_FILTER_LABEL[cat]}
+                      {countByCategory[cat] !== undefined && (
+                        <span className={`ml-1 ${categoryFilter === cat ? 'opacity-75' : 'text-slate-400'}`}>
+                          {countByCategory[cat]}
+                        </span>
+                      )}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="flex gap-1">
+                  {PUBLISH_FILTER_TABS.map(pub => (
+                    <button
+                      key={pub}
+                      type="button"
+                      onClick={() => handlePublishChange(pub)}
+                      className={`rounded-full px-2.5 py-1 text-xs font-semibold transition ${
+                        publishFilter === pub
+                          ? pub === 'published'
+                            ? 'bg-emerald-600 text-white'
+                            : pub === 'draft'
+                              ? 'bg-slate-500 text-white'
+                              : 'bg-teal-700 text-white'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      {PUBLISH_FILTER_LABEL[pub]}
+                    </button>
+                  ))}
+                </div>
               </div>
 
               {isListLoading && (
@@ -302,13 +465,13 @@ export default function LessonsPage() {
 
               {!isListLoading && !listError && (
                 <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
-                  {items.length === 0 && (
+                  {filteredItems.length === 0 && (
                     <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
-                      Chưa có bài học nào.
+                      {items.length === 0 ? 'Chưa có bài học nào.' : 'Không có bài học nào khớp với bộ lọc.'}
                     </p>
                   )}
 
-                  {items.map((item) => {
+                  {filteredItems.map((item) => {
                     const isActive = item.id === selectedId;
 
                     return (
@@ -324,7 +487,7 @@ export default function LessonsPage() {
                       >
                         <p className="line-clamp-2 text-sm font-semibold text-slate-900">{item.title}</p>
                         <div className="mt-1 flex items-center justify-between gap-2">
-                          <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">
+                          <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${CATEGORY_CHIP[item.category] ?? 'bg-blue-50 text-blue-700'}`}>
                             {toCategoryLabel(item.category)}
                           </span>
                           <span className={`text-xs font-semibold ${item.isPublished ? 'text-emerald-700' : 'text-slate-500'}`}>
