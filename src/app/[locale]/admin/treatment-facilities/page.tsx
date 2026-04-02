@@ -11,6 +11,7 @@ import { antivenomApi } from '@/apis/antivenom.api';
 import { ApiClientError } from '@/apis/client';
 import { treatmentFacilityApi } from '@/apis/treatment-facility.api';
 import TreatmentFacilityUpsertModal from '@/components/admin/TreatmentFacilityUpsertModal';
+import { useToast } from '@/components/ToastProvider';
 
 const createEmptyPayload = (): CreateTreatmentFacilityRequest => ({
   name: '',
@@ -48,6 +49,7 @@ const getValidationMessage = (err: unknown, fallback: string) => {
 };
 
 export default function TreatmentFacilitiesPage() {
+  const { showToast } = useToast();
   const [items, setItems] = useState<TreatmentFacilityResponse[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [selectedDetail, setSelectedDetail] = useState<TreatmentFacilityResponse | null>(null);
@@ -85,6 +87,7 @@ export default function TreatmentFacilitiesPage() {
       setAntivenomOptions(data);
     } catch (err) {
       console.error('Failed to load antivenoms for selector', err);
+      showToast('Không thể tải danh sách huyết thanh liên kết.', { type: 'error' });
     }
   };
 
@@ -115,6 +118,7 @@ export default function TreatmentFacilitiesPage() {
     } catch (err) {
       console.error('Failed to load treatment facilities', err);
       setListError('Không thể tải danh sách cơ sở điều trị. Vui lòng thử lại.');
+      showToast('Không thể tải danh sách cơ sở điều trị.', { type: 'error' });
     } finally {
       setIsListLoading(false);
     }
@@ -131,6 +135,7 @@ export default function TreatmentFacilitiesPage() {
       console.error('Failed to load treatment facility detail', err);
       setSelectedDetail(null);
       setDetailError('Không thể tải chi tiết cơ sở điều trị. Vui lòng thử lại.');
+      showToast('Không thể tải chi tiết cơ sở điều trị.', { type: 'error' });
     } finally {
       setIsDetailLoading(false);
     }
@@ -160,6 +165,7 @@ export default function TreatmentFacilitiesPage() {
     } catch (err) {
       console.error('Failed to load treatment facility before update', err);
       setActionError('Không thể tải dữ liệu mới nhất để cập nhật. Vui lòng thử lại.');
+      showToast('Không thể tải dữ liệu cơ sở điều trị để cập nhật.', { type: 'error' });
     }
   };
 
@@ -193,6 +199,8 @@ export default function TreatmentFacilitiesPage() {
         await loadDetail(targetId);
       }
 
+      showToast(formMode === 'create' ? 'Đã tạo cơ sở điều trị mới.' : 'Đã cập nhật cơ sở điều trị.', { type: 'success' });
+
       setIsModalOpen(false);
     } catch (err) {
       console.error('Failed to submit treatment facility form', err);
@@ -201,6 +209,7 @@ export default function TreatmentFacilitiesPage() {
         : 'Cập nhật cơ sở điều trị thất bại. Vui lòng thử lại.';
       const validationMessage = getValidationMessage(err, fallback);
       setActionError(validationMessage);
+      showToast(validationMessage, { type: 'error' });
       throw err;
     } finally {
       setIsSubmittingForm(false);
@@ -225,9 +234,11 @@ export default function TreatmentFacilitiesPage() {
       await treatmentFacilityApi.deleteTreatmentFacility(selectedId);
       await loadList(null);
       setSelectedDetail(null);
+      showToast('Đã xóa cơ sở điều trị.', { type: 'success' });
     } catch (err) {
       console.error('Failed to delete treatment facility', err);
       setActionError('Xóa cơ sở điều trị thất bại. Vui lòng thử lại.');
+      showToast('Xóa cơ sở điều trị thất bại.', { type: 'error' });
     } finally {
       setIsDeleting(false);
     }

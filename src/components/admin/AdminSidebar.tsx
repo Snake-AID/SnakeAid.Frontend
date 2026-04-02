@@ -1,10 +1,12 @@
 'use client';
 
 import {
+  BookOpenText,
   BookOpen,
   Building2,
   CalendarDays,
   FlaskConical,
+  HandCoins,
   LayoutDashboard,
   Shield,
   Users,
@@ -63,6 +65,20 @@ export default function AdminSidebar({
       icon: Building2,
       label: 'Quản lý cơ sở điều trị',
       href: '/admin/treatment-facilities',
+      enabled: true,
+    },
+    {
+      id: 'transactions',
+      icon: HandCoins,
+      label: 'Quản lý dòng tiền',
+      href: '/admin/transactions',
+      enabled: true,
+    },
+    {
+      id: 'lessons',
+      icon: BookOpenText,
+      label: 'Quản lý bài học',
+      href: '/admin/lessons',
       enabled: true,
     },
     {
