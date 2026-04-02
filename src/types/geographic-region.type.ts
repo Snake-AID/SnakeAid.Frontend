@@ -20,8 +20,6 @@ export interface GeographicRegionResponse {
   displayOrder: number;
   isActive: boolean;
   boundaryCoordinates: Array<[number, number]>;
-  isMapped: boolean;
-  mapping: RegionSnakeMappingResponse | null;
 }
 
 export interface CreateRegionSnakeMappingRequest {

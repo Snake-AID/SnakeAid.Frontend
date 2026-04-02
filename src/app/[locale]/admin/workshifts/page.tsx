@@ -32,6 +32,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ApiClientError } from '@/apis/client';
 import { operatorApi } from '@/apis/operator.api';
 import { workShiftApi } from '@/apis/workshift.api';
+import { useToast } from '@/components/ToastProvider';
 
 interface ShiftFormDraft {
   name: string;
@@ -336,6 +337,7 @@ const normalizeRescuer = (item: unknown): BriefRescuerProfileResponse | null => 
 };
 
 export default function WorkShiftsPage() {
+  const { showToast } = useToast();
   const initialRange = useMemo(() => createDefaultRange(), []);
 
   const [windowStartDate, setWindowStartDate] = useState(initialRange.start);
@@ -460,7 +462,7 @@ export default function WorkShiftsPage() {
     }
   };
 
-  const reloadPageData = async () => {
+  const reloadPageData = async (notify = false) => {
     setIsLoading(true);
     setPageError(null);
 
@@ -471,22 +473,30 @@ export default function WorkShiftsPage() {
         loadTodayAssignments(),
         loadAssignments(windowStartDate, windowEndDate),
       ]);
+      if (notify) {
+        showToast('Đã làm mới dữ liệu lịch làm việc.', { type: 'success' });
+      }
     } catch (error) {
       console.error('Failed to load workshift schedule page', error);
       setPageError('Không thể tải dữ liệu lịch làm việc. Vui lòng thử lại.');
+      showToast('Không thể tải dữ liệu lịch làm việc.', { type: 'error' });
     } finally {
       setIsLoading(false);
     }
   };
 
-  const reloadAssignmentsOnly = async () => {
+  const reloadAssignmentsOnly = async (notify = false) => {
     setActionError(null);
 
     try {
       await loadAssignments(windowStartDate, windowEndDate);
+      if (notify) {
+        showToast('Đã làm mới dữ liệu phân công.', { type: 'success' });
+      }
     } catch (error) {
       console.error('Failed to reload assignments', error);
       setActionError('Không thể tải lại lịch phân công.');
+      showToast('Không thể tải lại lịch phân công.', { type: 'error' });
     }
   };
 
@@ -527,6 +537,7 @@ export default function WorkShiftsPage() {
     } catch (error) {
       console.error('Failed to load shift before update', error);
       setActionError('Không thể tải dữ liệu ca để chỉnh sửa.');
+      showToast('Không thể tải dữ liệu ca để chỉnh sửa.', { type: 'error' });
     }
   };
 
@@ -548,6 +559,7 @@ export default function WorkShiftsPage() {
           requiredRescuers: Number(shiftDraft.requiredRescuers),
         };
         await workShiftApi.createShift(payload);
+        showToast('Đã tạo mẫu ca mới.', { type: 'success' });
       } else if (selectedShiftId) {
         const payload: UpdateWorkShiftRequest = {
           name: shiftDraft.name.trim(),
@@ -557,6 +569,7 @@ export default function WorkShiftsPage() {
           isActive: shiftDraft.isActive,
         };
         await workShiftApi.updateShift(selectedShiftId, payload);
+        showToast('Đã cập nhật mẫu ca.', { type: 'success' });
       }
 
       await reloadPageData();
@@ -566,7 +579,9 @@ export default function WorkShiftsPage() {
       const fallback = shiftModalMode === 'create'
         ? 'Tạo mẫu ca thất bại.'
         : 'Cập nhật mẫu ca thất bại.';
-      setActionError(getValidationMessage(error, fallback));
+      const message = getValidationMessage(error, fallback);
+      setActionError(message);
+      showToast(message, { type: 'error' });
     } finally {
       setIsShiftSubmitting(false);
     }
@@ -585,9 +600,12 @@ export default function WorkShiftsPage() {
     try {
       await workShiftApi.deleteShift(shiftId);
       await reloadPageData();
+      showToast('Đã xóa mẫu ca.', { type: 'success' });
     } catch (error) {
       console.error('Failed to delete shift', error);
-      setActionError(getValidationMessage(error, 'Xóa mẫu ca thất bại.'));
+      const message = getValidationMessage(error, 'Xóa mẫu ca thất bại.');
+      setActionError(message);
+      showToast(message, { type: 'error' });
     } finally {
       setIsShiftDeleting(false);
     }
@@ -658,9 +676,12 @@ export default function WorkShiftsPage() {
       await reloadAssignmentsOnly();
       setSingleRescuerId('');
       setSingleNotes('');
+      showToast('Đã gán cứu hộ viên vào ca.', { type: 'success' });
     } catch (error) {
       console.error('Failed to assign one rescuer', error);
-      setActionError(getValidationMessage(error, 'Không thể gán rescuer vào ca.'));
+      const message = getValidationMessage(error, 'Không thể gán rescuer vào ca.');
+      setActionError(message);
+      showToast(message, { type: 'error' });
     } finally {
       setIsAssignmentSubmitting(false);
     }
@@ -684,9 +705,12 @@ export default function WorkShiftsPage() {
       await reloadAssignmentsOnly();
       setBulkRescuerIds([]);
       setBulkNotes('');
+      showToast('Đã gán hàng loạt cứu hộ viên.', { type: 'success' });
     } catch (error) {
       console.error('Failed to assign bulk rescuers', error);
-      setActionError(getValidationMessage(error, 'Không thể gán hàng loạt rescuers.'));
+      const message = getValidationMessage(error, 'Không thể gán hàng loạt rescuers.');
+      setActionError(message);
+      showToast(message, { type: 'error' });
     } finally {
       setIsAssignmentSubmitting(false);
     }
@@ -711,9 +735,12 @@ export default function WorkShiftsPage() {
 
       await workShiftApi.updateAssignment(assignmentId, payload);
       await reloadAssignmentsOnly();
+      showToast('Đã cập nhật phân công.', { type: 'success' });
     } catch (error) {
       console.error('Failed to update assignment', error);
-      setActionError(getValidationMessage(error, 'Cập nhật phân công thất bại.'));
+      const message = getValidationMessage(error, 'Cập nhật phân công thất bại.');
+      setActionError(message);
+      showToast(message, { type: 'error' });
     } finally {
       setIsAssignmentSubmitting(false);
     }
@@ -732,9 +759,12 @@ export default function WorkShiftsPage() {
     try {
       await workShiftApi.deleteAssignment(assignmentId);
       await reloadAssignmentsOnly();
+      showToast('Đã xóa phân công.', { type: 'success' });
     } catch (error) {
       console.error('Failed to delete assignment', error);
-      setActionError(getValidationMessage(error, 'Xóa phân công thất bại.'));
+      const message = getValidationMessage(error, 'Xóa phân công thất bại.');
+      setActionError(message);
+      showToast(message, { type: 'error' });
     } finally {
       setIsAssignmentSubmitting(false);
     }
@@ -747,9 +777,12 @@ export default function WorkShiftsPage() {
     try {
       await workShiftApi.checkInAssignment(assignmentId);
       await reloadAssignmentsOnly();
+      showToast('Check-in thành công.', { type: 'success' });
     } catch (error) {
       console.error('Failed to check-in assignment', error);
-      setActionError(getValidationMessage(error, 'Check-in thất bại.'));
+      const message = getValidationMessage(error, 'Check-in thất bại.');
+      setActionError(message);
+      showToast(message, { type: 'error' });
     } finally {
       setIsAssignmentSubmitting(false);
     }
@@ -762,9 +795,12 @@ export default function WorkShiftsPage() {
     try {
       await workShiftApi.checkOutAssignment(assignmentId);
       await reloadAssignmentsOnly();
+      showToast('Check-out thành công.', { type: 'success' });
     } catch (error) {
       console.error('Failed to check-out assignment', error);
-      setActionError(getValidationMessage(error, 'Check-out thất bại.'));
+      const message = getValidationMessage(error, 'Check-out thất bại.');
+      setActionError(message);
+      showToast(message, { type: 'error' });
     } finally {
       setIsAssignmentSubmitting(false);
     }
@@ -778,7 +814,9 @@ export default function WorkShiftsPage() {
       setSelectedRescuerDetail(normalizeRescuer(detail));
     } catch (error) {
       console.error('Failed to load rescuer detail', error);
-      setActionError(getValidationMessage(error, 'Không thể tải chi tiết rescuer.'));
+      const message = getValidationMessage(error, 'Không thể tải chi tiết rescuer.');
+      setActionError(message);
+      showToast(message, { type: 'error' });
       setSelectedRescuerDetail(null);
     } finally {
       setIsRescuerDetailLoading(false);
@@ -877,7 +915,7 @@ export default function WorkShiftsPage() {
               </button>
               <button
                 type="button"
-                onClick={() => void reloadPageData()}
+                onClick={() => void reloadPageData(true)}
                 className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
               >
                 <RefreshCcw className="size-4" />

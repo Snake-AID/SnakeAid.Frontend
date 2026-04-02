@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  BookOpenText,
   Building2,
   CalendarDays,
   FlaskConical,
@@ -70,6 +71,13 @@ export default function AdminSidebar({
       icon: HandCoins,
       label: 'Quản lý dòng tiền',
       href: '/admin/transactions',
+      enabled: true,
+    },
+    {
+      id: 'lessons',
+      icon: BookOpenText,
+      label: 'Quản lý bài học',
+      href: '/admin/lessons',
       enabled: true,
     },
   ];

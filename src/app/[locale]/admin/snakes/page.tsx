@@ -3,6 +3,7 @@
 import type {
   CommonLevel,
   GeographicRegionResponse,
+  RegionSnakeMappingResponse,
   UpdateRegionSnakeMappingRequest,
 } from '@/types/geographic-region.type';
 import type {
@@ -35,6 +36,7 @@ import { libraryMediaApi } from '@/apis/library-media.api';
 import { snakeSpeciesApi } from '@/apis/snake-species.api';
 import { venomTypeApi } from '@/apis/venom-type.api';
 import SnakeSpeciesUpsertModal from '@/components/admin/SnakeSpeciesUpsertModal';
+import { useToast } from '@/components/ToastProvider';
 import 'leaflet/dist/leaflet.css';
 
 const emptyFirstAid: FirstAidGuidelineOverride = {
@@ -181,8 +183,8 @@ const levelColorMap: Record<number, string> = {
   5: '#dc2626',
 };
 
-const getRegionStyle = (region: GeographicRegionResponse) => {
-  if (!region.isMapped || !region.mapping) {
+const getRegionStyle = (mapping: RegionSnakeMappingResponse | null) => {
+  if (!mapping) {
     return {
       color: '#64748b',
       fillColor: '#cbd5e1',
@@ -191,8 +193,8 @@ const getRegionStyle = (region: GeographicRegionResponse) => {
     };
   }
 
-  const level = region.mapping.commonLevelValue
-    || commonLevelValueMap[region.mapping.commonLevel]
+  const level = mapping.commonLevelValue
+    || commonLevelValueMap[mapping.commonLevel]
     || 1;
 
   const fillColor = levelColorMap[level] ?? '#f97316';
@@ -299,11 +301,18 @@ const getAntivenomDescription = (item: SnakeSpeciesDetail['antivenoms'][number])
   return item.description;
 };
 
+interface ActiveRegionDialog {
+  region: GeographicRegionResponse;
+  mapping: RegionSnakeMappingResponse | null;
+}
+
 export default function SnakesPage() {
+  const { showToast } = useToast();
   const [species, setSpecies] = useState<SnakeSpeciesSummary[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [selectedDetail, setSelectedDetail] = useState<SnakeSpeciesDetail | null>(null);
   const [regions, setRegions] = useState<GeographicRegionResponse[]>([]);
+  const [mappings, setMappings] = useState<RegionSnakeMappingResponse[]>([]);
   const [isListLoading, setIsListLoading] = useState(true);
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [isMapLoading, setIsMapLoading] = useState(false);
@@ -325,7 +334,7 @@ export default function SnakesPage() {
   const [antivenomOptions, setAntivenomOptions] = useState<Array<{ id: number; label: string }>>([]);
 
   const [regionDialogOpen, setRegionDialogOpen] = useState(false);
-  const [activeRegion, setActiveRegion] = useState<GeographicRegionResponse | null>(null);
+  const [activeRegion, setActiveRegion] = useState<ActiveRegionDialog | null>(null);
   const [isSavingRegion, setIsSavingRegion] = useState(false);
   const [regionActionError, setRegionActionError] = useState<string | null>(null);
   const [regionForm, setRegionForm] = useState<UpdateRegionSnakeMappingRequest & { commonLevel: CommonLevel; priority: number }>({
@@ -336,8 +345,16 @@ export default function SnakesPage() {
   });
 
   const mappedRegionCount = useMemo(
-    () => regions.filter(region => region.isMapped).length,
-    [regions],
+    () => mappings.length,
+    [mappings],
+  );
+
+  const mappingByRegionId = useMemo(
+    () => mappings.reduce<Record<number, RegionSnakeMappingResponse>>((acc, item) => {
+      acc[item.geographicRegionId] = item;
+      return acc;
+    }, {}),
+    [mappings],
   );
 
   const loadList = async (preferredId?: number | null, pinToTop = false) => {
@@ -365,6 +382,7 @@ export default function SnakesPage() {
     } catch (err) {
       console.error('Failed to load snake species', err);
       setListError('Không thể tải danh sách loài rắn. Vui lòng thử lại.');
+      showToast('Không thể tải danh sách loài rắn.', { type: 'error' });
     } finally {
       setIsListLoading(false);
     }
@@ -381,22 +399,41 @@ export default function SnakesPage() {
       console.error('Failed to load snake detail', err);
       setSelectedDetail(null);
       setDetailError('Không thể tải thông tin loài rắn.');
+      showToast('Không thể tải chi tiết loài rắn.', { type: 'error' });
     } finally {
       setIsDetailLoading(false);
     }
   };
 
-  const loadRegions = async (id: number) => {
+  const loadRegions = async () => {
     setIsMapLoading(true);
     setMapError(null);
 
     try {
-      const regionData = await geographicRegionApi.getBySnakeSpeciesId(id);
+      const regionData = await geographicRegionApi.getAll();
       setRegions(regionData);
     } catch (err) {
       console.error('Failed to load geographic regions', err);
       setRegions([]);
-      setMapError('Không thể tải bản đồ phân bố.');
+      setMapError('Không thể tải dữ liệu vùng bản đồ.');
+      showToast('Không thể tải dữ liệu vùng bản đồ.', { type: 'error' });
+    } finally {
+      setIsMapLoading(false);
+    }
+  };
+
+  const loadMappings = async (id: number) => {
+    setIsMapLoading(true);
+    setMapError(null);
+
+    try {
+      const mappingData = await geographicRegionApi.getMappedBySnakeSpeciesId(id);
+      setMappings(mappingData);
+    } catch (err) {
+      console.error('Failed to load region mappings', err);
+      setMappings([]);
+      setMapError('Không thể tải dữ liệu phân bố của loài rắn.');
+      showToast('Không thể tải dữ liệu phân bố của loài rắn.', { type: 'error' });
     } finally {
       setIsMapLoading(false);
     }
@@ -420,6 +457,7 @@ export default function SnakesPage() {
       })));
     } catch (err) {
       console.error('Failed to load reference options', err);
+      showToast('Không thể tải dữ liệu tham chiếu venom/huyết thanh.', { type: 'error' });
     }
   };
 
@@ -447,6 +485,7 @@ export default function SnakesPage() {
     } catch (err) {
       console.error('Failed to load latest snake detail for update', err);
       setActionError('Không thể tải dữ liệu mới nhất để cập nhật.');
+      showToast('Không thể tải dữ liệu loài rắn để cập nhật.', { type: 'error' });
     }
   };
 
@@ -468,8 +507,10 @@ export default function SnakesPage() {
 
       if (targetId != null) {
         await loadList(targetId, formMode === 'create');
-        await Promise.all([loadDetail(targetId), loadRegions(targetId)]);
+        await Promise.all([loadDetail(targetId), loadMappings(targetId)]);
       }
+
+      showToast(formMode === 'create' ? 'Đã tạo loài rắn mới.' : 'Đã cập nhật loài rắn.', { type: 'success' });
 
       setIsModalOpen(false);
     } catch (err) {
@@ -481,6 +522,7 @@ export default function SnakesPage() {
 
       const validationMessage = getValidationMessage(err, fallbackMessage);
       setActionError(validationMessage);
+      showToast(validationMessage, { type: 'error' });
       throw new Error(validationMessage);
     } finally {
       setIsSubmittingForm(false);
@@ -503,27 +545,30 @@ export default function SnakesPage() {
       await snakeSpeciesApi.remove(selectedId);
       setIsDeleteConfirmOpen(false);
       setSelectedDetail(null);
-      setRegions([]);
+      setMappings([]);
       await loadList(null);
+      showToast('Đã xóa loài rắn.', { type: 'success' });
     } catch (err) {
       console.error('Failed to delete snake species', err);
       setActionError('Xóa loài rắn thất bại. Vui lòng thử lại.');
+      showToast('Xóa loài rắn thất bại.', { type: 'error' });
     } finally {
       setIsDeletingSnake(false);
     }
   };
 
   const openRegionDialog = (region: GeographicRegionResponse) => {
-    setActiveRegion(region);
+    const mapping = mappingByRegionId[region.id] ?? null;
     setRegionActionError(null);
 
     setRegionForm({
-      commonLevel: region.mapping?.commonLevel ?? 'Common',
-      priority: region.mapping?.priority ?? 0,
-      distributionNotes: region.mapping?.distributionNotes ?? '',
-      isActive: region.mapping?.isActive ?? true,
+      commonLevel: mapping?.commonLevel ?? 'Common',
+      priority: mapping?.priority ?? 0,
+      distributionNotes: mapping?.distributionNotes ?? '',
+      isActive: mapping?.isActive ?? true,
     });
 
+    setActiveRegion({ region, mapping });
     setRegionDialogOpen(true);
   };
 
@@ -536,9 +581,9 @@ export default function SnakesPage() {
     setRegionActionError(null);
 
     try {
-      if (!activeRegion.isMapped || !activeRegion.mapping) {
+      if (!activeRegion.mapping) {
         await geographicRegionApi.createMapping(selectedId, {
-          geographicRegionId: activeRegion.id,
+          geographicRegionId: activeRegion.region.id,
           commonLevel: regionForm.commonLevel,
           priority: regionForm.priority,
           distributionNotes: (regionForm.distributionNotes ?? '').trim() || null,
@@ -552,15 +597,18 @@ export default function SnakesPage() {
         });
       }
 
-      await loadRegions(selectedId);
+      await loadMappings(selectedId);
       setRegionDialogOpen(false);
       setActiveRegion(null);
+      showToast(activeRegion.mapping ? 'Đã cập nhật phân bố vùng.' : 'Đã thêm phân bố vùng.', { type: 'success' });
     } catch (err) {
       console.error('Failed to save region mapping', err);
-      const fallback = activeRegion.isMapped
+      const fallback = activeRegion.mapping
         ? 'Cập nhật phân bố thất bại.'
         : 'Thêm phân bố thất bại.';
-      setRegionActionError(getValidationMessage(err, fallback));
+      const message = getValidationMessage(err, fallback);
+      setRegionActionError(message);
+      showToast(message, { type: 'error' });
     } finally {
       setIsSavingRegion(false);
     }
@@ -576,12 +624,15 @@ export default function SnakesPage() {
 
     try {
       await geographicRegionApi.deleteMapping(selectedId, activeRegion.mapping.id);
-      await loadRegions(selectedId);
+      await loadMappings(selectedId);
       setRegionDialogOpen(false);
       setActiveRegion(null);
+      showToast('Đã xóa phân bố vùng.', { type: 'success' });
     } catch (err) {
       console.error('Failed to delete region mapping', err);
-      setRegionActionError(getValidationMessage(err, 'Xóa phân bố thất bại.'));
+      const message = getValidationMessage(err, 'Xóa phân bố thất bại.');
+      setRegionActionError(message);
+      showToast(message, { type: 'error' });
     } finally {
       setIsSavingRegion(false);
     }
@@ -590,6 +641,8 @@ export default function SnakesPage() {
   useEffect(() => {
     void loadList();
     void loadReferenceOptions();
+    void loadRegions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -599,8 +652,9 @@ export default function SnakesPage() {
 
     void Promise.all([
       loadDetail(selectedId),
-      loadRegions(selectedId),
+      loadMappings(selectedId),
     ]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId]);
 
   return (
@@ -678,7 +732,7 @@ export default function SnakesPage() {
                             const next = prev === item.id ? null : item.id;
                             if (next == null) {
                               setSelectedDetail(null);
-                              setRegions([]);
+                              setMappings([]);
                               setIsDetailExpanded(false);
                             } else {
                               setIsDetailExpanded(false);
@@ -745,9 +799,10 @@ export default function SnakesPage() {
                 {regions
                   .filter(region => region.boundaryCoordinates.length >= 3)
                   .map((region) => {
+                    const mapping = mappingByRegionId[region.id] ?? null;
                     const raw = toLeafletPolygon(region.boundaryCoordinates);
                     const smoothed = smoothClosedPolygon(raw, 2);
-                    const style = getRegionStyle(region);
+                    const style = getRegionStyle(mapping);
 
                     return (
                       <Polygon
@@ -760,7 +815,7 @@ export default function SnakesPage() {
                           weight: style.weight,
                           lineCap: 'round',
                           lineJoin: 'round',
-                          dashArray: region.isMapped ? undefined : '4 6',
+                          dashArray: mapping ? undefined : '4 6',
                         }}
                         eventHandlers={{
                           click: () => openRegionDialog(region),
@@ -769,18 +824,18 @@ export default function SnakesPage() {
                         <Tooltip sticky>
                           <div className="text-xs">
                             <p className="font-semibold text-slate-800">{region.name}</p>
-                            {region.isMapped && region.mapping
+                            {mapping
                               ? (
                                   <>
                                     <p className="mt-1 text-slate-700">
                                       Mức độ:
                                       {' '}
-                                      {commonLevelLabelMap[region.mapping.commonLevel]}
+                                      {commonLevelLabelMap[mapping.commonLevel]}
                                     </p>
                                     <p className="text-slate-700">
                                       Độ ưu tiên:
                                       {' '}
-                                      {region.mapping.priority}
+                                      {mapping.priority}
                                     </p>
                                   </>
                                 )
@@ -903,11 +958,11 @@ export default function SnakesPage() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => void loadRegions(selectedId!)}
+                        onClick={() => void loadMappings(selectedId!)}
                         className="inline-flex items-center justify-center gap-1 rounded-lg border border-amber-200 px-2 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-50"
                       >
                         <Eye className="size-3.5" />
-                        Đồng bộ bản đồ
+                        Đồng bộ phân bố
                       </button>
                     </div>
 
@@ -1137,12 +1192,12 @@ export default function SnakesPage() {
             <div className="mb-4 flex items-start justify-between gap-3">
               <div>
                 <h4 className="text-lg font-bold text-slate-900">
-                  {activeRegion.isMapped ? 'Chỉnh sửa phân bố' : 'Thêm phân bố'}
+                  {activeRegion.mapping ? 'Chỉnh sửa phân bố' : 'Thêm phân bố'}
                 </h4>
                 <p className="text-sm text-slate-500">
                   Khu vực:
                   {' '}
-                  <span className="font-semibold text-slate-700">{activeRegion.name}</span>
+                  <span className="font-semibold text-slate-700">{activeRegion.region.name}</span>
                 </p>
               </div>
               <button
@@ -1196,7 +1251,7 @@ export default function SnakesPage() {
                 />
               </div>
 
-              {activeRegion.isMapped && (
+              {activeRegion.mapping && (
                 <label className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
                   <input
                     type="checkbox"
@@ -1217,7 +1272,7 @@ export default function SnakesPage() {
                 Hủy
               </button>
 
-              {activeRegion.isMapped && activeRegion.mapping && (
+              {activeRegion.mapping && (
                 <button
                   type="button"
                   onClick={() => void deleteRegionMapping()}
@@ -1235,7 +1290,7 @@ export default function SnakesPage() {
                 className="inline-flex items-center gap-1 rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-70"
               >
                 <ShieldCheck className="size-4" />
-                {isSavingRegion ? 'Đang lưu...' : activeRegion.isMapped ? 'Cập nhật' : 'Thêm phân bố'}
+                {isSavingRegion ? 'Đang lưu...' : activeRegion.mapping ? 'Cập nhật' : 'Thêm phân bố'}
               </button>
             </div>
           </div>

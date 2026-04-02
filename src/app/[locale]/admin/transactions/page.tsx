@@ -5,6 +5,7 @@ import type { TransactionFilterType, TransactionItem } from '@/types/transaction
 import { CircleDollarSign, Loader2, SearchX, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { transactionApi } from '@/apis/transaction.api';
+import { useToast } from '@/components/ToastProvider';
 
 const TRANS_TYPE_OPTIONS: Array<{ value: TransactionFilterType; label: string }> = [
   { value: 'consultation', label: 'Tư vấn' },
@@ -18,6 +19,12 @@ const TRANSACTION_TYPE_LABEL_MAP: Record<string, string> = {
   ExpertPayout: 'Chi trả chuyên gia',
   WalletTopup: 'Nạp ví',
   WalletWithdraw: 'Rút ví',
+  CatchingPayment: 'Thanh toán bắt rắn',
+  CatchingDeposit: 'Đặt cọc bắt rắn',
+  CatchingRefund: 'Hoàn tiền bắt rắn',
+  SnakebiteIncidentPayment: 'Thanh toán sự cố rắn cắn',
+  SnakebiteIncidentDeposit: 'Đặt cọc sự cố rắn cắn',
+  SnakebiteIncidentRefund: 'Hoàn tiền sự cố rắn cắn',
 };
 
 const PAYMENT_METHOD_LABEL_MAP: Record<string, string> = {
@@ -69,6 +76,7 @@ const getPaymentMethodLabel = (value: string) => {
 };
 
 export default function TransactionsPage() {
+  const { showToast } = useToast();
   const [items, setItems] = useState<TransactionItem[]>([]);
   const [pagination, setPagination] = useState<PaginationMeta>(DEFAULT_PAGINATION);
 
@@ -169,6 +177,7 @@ export default function TransactionsPage() {
     } catch (error) {
       console.error('Failed to load transaction detail', error);
       setDetailError('Không thể tải chi tiết giao dịch.');
+      showToast('Không thể tải chi tiết giao dịch.', { type: 'error' });
     } finally {
       setIsDetailLoading(false);
     }
