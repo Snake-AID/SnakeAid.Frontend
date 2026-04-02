@@ -2,6 +2,7 @@
 
 import {
   BookOpenText,
+  BookOpen,
   Building2,
   CalendarDays,
   FlaskConical,
@@ -78,6 +79,13 @@ export default function AdminSidebar({
       icon: BookOpenText,
       label: 'Quản lý bài học',
       href: '/admin/lessons',
+      enabled: true,
+    },
+    {
+      id: 'blogs',
+      icon: BookOpen,
+      label: 'Quản lý bài viết',
+      href: '/admin/blogs',
       enabled: true,
     },
   ];
