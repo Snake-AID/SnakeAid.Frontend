@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  BookOpen,
   Building2,
   CalendarDays,
   FlaskConical,
@@ -62,6 +63,13 @@ export default function AdminSidebar({
       icon: Building2,
       label: 'Quản lý cơ sở điều trị',
       href: '/admin/treatment-facilities',
+      enabled: true,
+    },
+    {
+      id: 'blogs',
+      icon: BookOpen,
+      label: 'Quản lý bài viết',
+      href: '/admin/blogs',
       enabled: true,
     },
   ];
