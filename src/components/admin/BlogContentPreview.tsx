@@ -243,15 +243,17 @@ export default function BlogContentPreview({ content }: { content: string }) {
       {blocks.map((block, idx) => {
         if (block.type === 'image') {
           return (
-            <figure key={idx} className="my-4 text-center">
-              <img
-                src={block.url}
-                alt={block.caption}
-                className="mx-auto max-w-full rounded-lg"
-                onError={e => (e.currentTarget.style.display = 'none')}
-              />
+            <figure key={idx} className="my-4">
+              <div className="relative w-full overflow-hidden rounded-lg" style={{ aspectRatio: '16/9' }}>
+                <img
+                  src={block.url}
+                  alt={block.caption}
+                  className="absolute inset-0 h-full w-full object-cover"
+                  onError={e => (e.currentTarget.parentElement!.style.display = 'none')}
+                />
+              </div>
               {block.caption && (
-                <figcaption className="mt-1.5 text-xs italic text-slate-500">{block.caption}</figcaption>
+                <figcaption className="mt-1.5 text-center text-xs italic text-slate-500">{block.caption}</figcaption>
               )}
             </figure>
           );

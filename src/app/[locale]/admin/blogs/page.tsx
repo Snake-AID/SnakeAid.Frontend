@@ -183,16 +183,20 @@ export default function BlogsPage() {
 
   // ─── Filtered list ───────────────────────────────────────────────────────
 
+  // Hide Draft posts from non-Admin authors (Experts' drafts are not relevant to admin)
+  const adminVisibleItems = useMemo(() =>
+    items.filter(b => b.status !== 'Draft' || b.account?.role === 'Admin'), [items]);
+
   const filteredItems = useMemo(() =>
-    statusFilter === 'All' ? items : items.filter(b => b.status === statusFilter), [items, statusFilter]);
+    statusFilter === 'All' ? adminVisibleItems : adminVisibleItems.filter(b => b.status === statusFilter), [adminVisibleItems, statusFilter]);
 
   const countByStatus = useMemo(() => {
-    const map: Record<string, number> = { All: items.length };
-    for (const item of items) {
+    const map: Record<string, number> = { All: adminVisibleItems.length };
+    for (const item of adminVisibleItems) {
       map[item.status] = (map[item.status] ?? 0) + 1;
     }
     return map;
-  }, [items]);
+  }, [adminVisibleItems]);
 
   const handleFilterChange = (filter: BlogStatus | 'All') => {
     setStatusFilter(filter);
