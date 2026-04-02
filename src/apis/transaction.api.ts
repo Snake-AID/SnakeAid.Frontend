@@ -11,9 +11,9 @@ const toQueryParams = (filters: TransactionListFilters) => {
     PageSize: filters.pageSize ?? 10,
   };
 
-  const normalizedUserId = filters.userId?.trim();
-  if (normalizedUserId) {
-    params.UserId = normalizedUserId;
+  const normalizedUserName = filters.userName?.trim();
+  if (normalizedUserName) {
+    params.UserName = normalizedUserName;
   }
 
   if (filters.transType) {

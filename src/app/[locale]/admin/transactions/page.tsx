@@ -42,8 +42,6 @@ const DEFAULT_PAGINATION: PaginationMeta = {
   page_size: 10,
 };
 
-const GUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-
 const formatCurrency = (amount: number, currency: string) => {
   try {
     return new Intl.NumberFormat('vi-VN', {
@@ -80,7 +78,7 @@ export default function TransactionsPage() {
   const [items, setItems] = useState<TransactionItem[]>([]);
   const [pagination, setPagination] = useState<PaginationMeta>(DEFAULT_PAGINATION);
 
-  const [userIdFilter, setUserIdFilter] = useState('');
+  const [userNameFilter, setUserNameFilter] = useState('');
   const [transTypeFilter, setTransTypeFilter] = useState<TransactionFilterType | ''>('');
   const [pageSize, setPageSize] = useState(10);
   const [pageNumber, setPageNumber] = useState(1);
@@ -92,11 +90,7 @@ export default function TransactionsPage() {
   const [isDetailLoading, setIsDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
 
-  const trimmedUserId = useMemo(() => userIdFilter.trim(), [userIdFilter]);
-  const isUserIdValid = useMemo(
-    () => trimmedUserId.length === 0 || GUID_REGEX.test(trimmedUserId),
-    [trimmedUserId],
-  );
+  const trimmedUserName = useMemo(() => userNameFilter.trim(), [userNameFilter]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -104,7 +98,7 @@ export default function TransactionsPage() {
     }, 350);
 
     return () => window.clearTimeout(timer);
-  }, [trimmedUserId, transTypeFilter]);
+  }, [trimmedUserName, transTypeFilter]);
 
   useEffect(() => {
     let cancelled = false;
@@ -113,21 +107,9 @@ export default function TransactionsPage() {
       setIsLoading(true);
       setListError(null);
 
-      if (!isUserIdValid) {
-        setItems([]);
-        setPagination(prev => ({
-          ...prev,
-          current_page: 1,
-          page_size: pageSize,
-        }));
-        setListError('User ID phải đúng định dạng GUID (ví dụ: fd0512a8-e50d-4ef3-8253-18c1bea1d41c).');
-        setIsLoading(false);
-        return;
-      }
-
       try {
         const response = await transactionApi.getPaged({
-          userId: trimmedUserId || undefined,
+          userName: trimmedUserName || undefined,
           transType: transTypeFilter || undefined,
           pageNumber,
           pageSize,
@@ -164,7 +146,7 @@ export default function TransactionsPage() {
     return () => {
       cancelled = true;
     };
-  }, [isUserIdValid, pageNumber, pageSize, trimmedUserId, transTypeFilter]);
+  }, [pageNumber, pageSize, trimmedUserName, transTypeFilter]);
 
   const openDetail = async (id: string) => {
     setIsDetailLoading(true);
@@ -198,21 +180,18 @@ export default function TransactionsPage() {
         <header className="rounded-2xl border border-slate-200 bg-white px-6 py-5 shadow-sm">
           <h2 className="text-3xl font-bold text-slate-900">Quản lý dòng tiền</h2>
           <p className="mt-1 text-sm text-slate-500">
-            Theo dõi và tra cứu lịch sử giao dịch toàn hệ thống theo user, loại giao dịch và phân trang.
+            Theo dõi và tra cứu lịch sử giao dịch toàn hệ thống theo username, loại giao dịch và phân trang.
           </p>
 
           <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
             <div>
-              <p className="mb-1 text-xs font-semibold text-slate-700">User ID</p>
+              <p className="mb-1 text-xs font-semibold text-slate-700">Username</p>
               <input
-                value={userIdFilter}
-                onChange={e => setUserIdFilter(e.target.value)}
-                placeholder="GUID, ví dụ: fd0512a8-e50d-4ef3-8253-18c1bea1d41c"
-                className={`w-full rounded-lg border px-3 py-2 text-sm outline-none focus:border-blue-600 ${isUserIdValid ? 'border-slate-300' : 'border-rose-300 focus:border-rose-600'}`}
+                value={userNameFilter}
+                onChange={e => setUserNameFilter(e.target.value)}
+                placeholder="Email hoặc username, ví dụ: adminnhan@snakeaid.com"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-600"
               />
-              {!isUserIdValid && (
-                <p className="mt-1 text-xs font-medium text-rose-600">User ID phải là GUID hợp lệ.</p>
-              )}
             </div>
 
             <div>
@@ -260,7 +239,8 @@ export default function TransactionsPage() {
                 <tr className="text-xs uppercase tracking-wide text-slate-500">
                   <th className="border-b border-slate-200 px-3 py-2">Loại giao dịch</th>
                   <th className="border-b border-slate-200 px-3 py-2">Số tiền</th>
-                  <th className="border-b border-slate-200 px-3 py-2">User ID</th>
+                  <th className="border-b border-slate-200 px-3 py-2">Username</th>
+                  <th className="border-b border-slate-200 px-3 py-2">Họ và tên</th>
                   <th className="border-b border-slate-200 px-3 py-2">Phương thức</th>
                   <th className="border-b border-slate-200 px-3 py-2">Thời gian</th>
                 </tr>
@@ -268,7 +248,7 @@ export default function TransactionsPage() {
               <tbody>
                 {isLoading && (
                   <tr>
-                    <td colSpan={5} className="px-3 py-10 text-center text-slate-500">
+                    <td colSpan={6} className="px-3 py-10 text-center text-slate-500">
                       <div className="inline-flex items-center gap-2">
                         <Loader2 className="size-4 animate-spin" />
                         Đang tải giao dịch...
@@ -279,7 +259,7 @@ export default function TransactionsPage() {
 
                 {!isLoading && items.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="px-3 py-10 text-center text-slate-500">
+                    <td colSpan={6} className="px-3 py-10 text-center text-slate-500">
                       <div className="inline-flex items-center gap-2">
                         <SearchX className="size-4" />
                         Không có giao dịch phù hợp.
@@ -296,7 +276,8 @@ export default function TransactionsPage() {
                   >
                     <td className="border-b border-slate-100 px-3 py-3 font-semibold text-slate-800">{getTransactionTypeLabel(item.transactionType)}</td>
                     <td className="border-b border-slate-100 px-3 py-3 text-slate-700">{formatCurrency(item.amount, item.currency)}</td>
-                    <td className="max-w-50 truncate border-b border-slate-100 px-3 py-3 text-slate-600" title={item.userId}>{item.userId}</td>
+                    <td className="max-w-50 truncate border-b border-slate-100 px-3 py-3 text-slate-600" title={item.userName}>{item.userName}</td>
+                    <td className="max-w-50 truncate border-b border-slate-100 px-3 py-3 text-slate-700" title={item.fullName || 'Không có'}>{item.fullName || 'Không có'}</td>
                     <td className="border-b border-slate-100 px-3 py-3 text-slate-700">{getPaymentMethodLabel(item.paymentMethod)}</td>
                     <td className="border-b border-slate-100 px-3 py-3 text-slate-600">{formatDateTime(item.createdAt)}</td>
                   </tr>
@@ -392,8 +373,12 @@ export default function TransactionsPage() {
                   <p className="mt-1 break-all font-medium text-slate-800">{selectedTransaction.id}</p>
                 </div>
                 <div className="rounded-lg bg-slate-50 p-3">
-                  <p className="text-xs text-slate-500">User ID</p>
-                  <p className="mt-1 break-all font-medium text-slate-800">{selectedTransaction.userId}</p>
+                  <p className="text-xs text-slate-500">Username</p>
+                  <p className="mt-1 break-all font-medium text-slate-800">{selectedTransaction.userName}</p>
+                </div>
+                <div className="rounded-lg bg-slate-50 p-3">
+                  <p className="text-xs text-slate-500">Họ và tên</p>
+                  <p className="mt-1 break-all font-medium text-slate-800">{selectedTransaction.fullName || 'Không có'}</p>
                 </div>
                 <div className="rounded-lg bg-slate-50 p-3">
                   <p className="text-xs text-slate-500">Reference ID</p>

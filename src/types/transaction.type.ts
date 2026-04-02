@@ -8,7 +8,8 @@ export type TransactionFilterType
 
 export interface TransactionItem {
   id: string;
-  userId: string;
+  userName: string;
+  fullName: string;
   referenceId: string;
   amount: number;
   currency: string;
@@ -20,7 +21,7 @@ export interface TransactionItem {
 }
 
 export interface TransactionListFilters {
-  userId?: string;
+  userName?: string;
   transType?: TransactionFilterType;
   pageNumber?: number;
   pageSize?: number;
