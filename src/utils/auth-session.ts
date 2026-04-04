@@ -59,10 +59,47 @@ export const getStoredUser = (): UserInfo | null => storage.get<UserInfo>(USER_I
 
 export const getStoredRole = (): UserRole | null => normalizeRole(getStoredUser()?.role ?? null);
 
+const decodeBase64Url = (value: string): string => {
+  const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
+  return atob(padded);
+};
+
+const isAccessTokenExpired = (token: string): boolean => {
+  try {
+    const payloadSegment = token.split('.')[1];
+    if (!payloadSegment) {
+      return true;
+    }
+
+    const payload = JSON.parse(decodeBase64Url(payloadSegment)) as { exp?: number };
+    if (typeof payload.exp !== 'number') {
+      return true;
+    }
+
+    const nowInSeconds = Math.floor(Date.now() / 1000);
+    const safeSkewSeconds = 30;
+    return payload.exp <= (nowInSeconds + safeSkewSeconds);
+  } catch {
+    return true;
+  }
+};
+
 export const isAuthenticated = (): boolean => {
   const accessToken = storage.get<string>(ACCESS_TOKEN_KEY);
   const user = getStoredUser();
-  return Boolean(accessToken && user);
+  if (!accessToken || !user) {
+    return false;
+  }
+
+  return !isAccessTokenExpired(accessToken);
+};
+
+const hasStoredAuthArtifacts = (): boolean => {
+  const accessToken = storage.get<string>(ACCESS_TOKEN_KEY);
+  const refreshToken = storage.get<string>(REFRESH_TOKEN_KEY);
+  const user = getStoredUser();
+  return Boolean(accessToken || refreshToken || user);
 };
 
 export const getAuthSessionSnapshot = (): AuthSessionSnapshot => {
@@ -149,6 +186,9 @@ export const bootstrapAuthSession = async (): Promise<boolean> => {
 
   const refreshContext = getRefreshContext();
   if (!refreshContext) {
+    if (hasStoredAuthArtifacts()) {
+      clearAuthSession();
+    }
     return false;
   }
 
