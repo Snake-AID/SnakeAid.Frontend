@@ -91,6 +91,12 @@ export function useOperatorRescuers() {
     return map;
   }, [onDutySnapshot]);
 
+  const onlineStatusByRescuer = useMemo(() => {
+    const map = new Map<string, { isOnline: boolean; isAvailable: boolean }>();
+    onlineRescuers.forEach(r => map.set(r.accountId, { isOnline: r.isOnline, isAvailable: r.isAvailable }));
+    return map;
+  }, [onlineRescuers]);
+
   const liveRescuers = useMemo<LiveRescuer[]>(() => {
     const list = onlineRescuers
       .map((r) => {
@@ -130,7 +136,9 @@ export function useOperatorRescuers() {
     const eightHoursLater = new Date(now.getTime() + 8 * 60 * 60 * 1000);
 
     return shiftAssignments.map((sa) => {
-      const status = shiftStatusByRescuer.get(sa.rescuerId);
+      const snapshotStatus = shiftStatusByRescuer.get(sa.rescuerId);
+      const onlineStatus = onlineStatusByRescuer.get(sa.rescuerId);
+      const status = onlineStatus ?? snapshotStatus;
       const snapshot = onDutySnapshot.find(r => r.rescuerId === sa.rescuerId);
       const profile = rescuerRegistry[sa.rescuerId];
 
@@ -168,45 +176,42 @@ export function useOperatorRescuers() {
         shiftBadgeColor,
       };
     });
-  }, [shiftAssignments, shiftStatusByRescuer, onDutySnapshot, rescuerRegistry]);
+  }, [shiftAssignments, shiftStatusByRescuer, onlineStatusByRescuer, onDutySnapshot, rescuerRegistry]);
 
   const handleRescuerOnlineStatus = useCallback((payload: RescuerOnlineStatusPayload) => {
     // eslint-disable-next-line no-console
     console.log('🟢 RescuerOnlineStatus event:', payload);
 
-    // Update online rescuers list
-    setOnlineRescuers((prev) => {
-      const existingIndex = prev.findIndex(r => r.accountId === payload.rescuerId);
+    const existingIndex = onlineRescuers.findIndex(r => r.accountId === payload.rescuerId);
 
-      if (existingIndex >= 0) {
-        // Update existing rescuer
-        // eslint-disable-next-line no-console
-        console.log(`   ✅ Updating online rescuer ${payload.rescuerId}: online=${payload.isOnline}, available=${payload.isAvailable}`);
+    if (existingIndex >= 0) {
+      // eslint-disable-next-line no-console
+      console.log(`   ✅ Updating online rescuer ${payload.rescuerId}: online=${payload.isOnline}, available=${payload.isAvailable}`);
 
-        if (!payload.isOnline) {
-          // Remove from online list if went offline
-          return prev.filter(r => r.accountId !== payload.rescuerId);
-        }
+      if (!payload.isOnline) {
+        setOnlineRescuers(prev => prev.filter(r => r.accountId !== payload.rescuerId));
+      } else {
+        setOnlineRescuers((prev) => {
+          const idx = prev.findIndex(r => r.accountId === payload.rescuerId);
+          if (idx < 0) {
+            return prev;
+          }
 
-        // Update status
-        const updated = [...prev];
-        updated[existingIndex] = {
-          ...updated[existingIndex]!,
-          isOnline: payload.isOnline,
-          isAvailable: payload.isAvailable,
-        };
-        return updated;
+          const updated = [...prev];
+          updated[idx] = {
+            ...updated[idx]!,
+            isOnline: payload.isOnline,
+            isAvailable: payload.isAvailable,
+          };
+          return updated;
+        });
       }
-
-      if (payload.isOnline) {
-        // Rescuer came online - reload to get full data
-        // eslint-disable-next-line no-console
-        console.log(`   ⚠️ Rescuer ${payload.rescuerId} came online, reloading online rescuers...`);
-        loadOnlineRescuers();
-      }
-
-      return prev;
-    });
+    } else if (payload.isOnline) {
+      // Rescuer came online but not in current list: fetch full profile once.
+      // eslint-disable-next-line no-console
+      console.log(`   ⚠️ Rescuer ${payload.rescuerId} came online, reloading online rescuers...`);
+      void loadOnlineRescuers();
+    }
 
     // Also update on-duty snapshot if rescuer is there
     setOnDutySnapshot((prev) => {
@@ -225,7 +230,21 @@ export function useOperatorRescuers() {
 
       return prev;
     });
-  }, [loadOnlineRescuers]);
+
+    // If the backend explicitly reports the rescuer is no longer in mission,
+    // clear any stale mission marker so the map switches back to idle/available.
+    if (payload.inMission === false) {
+      setMissionLocations((prev) => {
+        if (!prev[payload.rescuerId]) {
+          return prev;
+        }
+
+        const next = { ...prev };
+        delete next[payload.rescuerId];
+        return next;
+      });
+    }
+  }, [onlineRescuers, loadOnlineRescuers]);
 
   const handleRescuerIdleLocationUpdated = useCallback((payload: RescuerIdleLocationUpdatedPayload) => {
     // eslint-disable-next-line no-console
