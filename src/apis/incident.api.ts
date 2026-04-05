@@ -1,3 +1,11 @@
+import type {
+  AdminDetailSnakebiteIncidentResponse,
+  AdminIncidentListQuery,
+  AdminIncidentSummaryResponse,
+  AdminMissionDetailResponse,
+  AdminMissionListQuery,
+  AdminMissionSummaryResponse,
+} from '@/types/admin-management.type';
 import type { OperatorIncidentSummaryResponse } from '@/types/operator.type';
 import type {
   CreateIncidentResponse,
@@ -7,7 +15,7 @@ import type {
   MarkFalseAlarmRequest,
   ReportNoAnswerRequest,
 } from '@/types/snakebite-incident.type';
-import { api } from './client';
+import { api, ApiClientError } from './client';
 
 export const incidentApi = {
   /**
@@ -46,4 +54,25 @@ export const incidentApi = {
     api.post<{ requestId: string; rejectedAt: string; message: string }>(
       `/incidents/dispatch-requests/${requestId}/cancel`,
     ),
+
+  getAdminIncidentList: (params?: AdminIncidentListQuery) =>
+    api.getPaginated<AdminIncidentSummaryResponse>('/incidents/admin/list', { params }),
+
+  getAdminMissionList: (params?: AdminMissionListQuery) =>
+    api.getPaginated<AdminMissionSummaryResponse>('/rescue-missions/admin/list', { params }),
+
+  getAdminMissionDetail: (missionId: string, params?: { rescuerLat?: number; rescuerLng?: number }) =>
+    api.get<AdminMissionDetailResponse>(`/rescue-missions/${missionId}`, { params }),
+
+  getAdminIncidentDetail: async (incidentId: string) => {
+    try {
+      return await api.get<AdminDetailSnakebiteIncidentResponse>(`/incidents/${incidentId}`);
+    } catch (error) {
+      if (error instanceof ApiClientError && error.statusCode === 404) {
+        return api.get<AdminDetailSnakebiteIncidentResponse>(`/snakebite-incidents/${incidentId}`);
+      }
+
+      throw error;
+    }
+  },
 };
