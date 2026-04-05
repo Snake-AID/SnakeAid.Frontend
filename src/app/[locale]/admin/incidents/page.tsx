@@ -64,6 +64,132 @@ const isImageAttachment = (contentType?: string | null, fileName?: string | null
   return /\.(?:png|jpe?g|webp|gif|bmp|svg)(?:\?|$)/.test(candidate);
 };
 
+const getMissionStatusLabel = (status: string) => {
+  switch (status) {
+    case 'Preparing':
+      return 'Đang chuẩn bị';
+    case 'EnRoute':
+      return 'Đang di chuyển';
+    case 'RescuerArrived':
+      return 'Đã đến nơi';
+    case 'MissionCompleted':
+      return 'Hoàn thành';
+    case 'MissionUncompleted':
+      return 'Chưa hoàn thành';
+    case 'MissionAborted':
+      return 'Đã hủy';
+    case 'Cancelled':
+      return 'Đã hủy';
+    default:
+      return status;
+  }
+};
+
+const translateIncidentStage = (stage: string) => {
+  switch (stage) {
+    case 'Pending':
+      return 'Chờ xác minh';
+    case 'Verified':
+      return 'Chờ điều phối';
+    case 'Contacting':
+      return 'Đang liên hệ';
+    case 'Dispatched':
+      return 'Đã điều phối';
+    case 'Assigned':
+      return 'Đã nhận lệnh';
+    case 'Finished':
+      return 'Đã kết thúc';
+    case 'Completed':
+      return 'Hoàn thành';
+    case 'FalseAlarm':
+      return 'Báo động giả';
+    case 'Cancelled':
+      return 'Đã hủy';
+    case 'NoRescuerFound':
+      return 'Không tìm được cứu hộ';
+    case 'Disputed':
+      return 'Tranh chấp';
+    default:
+      return stage;
+  }
+};
+
+const INCIDENT_STATUS_OPTIONS = [
+  { value: '', label: 'Tất cả trạng thái' },
+  { value: 'Pending', label: 'Chờ xác minh' },
+  { value: 'Verified', label: 'Chờ điều phối' },
+  { value: 'Contacting', label: 'Đang liên hệ' },
+  { value: 'Dispatched', label: 'Đã điều phối' },
+  { value: 'Assigned', label: 'Đã nhận lệnh' },
+  { value: 'Finished', label: 'Đã kết thúc' },
+  { value: 'Completed', label: 'Hoàn thành' },
+  { value: 'FalseAlarm', label: 'Báo động giả' },
+  { value: 'Cancelled', label: 'Đã hủy' },
+  { value: 'NoRescuerFound', label: 'Không tìm được cứu hộ' },
+  { value: 'Disputed', label: 'Tranh chấp' },
+] as const;
+
+const MISSION_STATUS_OPTIONS = [
+  { value: '', label: 'Tất cả trạng thái' },
+  { value: 'Preparing', label: 'Đang chuẩn bị' },
+  { value: 'EnRoute', label: 'Đang di chuyển' },
+  { value: 'RescuerArrived', label: 'Đã đến nơi' },
+  { value: 'MissionCompleted', label: 'Hoàn thành' },
+  { value: 'MissionUncompleted', label: 'Chưa hoàn thành' },
+  { value: 'MissionAborted', label: 'Đã hủy' },
+  { value: 'Cancelled', label: 'Đã hủy' },
+] as const;
+
+const STATUS_BADGE_BASE_CLASS = 'inline-flex rounded-full px-2 py-0.5 text-xs font-semibold';
+
+const getIncidentStatusBadgeClass = (stage: string) => {
+  switch (stage) {
+    case 'Pending':
+      return 'bg-amber-100 text-amber-700';
+    case 'Verified':
+      return 'bg-indigo-100 text-indigo-700';
+    case 'Contacting':
+      return 'bg-sky-100 text-sky-700';
+    case 'Dispatched':
+      return 'bg-cyan-100 text-cyan-700';
+    case 'Assigned':
+      return 'bg-blue-100 text-blue-700';
+    case 'Finished':
+    case 'Completed':
+      return 'bg-emerald-100 text-emerald-700';
+    case 'FalseAlarm':
+      return 'bg-slate-200 text-slate-700';
+    case 'Cancelled':
+      return 'bg-rose-100 text-rose-700';
+    case 'NoRescuerFound':
+      return 'bg-orange-100 text-orange-700';
+    case 'Disputed':
+      return 'bg-fuchsia-100 text-fuchsia-700';
+    default:
+      return 'bg-slate-100 text-slate-700';
+  }
+};
+
+const getMissionStatusBadgeClass = (status: string) => {
+  switch (status) {
+    case 'Preparing':
+      return 'bg-amber-100 text-amber-700';
+    case 'EnRoute':
+      return 'bg-blue-100 text-blue-700';
+    case 'RescuerArrived':
+      return 'bg-cyan-100 text-cyan-700';
+    case 'MissionCompleted':
+      return 'bg-emerald-100 text-emerald-700';
+    case 'MissionUncompleted':
+      return 'bg-orange-100 text-orange-700';
+    case 'MissionAborted':
+    case 'Cancelled':
+      return 'bg-rose-100 text-rose-700';
+    default:
+      return 'bg-slate-100 text-slate-700';
+  }
+};
+
 const formatShortId = (id: string | null | undefined) => {
   if (!id) {
     return '-';
@@ -78,7 +204,7 @@ const formatShortId = (id: string | null | undefined) => {
 
 const getMissionStatusText = (incident: AdminIncidentSummaryResponse) => {
   if (incident.activeMissionStatus) {
-    return incident.activeMissionStatus;
+    return getMissionStatusLabel(incident.activeMissionStatus);
   }
 
   if (incident.assignedRescuerId) {
@@ -90,6 +216,22 @@ const getMissionStatusText = (incident: AdminIncidentSummaryResponse) => {
   }
 
   return 'Chưa có nhiệm vụ';
+};
+
+const getIncidentMissionStatusBadgeClass = (incident: AdminIncidentSummaryResponse) => {
+  if (incident.activeMissionStatus) {
+    return getMissionStatusBadgeClass(incident.activeMissionStatus);
+  }
+
+  if (incident.assignedRescuerId) {
+    return 'bg-blue-100 text-blue-700';
+  }
+
+  if (incident.needsRedispatch) {
+    return 'bg-amber-100 text-amber-700';
+  }
+
+  return 'bg-slate-100 text-slate-700';
 };
 
 const getApiErrorMessage = (error: unknown, fallback: string) => {
@@ -347,15 +489,18 @@ export default function IncidentsPage() {
             <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-5">
               <div>
                 <p className="mb-1 text-xs font-semibold text-slate-700">Trạng thái</p>
-                <input
+                <select
                   value={incidentStatus}
                   onChange={(event) => {
                     setIncidentStatus(event.target.value);
                     setIncidentsPage(1);
                   }}
-                  placeholder="Pending,Assigned"
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-600"
-                />
+                >
+                  {INCIDENT_STATUS_OPTIONS.map(option => (
+                    <option key={option.value || 'all'} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
               </div>
 
               <div>
@@ -447,14 +592,22 @@ export default function IncidentsPage() {
                   {!incidentsLoading && incidents.map(item => (
                     <tr key={item.id} className="odd:bg-slate-50/50">
                       <td className="border-b border-slate-100 px-3 py-2 font-mono text-xs text-slate-700" title={item.id}>{formatShortId(item.id)}</td>
-                      <td className="border-b border-slate-100 px-3 py-2">{String(item.status)}</td>
+                      <td className="border-b border-slate-100 px-3 py-2">
+                        <span className={`${STATUS_BADGE_BASE_CLASS} ${getIncidentStatusBadgeClass(String(item.status))}`}>
+                          {translateIncidentStage(String(item.status))}
+                        </span>
+                      </td>
                       <td className="border-b border-slate-100 px-3 py-2 max-w-[20rem] whitespace-normal wrap-break-word">{item.address || '-'}</td>
                       <td className="border-b border-slate-100 px-3 py-2">{formatDateTime(item.createdAt)}</td>
-                      <td className="border-b border-slate-100 px-3 py-2">{getMissionStatusText(item)}</td>
+                      <td className="border-b border-slate-100 px-3 py-2">
+                        <span className={`${STATUS_BADGE_BASE_CLASS} ${getIncidentMissionStatusBadgeClass(item)}`}>
+                          {getMissionStatusText(item)}
+                        </span>
+                      </td>
                       <td className="border-b border-slate-100 px-3 py-2 font-mono text-xs" title={item.assignedRescuerId || undefined}>{formatShortId(item.assignedRescuerId)}</td>
                       <td className="border-b border-slate-100 px-3 py-2">
                         <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${item.needsRedispatch ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                          {item.needsRedispatch ? 'Cần điều phối lại' : 'Ổn định'}
+                          {item.needsRedispatch ? 'Cần điều phối lại' : 'Đã điều phối'}
                         </span>
                       </td>
                       <td className="border-b border-slate-100 px-3 py-2 whitespace-nowrap">
@@ -534,16 +687,19 @@ export default function IncidentsPage() {
           <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
             <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-5">
               <div>
-                <p className="mb-1 text-xs font-semibold text-slate-700">Trạng thái (CSV)</p>
-                <input
+                <p className="mb-1 text-xs font-semibold text-slate-700">Trạng thái</p>
+                <select
                   value={missionStatus}
                   onChange={(event) => {
                     setMissionStatus(event.target.value);
                     setMissionsPage(1);
                   }}
-                  placeholder="Preparing,EnRoute"
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-600"
-                />
+                >
+                  {MISSION_STATUS_OPTIONS.map(option => (
+                    <option key={option.value || 'all'} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
               </div>
 
               <div>
@@ -634,7 +790,11 @@ export default function IncidentsPage() {
                   {!missionsLoading && missions.map(item => (
                     <tr key={item.id} className="odd:bg-slate-50/50">
                       <td className="border-b border-slate-100 px-3 py-2 font-mono text-xs text-slate-700">{item.id}</td>
-                      <td className="border-b border-slate-100 px-3 py-2">{item.status}</td>
+                      <td className="border-b border-slate-100 px-3 py-2">
+                        <span className={`${STATUS_BADGE_BASE_CLASS} ${getMissionStatusBadgeClass(item.status)}`}>
+                          {getMissionStatusLabel(item.status)}
+                        </span>
+                      </td>
                       <td className="border-b border-slate-100 px-3 py-2">{item.rescuerName}</td>
                       <td className="border-b border-slate-100 px-3 py-2">{item.price.toLocaleString('vi-VN')}</td>
                       <td className="border-b border-slate-100 px-3 py-2 max-w-[20rem] whitespace-normal wrap-break-word">{item.incidentAddress || '-'}</td>
@@ -750,16 +910,17 @@ export default function IncidentsPage() {
                 <div className="space-y-4">
                   <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded-full bg-blue-100 px-2.5 py-1 text-xs font-semibold text-blue-700">
+                      <span className="text-xs font-semibold text-slate-600">
                         Trạng thái:
-                        {' '}
-                        {String(selectedIncidentDetail.status)}
+                      </span>
+                      <span className={`${STATUS_BADGE_BASE_CLASS} ${getIncidentStatusBadgeClass(String(selectedIncidentDetail.status))}`}>
+                        {translateIncidentStage(String(selectedIncidentDetail.status))}
                       </span>
                       {selectedIncidentDetail.activeMission?.status && (
-                        <span className="rounded-full bg-violet-100 px-2.5 py-1 text-xs font-semibold text-violet-700">
+                        <span className={`${STATUS_BADGE_BASE_CLASS} ${getMissionStatusBadgeClass(String(selectedIncidentDetail.activeMission.status))}`}>
                           Nhiệm vụ:
                           {' '}
-                          {String(selectedIncidentDetail.activeMission.status)}
+                          {getMissionStatusLabel(String(selectedIncidentDetail.activeMission.status))}
                         </span>
                       )}
                       {selectedIncidentDetail.totalRescueAttempts !== undefined && (
@@ -956,7 +1117,9 @@ export default function IncidentsPage() {
                         <p>
                           <span className="font-semibold">Trạng thái:</span>
                           {' '}
-                          {String(selectedIncidentDetail.activeMission.status)}
+                          <span className={`${STATUS_BADGE_BASE_CLASS} ${getMissionStatusBadgeClass(String(selectedIncidentDetail.activeMission.status))}`}>
+                            {getMissionStatusLabel(String(selectedIncidentDetail.activeMission.status))}
+                          </span>
                         </p>
                         {formatCurrency(selectedIncidentDetail.activeMission.price) && (
                           <p>
@@ -1130,7 +1293,9 @@ export default function IncidentsPage() {
                               {' '}
                               •
                               {' '}
-                              {String(group.missionStatus)}
+                              <span className={`${STATUS_BADGE_BASE_CLASS} ${getMissionStatusBadgeClass(String(group.missionStatus))}`}>
+                                {getMissionStatusLabel(String(group.missionStatus))}
+                              </span>
                             </p>
                             <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
                               {group.media.map(file => (
@@ -1170,10 +1335,10 @@ export default function IncidentsPage() {
                 <div className="space-y-4">
                   <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded-full bg-violet-100 px-2.5 py-1 text-xs font-semibold text-violet-700">
+                      <span className={`${STATUS_BADGE_BASE_CLASS} ${getMissionStatusBadgeClass(String(selectedMissionDetail.status))}`}>
                         Trạng thái:
                         {' '}
-                        {String(selectedMissionDetail.status)}
+                        {getMissionStatusLabel(String(selectedMissionDetail.status))}
                       </span>
                       <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-700">
                         Giá nhiệm vụ:
@@ -1394,7 +1559,9 @@ export default function IncidentsPage() {
                         <p>
                           <span className="font-semibold">Trạng thái:</span>
                           {' '}
-                          {String(selectedMissionDetail.incident.status)}
+                          <span className={`${STATUS_BADGE_BASE_CLASS} ${getIncidentStatusBadgeClass(String(selectedMissionDetail.incident.status))}`}>
+                            {translateIncidentStage(String(selectedMissionDetail.incident.status))}
+                          </span>
                         </p>
                         {selectedMissionDetail.incident.address && (
                           <p>
