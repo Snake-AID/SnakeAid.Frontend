@@ -1,8 +1,9 @@
 'use client';
 
 import {
-  BookOpenText,
+  AlertTriangle,
   BookOpen,
+  BookOpenText,
   Building2,
   CalendarDays,
   FlaskConical,
@@ -44,6 +45,13 @@ export default function AdminSidebar({
       icon: Users,
       label: 'Quản lý người dùng',
       href: '/admin/users',
+      enabled: true,
+    },
+    {
+      id: 'incidents',
+      icon: AlertTriangle,
+      label: 'Quản lý sự cố',
+      href: '/admin/incidents',
       enabled: true,
     },
     {
