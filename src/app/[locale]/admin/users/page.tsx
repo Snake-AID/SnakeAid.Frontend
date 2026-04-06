@@ -5,10 +5,21 @@ import type {
   AdminUserDetailResponse,
   AdminUserSummaryResponse,
 } from '@/types/admin-management.type';
+import type { UsersAnalytics } from '@/types/analytics.type';
 import type { PaginationMeta } from '@/types/api-response';
-import { Ban, Eye, Loader2, SearchX, ShieldCheck, ShieldX } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { Ban, Eye, Loader2, SearchX, ShieldCheck, ShieldX, TrendingUp, UserCheck, UserPlus, Users, UserX } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 import { adminUserApi } from '@/apis/admin-user.api';
+import { analyticsApi } from '@/apis/analytics.api';
 import { ApiClientError } from '@/apis/client';
 import { useToast } from '@/components/ToastProvider';
 
@@ -106,8 +117,72 @@ const buildPageItems = (current: number, total: number): Array<number | '...'> =
   return result;
 };
 
+// ─── Stats helpers ───────────────────────────────────────────────────────────
+
+function UserStatCard({
+  title,
+  value,
+  icon: Icon,
+  iconBg,
+  iconColor,
+  loading,
+}: {
+  title: string;
+  value: string | number;
+  icon: React.ElementType;
+  iconBg: string;
+  iconColor: string;
+  loading?: boolean;
+}) {
+  return (
+    <div className="flex items-center gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className={`flex size-11 shrink-0 items-center justify-center rounded-xl ${iconBg}`}>
+        <Icon className={`size-5 ${iconColor}`} />
+      </div>
+      {loading
+        ? (
+            <div className="space-y-2">
+              <div className="h-3 w-20 animate-pulse rounded bg-slate-100" />
+              <div className="h-6 w-12 animate-pulse rounded bg-slate-100" />
+            </div>
+          )
+        : (
+            <div>
+              <p className="text-xs font-medium text-slate-500">{title}</p>
+              <p className="mt-0.5 text-2xl font-bold text-slate-800">{value}</p>
+            </div>
+          )}
+    </div>
+  );
+}
+
+function GrowthTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ value: number; name: string; color: string }>; label?: string }) {
+  if (!active || !payload?.length) {
+    return null;
+  }
+  return (
+    <div className="rounded-xl border border-slate-100 bg-white p-3 shadow-lg">
+      <p className="mb-1 text-xs font-bold text-slate-600">{label}</p>
+      <p className="text-xs text-slate-500">
+        Người dùng:
+        {' '}
+        <span className="font-semibold text-blue-700">{payload[0]?.value.toLocaleString()}</span>
+      </p>
+    </div>
+  );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
 export default function UsersPage() {
   const { showToast } = useToast();
+
+  // ── User stats state ────────────────────────────────────────────────────────
+  const [statsLoading, setStatsLoading] = useState(true);
+  const [totalCount, setTotalCount] = useState<number | null>(null);
+  const [activeCount, setActiveCount] = useState<number | null>(null);
+  const [bannedCount, setBannedCount] = useState<number | null>(null);
+  const [usersGrowth, setUsersGrowth] = useState<UsersAnalytics | null>(null);
 
   const [users, setUsers] = useState<AdminUserSummaryResponse[]>([]);
   const [usersMeta, setUsersMeta] = useState<PaginationMeta>(DEFAULT_PAGINATION);
@@ -129,6 +204,52 @@ export default function UsersPage() {
     reason: string;
     submitting: boolean;
   } | null>(null);
+
+  // ── Load stats once on mount ────────────────────────────────────────────────
+  const loadStats = useCallback(async () => {
+    setStatsLoading(true);
+    const now = new Date();
+    const yearStart = `${now.getFullYear()}-01-01`;
+    const today = now.toISOString().slice(0, 10);
+
+    const [totalRes, activeRes, bannedRes, growthRes] = await Promise.allSettled([
+      adminUserApi.getList({ pageSize: 1 }),
+      adminUserApi.getList({ pageSize: 1, isActive: true }),
+      adminUserApi.getList({ pageSize: 1, isActive: false }),
+      analyticsApi.getUsers({ period: 'month', from: yearStart, to: today }),
+    ]);
+
+    if (totalRes.status === 'fulfilled') {
+      setTotalCount(totalRes.value.meta.total_items);
+    }
+    if (activeRes.status === 'fulfilled') {
+      setActiveCount(activeRes.value.meta.total_items);
+    }
+    if (bannedRes.status === 'fulfilled') {
+      setBannedCount(bannedRes.value.meta.total_items);
+    }
+    if (growthRes.status === 'fulfilled') {
+      setUsersGrowth(growthRes.value);
+    }
+
+    setStatsLoading(false);
+  }, []);
+
+  useEffect(() => {
+    void loadStats();
+  }, [loadStats]);
+
+  // Người dùng mới tháng này = last timeline point
+  const newThisMonth = useMemo(() => {
+    if (!usersGrowth?.timeline.length) {
+      return null;
+    }
+    const now = new Date();
+    const thisMonthLabel = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const point = usersGrowth.timeline.find(p => p.label === thisMonthLabel)
+      ?? usersGrowth.timeline.at(-1);
+    return point?.totalUsers ?? null;
+  }, [usersGrowth]);
 
   const usersCanPrev = usersPage > 1;
   const usersCanNext = usersPage < usersMeta.total_pages;
@@ -285,6 +406,91 @@ export default function UsersPage() {
             Quản trị tài khoản người dùng theo API quản trị.
           </p>
         </header>
+
+        {/* ── Stats section ───────────────────────────────────────────────── */}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          {/* Stat cards (col-span-1) */}
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-1 lg:grid-rows-4">
+            <UserStatCard
+              title="Tổng người dùng"
+              value={totalCount?.toLocaleString() ?? '—'}
+              icon={Users}
+              iconBg="bg-blue-50"
+              iconColor="text-blue-600"
+              loading={statsLoading}
+            />
+            <UserStatCard
+              title="Đang hoạt động"
+              value={activeCount?.toLocaleString() ?? '—'}
+              icon={UserCheck}
+              iconBg="bg-emerald-50"
+              iconColor="text-emerald-600"
+              loading={statsLoading}
+            />
+            <UserStatCard
+              title="Đang bị khóa"
+              value={bannedCount?.toLocaleString() ?? '—'}
+              icon={UserX}
+              iconBg="bg-rose-50"
+              iconColor="text-rose-600"
+              loading={statsLoading}
+            />
+            <UserStatCard
+              title="Mới trong tháng"
+              value={newThisMonth?.toLocaleString() ?? '—'}
+              icon={UserPlus}
+              iconBg="bg-violet-50"
+              iconColor="text-violet-600"
+              loading={statsLoading}
+            />
+          </div>
+
+          {/* Growth chart (col-span-2) */}
+          <div className="flex flex-col rounded-2xl border border-slate-200 bg-white shadow-sm lg:col-span-2">
+            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+              <div>
+                <h3 className="text-sm font-bold text-slate-800">Tăng trưởng người dùng</h3>
+                <p className="mt-0.5 text-xs text-slate-400">Số lượng đăng ký theo tháng trong năm nay</p>
+              </div>
+              <div className="flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+                <TrendingUp className="size-3.5" />
+                {usersGrowth?.totalUsers.toLocaleString() ?? '—'}
+                {' '}
+                tổng
+              </div>
+            </div>
+            <div className="flex-1 p-5">
+              {statsLoading || !usersGrowth
+                ? <div className="h-48 animate-pulse rounded-xl bg-slate-100" />
+                : (
+                    <ResponsiveContainer width="100%" height={196}>
+                      <AreaChart data={usersGrowth.timeline} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                        <defs>
+                          <linearGradient id="ugGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2} />
+                            <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                          </linearGradient>
+                        </defs>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                        <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                        <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                        <Tooltip content={<GrowthTooltip />} />
+                        <Area
+                          type="monotone"
+                          dataKey="totalUsers"
+                          name="Người dùng"
+                          stroke="#3b82f6"
+                          fill="url(#ugGrad)"
+                          strokeWidth={2}
+                          dot={{ r: 3, fill: '#3b82f6' }}
+                          activeDot={{ r: 5 }}
+                        />
+                      </AreaChart>
+                    </ResponsiveContainer>
+                  )}
+            </div>
+          </div>
+        </div>
 
         <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-4">
@@ -481,6 +687,7 @@ export default function UsersPage() {
               </button>
               {userPageItems.map((pageItem, index) => (
                 pageItem === '...'
+                  // eslint-disable-next-line react/no-array-index-key
                   ? <span key={`ellipsis-${index}`} className="px-1 text-slate-400">...</span>
                   : (
                       <button
