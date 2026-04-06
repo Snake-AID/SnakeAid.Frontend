@@ -46,15 +46,15 @@ import { useToast } from '@/components/ToastProvider';
 
 function formatVND(value: number): string {
   if (value >= 1_000_000_000) {
-    return `${(value / 1_000_000_000).toFixed(1)}B ₫`;
+    return `${(value / 1_000_000_000).toFixed(1)}B`;
   }
   if (value >= 1_000_000) {
-    return `${(value / 1_000_000).toFixed(1)}M ₫`;
+    return `${(value / 1_000_000).toFixed(1)}M`;
   }
   if (value >= 1_000) {
-    return `${(value / 1_000).toFixed(0)}K ₫`;
+    return `${(value / 1_000).toFixed(0)}K`;
   }
-  return `${value.toLocaleString('vi-VN')} ₫`;
+  return `${value.toLocaleString('vi-VN')}`;
 }
 
 function formatVNDFull(value: number): string {
@@ -335,7 +335,15 @@ export default function AdminDashboardPage() {
   const [incidents, setIncidents] = useState<RecentIncidentItem[]>([]);
   const [catchingRequests, setCatchingRequests] = useState<RecentCatchingRequestItem[]>([]);
 
-  const dates = useMemo(() => getDefaultDates(period), [period]);
+  const [dateFrom, setDateFrom] = useState(() => getDefaultDates('month').from);
+  const [dateTo, setDateTo] = useState(() => getDefaultDates('month').to);
+
+  const handlePeriodChange = (p: AnalyticsPeriod) => {
+    const defaults = getDefaultDates(p);
+    setDateFrom(defaults.from);
+    setDateTo(defaults.to);
+    setPeriod(p);
+  };
 
   const loadAll = useCallback(async (showRefresh = false) => {
     if (showRefresh) {
@@ -344,7 +352,7 @@ export default function AdminDashboardPage() {
       setIsLoading(true);
     }
 
-    const params = { period, ...dates };
+    const params = { period, from: dateFrom, to: dateTo };
 
     const results = await Promise.allSettled([
       analyticsApi.getUsers(params),
@@ -391,12 +399,12 @@ export default function AdminDashboardPage() {
     setIsLoading(false);
     setIsRefreshing(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [period, dates.from, dates.to]);
+  }, [period, dateFrom, dateTo]);
 
   useEffect(() => {
     void loadAll();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [period]);
+  }, [period, dateFrom, dateTo]);
 
   const handleExport = () => {
     exportToExcel(revenue, profit, commission, users, cases);
@@ -440,15 +448,33 @@ export default function AdminDashboardPage() {
             <p className="mt-0.5 text-sm text-gray-500">
               Dữ liệu từ
               {' '}
-              {formatDate(dates.from)}
+              {formatDate(dateFrom)}
               {' '}
               đến
               {' '}
-              {formatDate(dates.to)}
+              {formatDate(dateTo)}
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <PeriodSelector value={period} onChange={setPeriod} />
+          <div className="flex flex-wrap items-center gap-2">
+            <PeriodSelector value={period} onChange={handlePeriodChange} />
+            <div className="flex items-center gap-1.5">
+              <input
+                type="date"
+                value={dateFrom}
+                max={dateTo}
+                onChange={e => setDateFrom(e.target.value)}
+                className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
+              />
+              <span className="text-xs text-slate-400">—</span>
+              <input
+                type="date"
+                value={dateTo}
+                min={dateFrom}
+                max={new Date().toISOString().slice(0, 10)}
+                onChange={e => setDateTo(e.target.value)}
+                className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
+              />
+            </div>
             <button
               type="button"
               onClick={() => void loadAll(true)}
