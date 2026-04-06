@@ -381,19 +381,19 @@ export default function IncidentDetailModal({
         <div className="flex flex-wrap gap-2">
           {snake.primaryVenomType && (
             <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-slate-600">Độc tố</span>
+              {/* <span className="text-xs font-semibold text-slate-600">Độc tố</span> */}
               {getVenomTypeBadge(snake.primaryVenomType)}
             </div>
           )}
           {typeof snake.isVenomous === 'boolean' && (
             <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-slate-600">Độc/Không</span>
+              {/* <span className="text-xs font-semibold text-slate-600">Độc/Không</span> */}
               {getVenomousBadge(snake.isVenomous)}
             </div>
           )}
           {typeof snake.riskLevel === 'number' && (
             <div className="flex items-center gap-2">
-              <span className="text-xs font-semibold text-slate-600">Nguy cơ</span>
+              {/* <span className="text-xs font-semibold text-slate-600">Nguy cơ</span> */}
               <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold ${getRiskColor(snake.riskLevel)}`}>
                 <span className="text-[10px] font-bold">
                   {snake.riskLevel}

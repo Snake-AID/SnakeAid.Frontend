@@ -1,9 +1,13 @@
 'use client';
 
 import {
+  AlertTriangle,
+  BookOpen,
+  BookOpenText,
   Building2,
   CalendarDays,
   FlaskConical,
+  HandCoins,
   LayoutDashboard,
   Shield,
   Users,
@@ -44,6 +48,13 @@ export default function AdminSidebar({
       enabled: true,
     },
     {
+      id: 'incidents',
+      icon: AlertTriangle,
+      label: 'Quản lý sự cố',
+      href: '/admin/incidents',
+      enabled: true,
+    },
+    {
       id: 'snakes',
       icon: Shield,
       label: 'Quản lý loài rắn',
@@ -62,6 +73,27 @@ export default function AdminSidebar({
       icon: Building2,
       label: 'Quản lý cơ sở điều trị',
       href: '/admin/treatment-facilities',
+      enabled: true,
+    },
+    {
+      id: 'transactions',
+      icon: HandCoins,
+      label: 'Quản lý dòng tiền',
+      href: '/admin/transactions',
+      enabled: true,
+    },
+    {
+      id: 'lessons',
+      icon: BookOpenText,
+      label: 'Quản lý bài học',
+      href: '/admin/lessons',
+      enabled: true,
+    },
+    {
+      id: 'blogs',
+      icon: BookOpen,
+      label: 'Quản lý bài viết',
+      href: '/admin/blogs',
       enabled: true,
     },
   ];

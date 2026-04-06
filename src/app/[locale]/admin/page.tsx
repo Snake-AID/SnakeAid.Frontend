@@ -1,345 +1,757 @@
 'use client';
 
+import type {
+  AnalyticsPeriod,
+  CasesAnalytics,
+  CommissionAnalytics,
+  ProfitAnalytics,
+  RecentCatchingRequestItem,
+  RecentIncidentItem,
+  RevenueAnalytics,
+  UsersAnalytics,
+} from '@/types/analytics.type';
 import {
+  Activity,
   AlertTriangle,
-  Ambulance,
-  HelpCircle,
-  Map,
+  ArrowDown,
+  ArrowUp,
+  Bug,
+  Download,
+  RefreshCcw,
+  ShieldAlert,
   TrendingUp,
-  Truck,
   Users,
   Wallet,
 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import {
+  Area,
+  AreaChart,
+  Bar,
+  BarChart,
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
+import * as XLSX from 'xlsx';
+import { analyticsApi } from '@/apis/analytics.api';
+import { useToast } from '@/components/ToastProvider';
 
-// Mock data
-const mockStats = {
-  totalUsers: 1234,
-  userGrowth: '+12%',
-  todayRescues: 15,
-  activeRescues: 8,
-  monthlyRevenue: '125.5M',
-  revenueGrowth: '+5%',
-  systemAlerts: 3,
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function formatVND(value: number): string {
+  if (value >= 1_000_000_000) {
+    return `${(value / 1_000_000_000).toFixed(1)}B`;
+  }
+  if (value >= 1_000_000) {
+    return `${(value / 1_000_000).toFixed(1)}M`;
+  }
+  if (value >= 1_000) {
+    return `${(value / 1_000).toFixed(0)}K`;
+  }
+  return `${value.toLocaleString('vi-VN')}`;
+}
+
+function formatVNDFull(value: number): string {
+  return `${value.toLocaleString('vi-VN')} ₫`;
+}
+
+function formatTime(iso: string): string {
+  return new Date(iso).toLocaleString('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function formatDate(iso: string): string {
+  return new Date(iso).toLocaleDateString('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+}
+
+function getDefaultDates(period: AnalyticsPeriod): { from: string; to: string } {
+  const now = new Date();
+  const to = now.toISOString().slice(0, 10);
+  if (period === 'day') {
+    const from = new Date(now);
+    from.setDate(from.getDate() - 29);
+    return { from: from.toISOString().slice(0, 10), to };
+  }
+  if (period === 'month') {
+    const from = new Date(now);
+    from.setMonth(from.getMonth() - 11);
+    from.setDate(1);
+    return { from: from.toISOString().slice(0, 10), to };
+  }
+  const from = new Date(now);
+  from.setFullYear(from.getFullYear() - 4);
+  return { from: from.toISOString().slice(0, 10), to };
+}
+
+const PERIOD_LABELS: Record<AnalyticsPeriod, string> = {
+  day: 'Theo ngày',
+  month: 'Theo tháng',
+  year: 'Theo năm',
 };
 
-const mockIncidents = [
-  {
-    id: 1,
-    name: 'Rắn hổ mang',
-    location: 'Q.7, TP.HCM',
-    time: '5p trước',
-    status: 'searching',
-    statusLabel: 'Đang tìm kiếm',
-    iconBg: 'bg-red-100 group-hover:bg-red-200',
-    iconColor: 'text-red-600',
-    IconComponent: AlertTriangle,
-  },
-  {
-    id: 2,
-    name: 'Rắn lục',
-    location: 'Q.1, TP.HCM',
-    time: '15p trước',
-    status: 'moving',
-    statusLabel: 'Đang di chuyển',
-    iconBg: 'bg-orange-100 group-hover:bg-orange-200',
-    iconColor: 'text-orange-600',
-    IconComponent: Truck,
-  },
-  {
-    id: 3,
-    name: 'Rắn lạ (Chưa rõ)',
-    location: 'Đồng Nai',
-    time: '30p trước',
-    status: 'pending',
-    statusLabel: 'Chờ xác nhận',
-    iconBg: 'bg-gray-100 group-hover:bg-gray-200',
-    iconColor: 'text-gray-600',
-    IconComponent: HelpCircle,
-  },
-];
+const INCIDENT_STATUS_MAP: Record<string, { label: string; cls: string }> = {
+  Pending: { label: 'Chờ xử lý', cls: 'bg-amber-100 text-amber-700' },
+  Assigned: { label: 'Đã giao', cls: 'bg-blue-100 text-blue-700' },
+  InProgress: { label: 'Đang xử lý', cls: 'bg-indigo-100 text-indigo-700' },
+  Finished: { label: 'Hoàn thành', cls: 'bg-emerald-100 text-emerald-700' },
+  Cancelled: { label: 'Đã hủy', cls: 'bg-slate-100 text-slate-600' },
+};
 
-const mockChartData = [
-  { day: 'T2', value: 8, height: '40%' },
-  { day: 'T3', value: 12, height: '60%' },
-  { day: 'T4', value: 6, height: '30%' },
-  { day: 'T5', value: 17, height: '85%', active: true },
-  { day: 'T6', value: 11, height: '55%' },
-  { day: 'T7', value: 14, height: '70%' },
-  { day: 'CN', value: 15, height: '75%' },
-];
+const CATCHING_STATUS_MAP: Record<string, { label: string; cls: string }> = {
+  Pending: { label: 'Chờ xử lý', cls: 'bg-amber-100 text-amber-700' },
+  Accepted: { label: 'Đã nhận', cls: 'bg-blue-100 text-blue-700' },
+  InProgress: { label: 'Đang bắt', cls: 'bg-indigo-100 text-indigo-700' },
+  Completed: { label: 'Hoàn thành', cls: 'bg-emerald-100 text-emerald-700' },
+  Cancelled: { label: 'Đã hủy', cls: 'bg-slate-100 text-slate-600' },
+};
 
-const mockSnakeTypes = [
-  { type: 'Có độc', percent: 35, color: 'bg-red-500' },
-  { type: 'Không độc', percent: 50, color: 'bg-green-500' },
-  { type: 'Không xác định', percent: 15, color: 'bg-slate-400' },
-];
+// ─── Excel export ─────────────────────────────────────────────────────────────
 
-export default function AdminDashboard() {
+function exportToExcel(
+  revenueData: RevenueAnalytics | null,
+  profitData: ProfitAnalytics | null,
+  commissionData: CommissionAnalytics | null,
+  usersData: UsersAnalytics | null,
+  casesData: CasesAnalytics | null,
+) {
+  const wb = XLSX.utils.book_new();
+
+  if (revenueData) {
+    const rows = [
+      ['Kỳ', 'Tổng doanh thu (₫)', 'Tư vấn (₫)', 'Bắt rắn (₫)', 'Cứu hộ (₫)'],
+      ...revenueData.timeline.map(r => [r.label, r.total, r.consultation, r.catching, r.snakebite]),
+      [],
+      ['Tổng cộng', revenueData.total, revenueData.byFlow.consultation, revenueData.byFlow.catching, revenueData.byFlow.snakebite],
+    ];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'Doanh thu');
+  }
+
+  if (profitData) {
+    const rows = [
+      ['Kỳ', 'Tổng lợi nhuận (₫)', 'Tư vấn (₫)', 'Bắt rắn (₫)', 'Cứu hộ (₫)'],
+      ...profitData.timeline.map(r => [r.label, r.totalProfit, r.consultation, r.catching, r.snakebite]),
+      [],
+      ['Tổng cộng', profitData.totalProfit, profitData.byFlow.consultation, profitData.byFlow.catching, profitData.byFlow.snakebite],
+    ];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'Lợi nhuận');
+  }
+
+  if (commissionData) {
+    const rows = [
+      ['Kỳ', 'Doanh thu tư vấn (₫)', 'Chi trả Expert (₫)', 'Hoàn tiền (₫)', 'Hoa hồng (₫)'],
+      ...commissionData.timeline.map(r => [r.label, r.revenue, r.expertPayout, r.refund, r.commission]),
+      [],
+      ['Tổng hoa hồng', '', '', '', commissionData.totalCommission],
+    ];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'Hoa hồng');
+  }
+
+  if (usersData) {
+    const rows = [
+      ['Kỳ', 'Tổng người dùng'],
+      ...usersData.timeline.map(r => [r.label, r.totalUsers]),
+      [],
+      ['Tổng tích lũy', usersData.totalUsers],
+    ];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'Người dùng');
+  }
+
+  if (casesData) {
+    const rows = [
+      ['Kỳ', 'Tổng ca', 'Ca rắn cắn', 'Ca bắt rắn'],
+      ...casesData.timeline.map(r => [r.label, r.totalCases, r.snakebiteCases, r.snakeCatchingCases]),
+      [],
+      ['Tổng cộng', casesData.totalCases, casesData.snakebiteCases, casesData.snakeCatchingCases],
+    ];
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'Tổng ca');
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  XLSX.writeFile(wb, `SnakeAid_Dashboard_${today}.xlsx`);
+}
+
+// ─── Sub-components ────────────────────────────────────────────────────────────
+
+function StatCard({
+  title,
+  value,
+  subtitle,
+  icon: Icon,
+  iconBg,
+  iconColor,
+  trend,
+  loading,
+}: {
+  title: string;
+  value: string | number;
+  subtitle?: string;
+  icon: React.ElementType;
+  iconBg: string;
+  iconColor: string;
+  trend?: number;
+  loading?: boolean;
+}) {
+  return (
+    <div className="flex flex-col gap-4 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm transition-shadow hover:shadow-md">
+      <div className="flex items-start justify-between">
+        <div className={`rounded-xl p-3 ${iconBg}`}>
+          <Icon className={`size-5 ${iconColor}`} />
+        </div>
+        {trend !== undefined && (
+          <span className={`flex items-center gap-1 rounded-full px-2 py-1 text-xs font-bold ${trend >= 0 ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
+            {trend >= 0 ? <ArrowUp className="size-3" /> : <ArrowDown className="size-3" />}
+            {Math.abs(trend)}
+            %
+          </span>
+        )}
+      </div>
+      {loading
+        ? (
+            <div className="space-y-2">
+              <div className="h-4 w-24 animate-pulse rounded bg-slate-100" />
+              <div className="h-8 w-16 animate-pulse rounded bg-slate-100" />
+            </div>
+          )
+        : (
+            <div>
+              <p className="text-sm font-medium text-gray-500">{title}</p>
+              <h3 className="mt-1 text-3xl font-bold text-gray-800">{value}</h3>
+              {subtitle && <p className="mt-1 text-xs text-gray-400">{subtitle}</p>}
+            </div>
+          )}
+    </div>
+  );
+}
+
+function ChartCard({
+  title,
+  subtitle,
+  children,
+  className = '',
+}: {
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={`flex flex-col rounded-2xl border border-gray-100 bg-white shadow-sm ${className}`}>
+      <div className="border-b border-gray-100 px-6 py-4">
+        <h3 className="text-base font-bold text-gray-800">{title}</h3>
+        {subtitle && <p className="mt-0.5 text-xs text-gray-400">{subtitle}</p>}
+      </div>
+      <div className="flex-1 p-6">{children}</div>
+    </div>
+  );
+}
+
+function VNDTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ dataKey: string; name: string; value: number; color: string }>; label?: string }) {
+  if (!active || !payload?.length) {
+    return null;
+  }
+  return (
+    <div className="rounded-xl border border-slate-100 bg-white p-3 shadow-lg">
+      <p className="mb-2 text-xs font-bold text-slate-600">{label}</p>
+      {payload.map(p => (
+        <div key={p.dataKey} className="flex items-center gap-2 text-xs">
+          <span className="size-2 rounded-full" style={{ backgroundColor: p.color }} />
+          <span className="text-slate-500">
+            {p.name}
+            :
+          </span>
+          <span className="font-semibold text-slate-800">{formatVNDFull(p.value)}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function CountTooltip({ active, payload, label }: { active?: boolean; payload?: Array<{ dataKey: string; name: string; value: number; color: string }>; label?: string }) {
+  if (!active || !payload?.length) {
+    return null;
+  }
+  return (
+    <div className="rounded-xl border border-slate-100 bg-white p-3 shadow-lg">
+      <p className="mb-2 text-xs font-bold text-slate-600">{label}</p>
+      {payload.map(p => (
+        <div key={p.dataKey} className="flex items-center gap-2 text-xs">
+          <span className="size-2 rounded-full" style={{ backgroundColor: p.color }} />
+          <span className="text-slate-500">
+            {p.name}
+            :
+          </span>
+          <span className="font-semibold text-slate-800">{p.value.toLocaleString()}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function PeriodSelector({ value, onChange }: { value: AnalyticsPeriod; onChange: (p: AnalyticsPeriod) => void }) {
+  const periods: AnalyticsPeriod[] = ['day', 'month', 'year'];
+  return (
+    <div className="flex overflow-hidden rounded-lg border border-slate-200">
+      {periods.map((p, i) => (
+        <button
+          key={p}
+          type="button"
+          onClick={() => onChange(p)}
+          className={`px-3 py-1.5 text-xs font-semibold transition ${
+            value === p ? 'bg-blue-700 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'
+          } ${i > 0 ? 'border-l border-slate-200' : ''}`}
+        >
+          {PERIOD_LABELS[p]}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export default function AdminDashboardPage() {
+  const { showToast } = useToast();
+  const [period, setPeriod] = useState<AnalyticsPeriod>('month');
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const [users, setUsers] = useState<UsersAnalytics | null>(null);
+  const [cases, setCases] = useState<CasesAnalytics | null>(null);
+  const [revenue, setRevenue] = useState<RevenueAnalytics | null>(null);
+  const [commission, setCommission] = useState<CommissionAnalytics | null>(null);
+  const [profit, setProfit] = useState<ProfitAnalytics | null>(null);
+  const [incidents, setIncidents] = useState<RecentIncidentItem[]>([]);
+  const [catchingRequests, setCatchingRequests] = useState<RecentCatchingRequestItem[]>([]);
+
+  const [dateFrom, setDateFrom] = useState(() => getDefaultDates('month').from);
+  const [dateTo, setDateTo] = useState(() => getDefaultDates('month').to);
+
+  const handlePeriodChange = (p: AnalyticsPeriod) => {
+    const defaults = getDefaultDates(p);
+    setDateFrom(defaults.from);
+    setDateTo(defaults.to);
+    setPeriod(p);
+  };
+
+  const loadAll = useCallback(async (showRefresh = false) => {
+    if (showRefresh) {
+      setIsRefreshing(true);
+    } else {
+      setIsLoading(true);
+    }
+
+    const params = { period, from: dateFrom, to: dateTo };
+
+    const results = await Promise.allSettled([
+      analyticsApi.getUsers(params),
+      analyticsApi.getCases(params),
+      analyticsApi.getRevenue(params),
+      analyticsApi.getCommission(params),
+      analyticsApi.getProfit(params),
+      analyticsApi.getRecentIncidents(),
+      analyticsApi.getRecentCatchingRequests(),
+    ]);
+
+    const [usersRes, casesRes, revenueRes, commissionRes, profitRes, incidentsRes, catchingRes] = results;
+
+    if (usersRes.status === 'fulfilled') {
+      setUsers(usersRes.value);
+    }
+    if (casesRes.status === 'fulfilled') {
+      setCases(casesRes.value);
+    }
+    if (revenueRes.status === 'fulfilled') {
+      setRevenue(revenueRes.value);
+    }
+    if (commissionRes.status === 'fulfilled') {
+      setCommission(commissionRes.value);
+    }
+    if (profitRes.status === 'fulfilled') {
+      setProfit(profitRes.value);
+    }
+    if (incidentsRes.status === 'fulfilled') {
+      const d = incidentsRes.value;
+      setIncidents((Array.isArray(d) ? d : ((d as { items: RecentIncidentItem[] }).items ?? [])).slice(0, 8));
+    }
+    if (catchingRes.status === 'fulfilled') {
+      setCatchingRequests((Array.isArray(catchingRes.value) ? catchingRes.value : []).slice(0, 8));
+    }
+
+    const failCount = results.filter(r => r.status === 'rejected').length;
+    if (failCount > 0 && failCount < results.length) {
+      showToast(`${failCount} nguồn dữ liệu không tải được.`, { type: 'warning' });
+    } else if (failCount === results.length) {
+      showToast('Không thể tải dữ liệu dashboard.', { type: 'error' });
+    }
+
+    setIsLoading(false);
+    setIsRefreshing(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [period, dateFrom, dateTo]);
+
+  useEffect(() => {
+    void loadAll();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [period, dateFrom, dateTo]);
+
+  const handleExport = () => {
+    exportToExcel(revenue, profit, commission, users, cases);
+    showToast('Đã xuất file báo cáo Excel!', { type: 'success' });
+  };
+
+  const userTrend = useMemo(() => {
+    if (!users?.timeline || users.timeline.length < 2) {
+      return undefined;
+    }
+    const mid = Math.floor(users.timeline.length / 2);
+    const first = users.timeline.slice(0, mid).reduce((s, p) => s + p.totalUsers, 0);
+    const second = users.timeline.slice(mid).reduce((s, p) => s + p.totalUsers, 0);
+    if (!first) {
+      return undefined;
+    }
+    return Math.round(((second - first) / first) * 100);
+  }, [users]);
+
+  const caseTrend = useMemo(() => {
+    if (!cases?.timeline || cases.timeline.length < 2) {
+      return undefined;
+    }
+    const mid = Math.floor(cases.timeline.length / 2);
+    const first = cases.timeline.slice(0, mid).reduce((s, p) => s + p.totalCases, 0);
+    const second = cases.timeline.slice(mid).reduce((s, p) => s + p.totalCases, 0);
+    if (!first) {
+      return undefined;
+    }
+    return Math.round(((second - first) / first) * 100);
+  }, [cases]);
+
   return (
     <main className="h-[calc(100vh-81px)] overflow-y-auto bg-gray-50/50 p-6 lg:p-8">
-      <div className="mx-auto flex max-w-400 flex-col gap-8">
-        <div>
-          <h2 className="text-3xl leading-tight font-bold text-gray-800">Dashboard tổng quan</h2>
-          <p className="mt-1 text-sm text-gray-500">Chào mừng trở lại, Admin</p>
-        </div>
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
-          {/* Total Users */}
-          <div className="flex flex-col gap-4 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm transition-shadow hover:shadow-md">
-            <div className="flex items-start justify-between">
-              <div className="rounded-full bg-blue-50 p-3 text-blue-600">
-                <Users className="size-6" />
-              </div>
-              <span className="flex items-center rounded-full bg-green-50 px-2 py-1 text-xs font-bold text-green-600">
-                <TrendingUp className="mr-1 size-3" />
-                {mockStats.userGrowth}
-              </span>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-gray-500">Tổng người dùng</p>
-              <h3 className="mt-1 text-3xl font-bold text-gray-800">
-                {mockStats.totalUsers.toLocaleString()}
-              </h3>
-            </div>
-          </div>
+      <div className="mx-auto flex max-w-400 flex-col gap-6">
 
-          {/* Today Rescues */}
-          <div className="flex flex-col gap-4 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm transition-shadow hover:shadow-md">
-            <div className="flex items-start justify-between">
-              <div className="rounded-full bg-orange-50 p-3 text-orange-600">
-                <Ambulance className="size-6" />
-              </div>
-              <span className="rounded-full bg-orange-50 px-2 py-1 text-xs font-bold text-orange-600">
-                {mockStats.activeRescues}
-                {' '}
-                đang xử lý
-              </span>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-gray-500">Ca cứu hộ hôm nay</p>
-              <h3 className="mt-1 text-3xl font-bold text-gray-800">
-                {mockStats.todayRescues}
-              </h3>
-            </div>
+        {/* ── Header ─────────────────────────────────────────────────────── */}
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-2xl font-bold text-gray-800">Bảng điều khiển</h2>
+            <p className="mt-0.5 text-sm text-gray-500">
+              Dữ liệu từ
+              {' '}
+              {formatDate(dateFrom)}
+              {' '}
+              đến
+              {' '}
+              {formatDate(dateTo)}
+            </p>
           </div>
-
-          {/* Monthly Revenue */}
-          <div className="flex flex-col gap-4 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm transition-shadow hover:shadow-md">
-            <div className="flex items-start justify-between">
-              <div className="rounded-full bg-green-50 p-3 text-green-600">
-                <Wallet className="size-6" />
-              </div>
-              <span className="flex items-center rounded-full bg-green-50 px-2 py-1 text-xs font-bold text-green-600">
-                <TrendingUp className="mr-1 size-3" />
-                {mockStats.revenueGrowth}
-              </span>
+          <div className="flex flex-wrap items-center gap-2">
+            <PeriodSelector value={period} onChange={handlePeriodChange} />
+            <div className="flex items-center gap-1.5">
+              <input
+                type="date"
+                value={dateFrom}
+                max={dateTo}
+                onChange={e => setDateFrom(e.target.value)}
+                className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
+              />
+              <span className="text-xs text-slate-400">—</span>
+              <input
+                type="date"
+                value={dateTo}
+                min={dateFrom}
+                max={new Date().toISOString().slice(0, 10)}
+                onChange={e => setDateTo(e.target.value)}
+                className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
+              />
             </div>
-            <div>
-              <p className="text-sm font-medium text-gray-500">Doanh thu tháng</p>
-              <h3 className="mt-1 text-3xl font-bold text-gray-800">
-                {mockStats.monthlyRevenue}
-                {' '}
-                <span className="text-base font-normal text-gray-400">VNĐ</span>
-              </h3>
-            </div>
-          </div>
-
-          {/* System Alerts */}
-          <div className="flex flex-col gap-4 rounded-2xl border border-gray-100 bg-white p-6 shadow-sm transition-shadow hover:shadow-md">
-            <div className="flex items-start justify-between">
-              <div className="rounded-full bg-red-50 p-3 text-red-600">
-                <AlertTriangle className="size-6" />
-              </div>
-              <span className="rounded-full bg-red-50 px-2 py-1 text-xs font-bold text-red-600">
-                Nguy cấp
-              </span>
-            </div>
-            <div>
-              <p className="text-sm font-medium text-gray-500">Cảnh báo hệ thống</p>
-              <h3 className="mt-1 text-3xl font-bold text-gray-800">
-                {mockStats.systemAlerts}
-              </h3>
-            </div>
+            <button
+              type="button"
+              onClick={() => void loadAll(true)}
+              disabled={isRefreshing}
+              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            >
+              <RefreshCcw className={`size-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+              Làm mới
+            </button>
+            <button
+              type="button"
+              onClick={handleExport}
+              disabled={!revenue && !users}
+              className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+            >
+              <Download className="size-3.5" />
+              Xuất Excel
+            </button>
           </div>
         </div>
 
-        {/* Map and Recent Incidents */}
-        <div className="grid grid-cols-12 gap-6">
-          {/* Map */}
-          <div className="col-span-12 flex flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm lg:col-span-7 xl:col-span-8">
-            <div className="flex items-center justify-between border-b border-gray-100 p-5">
-              <h3 className="flex items-center gap-2 text-lg font-bold text-gray-800">
-                <Map className="size-5 text-green-600" />
-                Bản đồ hoạt động
-              </h3>
-              <div className="flex gap-2">
-                <span className="flex items-center gap-1.5 rounded-full border border-red-100 bg-red-50 px-2 py-1 text-xs font-medium text-red-600">
-                  <span className="size-2 animate-pulse rounded-full bg-red-500"></span>
-                  {' '}
-                  Đang
-                  hoạt động
-                </span>
-                <span className="flex items-center gap-1.5 rounded-full border border-orange-100 bg-orange-50 px-2 py-1 text-xs font-medium text-orange-600">
-                  <span className="size-2 rounded-full bg-orange-500"></span>
-                  {' '}
-                  Chờ xử lý
-                </span>
-              </div>
-            </div>
-            <div className="relative min-h-100 flex-1 bg-linear-to-br from-blue-50 to-blue-100">
-              {/* Simple Vietnam map representation */}
-              <div className="absolute inset-0 flex items-center justify-center">
-                <div className="relative h-96 w-64 opacity-20">
-                  <svg viewBox="0 0 100 200" className="h-full w-full fill-blue-300">
-                    <path d="M50,10 Q45,30 50,50 L48,80 Q45,100 50,120 L52,150 Q55,170 50,190 L40,185 Q35,170 38,150 L36,120 Q33,100 38,80 L40,50 Q35,30 40,10 Z" />
-                  </svg>
-                </div>
-              </div>
+        {/* ── KPI cards ───────────────────────────────────────────────────── */}
+        <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+          <StatCard
+            title="Tổng người dùng"
+            value={users?.totalUsers.toLocaleString() ?? '—'}
+            icon={Users}
+            iconBg="bg-blue-50"
+            iconColor="text-blue-600"
+            trend={userTrend}
+            loading={isLoading}
+          />
+          <StatCard
+            title="Tổng ca xử lý"
+            value={cases?.totalCases.toLocaleString() ?? '—'}
+            subtitle={cases ? `${cases.snakebiteCases} rắn cắn · ${cases.snakeCatchingCases} bắt rắn` : undefined}
+            icon={Activity}
+            iconBg="bg-orange-50"
+            iconColor="text-orange-600"
+            trend={caseTrend}
+            loading={isLoading}
+          />
+          <StatCard
+            title="Doanh thu"
+            value={revenue ? formatVND(revenue.total) : '—'}
+            subtitle="tổng kỳ được chọn"
+            icon={Wallet}
+            iconBg="bg-emerald-50"
+            iconColor="text-emerald-600"
+            loading={isLoading}
+          />
+          <StatCard
+            title="Lợi nhuận"
+            value={profit ? formatVND(profit.totalProfit) : '—'}
+            subtitle={commission ? `Hoa hồng: ${formatVND(commission.totalCommission)}` : 'tổng kỳ được chọn'}
+            icon={TrendingUp}
+            iconBg="bg-violet-50"
+            iconColor="text-violet-600"
+            loading={isLoading}
+          />
+        </div>
 
-              {/* Location markers */}
-              <div className="group absolute top-[75%] left-[45%] flex cursor-pointer flex-col items-center">
-                <div className="relative flex size-8 items-center justify-center">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75"></span>
-                  <span className="relative inline-flex size-4 rounded-full border-2 border-white bg-red-600"></span>
-                </div>
-                <div className="mt-1 rounded bg-white px-2 py-1 text-xs font-bold text-gray-700 opacity-0 shadow transition-opacity group-hover:opacity-100">
-                  TP.HCM (5)
-                </div>
-              </div>
+        {/* ── Revenue + Cases charts ──────────────────────────────────────── */}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <ChartCard title="Doanh thu theo kỳ" subtitle="Tư vấn · Bắt rắn · Cứu hộ">
+            {isLoading || !revenue
+              ? <div className="h-64 animate-pulse rounded-xl bg-slate-100" />
+              : (
+                  <ResponsiveContainer width="100%" height={260}>
+                    <AreaChart data={revenue.timeline} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="gc" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#6366f1" stopOpacity={0.15} />
+                          <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="gk" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#f97316" stopOpacity={0.15} />
+                          <stop offset="95%" stopColor="#f97316" stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="gs" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#ef4444" stopOpacity={0.15} />
+                          <stop offset="95%" stopColor="#ef4444" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                      <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                      <YAxis tickFormatter={(v: number) => formatVND(v)} tick={{ fontSize: 11 }} width={60} />
+                      <Tooltip content={<VNDTooltip />} />
+                      <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
+                      <Area type="monotone" dataKey="consultation" name="Tư vấn" stroke="#6366f1" fill="url(#gc)" strokeWidth={2} dot={false} />
+                      <Area type="monotone" dataKey="catching" name="Bắt rắn" stroke="#f97316" fill="url(#gk)" strokeWidth={2} dot={false} />
+                      <Area type="monotone" dataKey="snakebite" name="Cứu hộ" stroke="#ef4444" fill="url(#gs)" strokeWidth={2} dot={false} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                )}
+          </ChartCard>
 
-              <div className="group absolute top-[25%] left-[40%] flex cursor-pointer flex-col items-center">
-                <div className="relative flex size-8 items-center justify-center">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-red-400 opacity-75"></span>
-                  <span className="relative inline-flex size-4 rounded-full border-2 border-white bg-red-600"></span>
-                </div>
-                <div className="mt-1 rounded bg-white px-2 py-1 text-xs font-bold text-gray-700 opacity-0 shadow transition-opacity group-hover:opacity-100">
-                  Hà Nội (2)
-                </div>
-              </div>
+          <ChartCard title="Tổng ca xử lý theo kỳ" subtitle="Ca rắn cắn &amp; bắt rắn">
+            {isLoading || !cases
+              ? <div className="h-64 animate-pulse rounded-xl bg-slate-100" />
+              : (
+                  <ResponsiveContainer width="100%" height={260}>
+                    <BarChart data={cases.timeline} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                      <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                      <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                      <Tooltip content={<CountTooltip />} />
+                      <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
+                      <Bar dataKey="snakebiteCases" name="Rắn cắn" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="snakeCatchingCases" name="Bắt rắn" fill="#f97316" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+          </ChartCard>
+        </div>
 
-              <div className="group absolute top-[72%] left-[48%] flex cursor-pointer flex-col items-center">
-                <div className="relative flex size-6 items-center justify-center">
-                  <span className="relative inline-flex size-3 rounded-full border-2 border-white bg-orange-500"></span>
-                </div>
-              </div>
-            </div>
-          </div>
+        {/* ── Profit + Commission charts ──────────────────────────────────── */}
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <ChartCard title="Lợi nhuận theo kỳ" subtitle="Phân theo luồng nghiệp vụ">
+            {isLoading || !profit
+              ? <div className="h-64 animate-pulse rounded-xl bg-slate-100" />
+              : (
+                  <ResponsiveContainer width="100%" height={260}>
+                    <BarChart data={profit.timeline} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                      <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                      <YAxis tickFormatter={(v: number) => formatVND(v)} tick={{ fontSize: 11 }} width={60} />
+                      <Tooltip content={<VNDTooltip />} />
+                      <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
+                      <Bar dataKey="consultation" name="Tư vấn" stackId="a" fill="#6366f1" radius={[0, 0, 0, 0]} />
+                      <Bar dataKey="catching" name="Bắt rắn" stackId="a" fill="#f97316" radius={[0, 0, 0, 0]} />
+                      <Bar dataKey="snakebite" name="Cứu hộ" stackId="a" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+          </ChartCard>
+
+          <ChartCard title="Hoa hồng chuyên gia" subtitle="Doanh thu tư vấn − Chi Expert − Hoa hồng">
+            {isLoading || !commission
+              ? <div className="h-64 animate-pulse rounded-xl bg-slate-100" />
+              : (
+                  <ResponsiveContainer width="100%" height={260}>
+                    <LineChart data={commission.timeline} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                      <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                      <YAxis tickFormatter={(v: number) => formatVND(v)} tick={{ fontSize: 11 }} width={60} />
+                      <Tooltip content={<VNDTooltip />} />
+                      <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
+                      <Line type="monotone" dataKey="revenue" name="Doanh thu TV" stroke="#6366f1" strokeWidth={2} dot={false} />
+                      <Line type="monotone" dataKey="expertPayout" name="Chi Expert" stroke="#f97316" strokeWidth={2} dot={false} strokeDasharray="4 2" />
+                      <Line type="monotone" dataKey="commission" name="Hoa hồng" stroke="#10b981" strokeWidth={2.5} dot={{ r: 3 }} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                )}
+          </ChartCard>
+        </div>
+
+        {/* ── Users timeline ──────────────────────────────────────────────── */}
+        <ChartCard title="Người dùng đăng ký" subtitle="Số lượng tích lũy theo kỳ">
+          {isLoading || !users
+            ? <div className="h-48 animate-pulse rounded-xl bg-slate-100" />
+            : (
+                <ResponsiveContainer width="100%" height={200}>
+                  <AreaChart data={users.timeline} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="gu" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2} />
+                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                    <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                    <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                    <Tooltip content={<CountTooltip />} />
+                    <Area type="monotone" dataKey="totalUsers" name="Người dùng" stroke="#3b82f6" fill="url(#gu)" strokeWidth={2} dot={false} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              )}
+        </ChartCard>
+
+        {/* ── Recent activities ────────────────────────────────────────────── */}
+        <div className="grid grid-cols-1 gap-4 pb-6 lg:grid-cols-2">
 
           {/* Recent Incidents */}
-          <div className="col-span-12 flex flex-col rounded-2xl border border-gray-100 bg-white shadow-sm lg:col-span-5 xl:col-span-4">
-            <div className="flex items-center justify-between border-b border-gray-100 p-5">
-              <h3 className="text-lg font-bold text-gray-800">Sự cố mới nhất</h3>
-              <button className="text-sm font-semibold text-[#007BFF] hover:text-[#0056b3]">
-                Xem tất cả
-              </button>
-            </div>
-            <div className="flex flex-col gap-4 p-4">
-              {mockIncidents.map((incident) => {
-                const IconComp = incident.IconComponent;
-                return (
-                  <div
-                    key={incident.id}
-                    className="group flex cursor-pointer items-start gap-4 rounded-xl p-3 transition-colors hover:bg-gray-50"
-                  >
-                    <div
-                      className={`size-12 rounded-full ${incident.iconBg} flex items-center justify-center ${incident.iconColor} shrink-0 transition-colors`}
-                    >
-                      <IconComp className="size-5" strokeWidth={2} />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-start justify-between">
-                        <h4 className="truncate font-bold text-gray-800">{incident.name}</h4>
-                        <span className="text-xs font-medium text-gray-500">
-                          {incident.time}
-                        </span>
-                      </div>
-                      <p className="mb-2 truncate text-sm text-gray-500">{incident.location}</p>
-                      <span
-                        className={`inline-block rounded-full px-2.5 py-1 text-xs font-semibold ${
-                          incident.status === 'searching'
-                            ? 'bg-blue-100 text-blue-700'
-                            : incident.status === 'moving'
-                              ? 'bg-orange-100 text-orange-700'
-                              : 'bg-gray-100 text-gray-700'
-                        }`}
-                      >
-                        {incident.statusLabel}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
-        {/* Chart and Pie Chart */}
-        <div className="grid grid-cols-1 gap-6 pb-6 lg:grid-cols-3">
-          {/* Bar Chart */}
-          <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm lg:col-span-2">
-            <div className="mb-6 flex items-center justify-between">
-              <h3 className="text-lg font-bold text-gray-800">
-                Thống kê ca cứu hộ (7 ngày)
-              </h3>
-              <button className="rounded-full bg-gray-50 p-2 text-gray-500 hover:bg-gray-100">
-                <span>⋯</span>
-              </button>
-            </div>
-            <div className="flex h-48 items-end justify-between gap-2 px-2 sm:gap-4">
-              {mockChartData.map(data => (
-                <div key={data.day} className="relative w-full">
-                  <div
-                    className={`w-full ${
-                      data.active
-                        ? 'bg-[#007BFF] shadow-lg shadow-blue-200'
-                        : 'bg-blue-50 hover:bg-blue-100'
-                    } group relative cursor-pointer rounded-t-lg transition-all`}
-                    style={{ height: data.height }}
-                  >
-                    <div
-                      className={`absolute -top-8 left-1/2 -translate-x-1/2 rounded bg-gray-800 px-2 py-1 text-xs text-white ${
-                        data.active ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
-                      } transition-opacity`}
-                    >
-                      {data.value}
-                    </div>
-                  </div>
-                  <p
-                    className={`absolute -bottom-6 left-1/2 -translate-x-1/2 text-xs ${
-                      data.active ? 'font-bold text-gray-800' : 'text-gray-500'
-                    }`}
-                  >
-                    {data.day}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Pie Chart */}
-          <div className="flex flex-col items-center justify-center rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
-            <h3 className="mb-4 w-full self-start text-lg font-bold text-gray-800">
-              Tỷ lệ loại rắn
-            </h3>
-            <div className="relative mb-4 size-48 rounded-full bg-linear-to-br from-red-500 via-green-500 to-slate-400">
-              <div className="absolute inset-4 flex flex-col items-center justify-center rounded-full bg-white shadow-inner">
-                <span className="text-3xl font-bold text-gray-800">120</span>
-                <span className="text-xs tracking-wide text-gray-500 uppercase">Tổng mẫu</span>
+          <div className="flex flex-col rounded-2xl border border-gray-100 bg-white shadow-sm">
+            <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
+              <div className="flex items-center gap-2">
+                <ShieldAlert className="size-4 text-rose-600" />
+                <h3 className="text-sm font-bold text-gray-800">Ca rắn cắn gần đây</h3>
               </div>
+              <span className="rounded-full bg-rose-50 px-2 py-0.5 text-xs font-semibold text-rose-700">
+                {incidents.length}
+                {' '}
+                ca
+              </span>
             </div>
-            <div className="mt-2 flex w-full flex-col gap-2">
-              {mockSnakeTypes.map(snake => (
-                <div key={snake.type} className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2">
-                    <span className={`size-3 rounded-full ${snake.color}`}></span>
-                    <span className="text-gray-600">{snake.type}</span>
-                  </div>
-                  <span className="font-bold text-gray-800">
-                    {snake.percent}
-                    %
-                  </span>
-                </div>
-              ))}
+            <div>
+              {isLoading
+                ? (
+                    <div className="space-y-3 p-4">
+                      {[1, 2, 3].map(i => (
+                        <div key={i} className="h-12 animate-pulse rounded-xl bg-slate-100" />
+                      ))}
+                    </div>
+                  )
+                : incidents.length === 0
+                  ? (
+                      <div className="flex items-center justify-center py-10 text-sm text-slate-400">
+                        Không có dữ liệu
+                      </div>
+                    )
+                  : incidents.map((incident) => {
+                      const s = INCIDENT_STATUS_MAP[incident.status] ?? { label: incident.status, cls: 'bg-slate-100 text-slate-600' };
+                      return (
+                        <div key={incident.id} className="flex items-start gap-3 border-b border-slate-50 px-5 py-3 last:border-b-0">
+                          <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-rose-50">
+                            <AlertTriangle className="size-3.5 text-rose-500" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium text-slate-800" title={incident.address}>{incident.address}</p>
+                            <p className="mt-0.5 text-xs text-slate-400">{formatTime(incident.createdAt)}</p>
+                          </div>
+                          <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${s.cls}`}>{s.label}</span>
+                        </div>
+                      );
+                    })}
+            </div>
+          </div>
+
+          {/* Recent Catching Requests */}
+          <div className="flex flex-col rounded-2xl border border-gray-100 bg-white shadow-sm">
+            <div className="flex items-center justify-between border-b border-gray-100 px-5 py-4">
+              <div className="flex items-center gap-2">
+                <Bug className="size-4 text-orange-600" />
+                <h3 className="text-sm font-bold text-gray-800">Yêu cầu bắt rắn gần đây</h3>
+              </div>
+              <span className="rounded-full bg-orange-50 px-2 py-0.5 text-xs font-semibold text-orange-700">
+                {catchingRequests.length}
+                {' '}
+                yêu cầu
+              </span>
+            </div>
+            <div>
+              {isLoading
+                ? (
+                    <div className="space-y-3 p-4">
+                      {[1, 2, 3].map(i => (
+                        <div key={i} className="h-12 animate-pulse rounded-xl bg-slate-100" />
+                      ))}
+                    </div>
+                  )
+                : catchingRequests.length === 0
+                  ? (
+                      <div className="flex items-center justify-center py-10 text-sm text-slate-400">
+                        Không có dữ liệu
+                      </div>
+                    )
+                  : catchingRequests.map((req) => {
+                      const s = CATCHING_STATUS_MAP[req.status] ?? { label: req.status, cls: 'bg-slate-100 text-slate-600' };
+                      const snakeName = req.details[0]?.snakeSpeciesName ?? 'Chưa xác định';
+                      return (
+                        <div key={req.id} className="flex items-start gap-3 border-b border-slate-50 px-5 py-3 last:border-b-0">
+                          <div className="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-orange-50">
+                            <Bug className="size-3.5 text-orange-500" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium text-slate-800">{snakeName}</p>
+                            <p className="mt-0.5 truncate text-xs text-slate-400">
+                              {req.user?.account.fullName ?? 'N/A'}
+                              {' · '}
+                              {formatTime(req.requestDate)}
+                            </p>
+                          </div>
+                          <span className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${s.cls}`}>{s.label}</span>
+                        </div>
+                      );
+                    })}
             </div>
           </div>
         </div>

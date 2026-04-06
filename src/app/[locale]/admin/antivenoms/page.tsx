@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { antivenomApi } from '@/apis/antivenom.api';
 import { ApiClientError } from '@/apis/client';
 import AntivenomUpsertModal from '@/components/admin/AntivenomUpsertModal';
+import { useToast } from '@/components/ToastProvider';
 
 const createEmptyPayload = (): AntivenomUpsertPayload => ({
   name: '',
@@ -35,6 +36,7 @@ const getValidationMessage = (err: unknown, fallback: string) => {
 };
 
 export default function AntivenomsPage() {
+  const { showToast } = useToast();
   const [items, setItems] = useState<Antivenom[]>([]);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [selectedDetail, setSelectedDetail] = useState<Antivenom | null>(null);
@@ -81,6 +83,7 @@ export default function AntivenomsPage() {
     } catch (err) {
       console.error('Failed to load antivenoms', err);
       setListError('Không thể tải danh sách huyết thanh. Vui lòng thử lại.');
+      showToast('Không thể tải danh sách huyết thanh.', { type: 'error' });
     } finally {
       setIsListLoading(false);
     }
@@ -97,6 +100,7 @@ export default function AntivenomsPage() {
       console.error('Failed to load antivenom detail', err);
       setSelectedDetail(null);
       setDetailError('Không thể tải chi tiết huyết thanh. Vui lòng thử lại.');
+      showToast('Không thể tải chi tiết huyết thanh.', { type: 'error' });
     } finally {
       setIsDetailLoading(false);
     }
@@ -126,6 +130,7 @@ export default function AntivenomsPage() {
     } catch (err) {
       console.error('Failed to load antivenom before update', err);
       setActionError('Không thể tải dữ liệu mới nhất để cập nhật. Vui lòng thử lại.');
+      showToast('Không thể tải dữ liệu huyết thanh để cập nhật.', { type: 'error' });
     }
   };
 
@@ -155,6 +160,8 @@ export default function AntivenomsPage() {
         await loadDetail(targetId);
       }
 
+      showToast(formMode === 'create' ? 'Đã tạo huyết thanh mới.' : 'Đã cập nhật huyết thanh.', { type: 'success' });
+
       setIsModalOpen(false);
     } catch (err) {
       console.error('Failed to submit antivenom form', err);
@@ -164,6 +171,7 @@ export default function AntivenomsPage() {
 
       const validationMessage = getValidationMessage(err, fallback);
       setActionError(validationMessage);
+      showToast(validationMessage, { type: 'error' });
       throw err;
     } finally {
       setIsSubmittingForm(false);
@@ -188,9 +196,11 @@ export default function AntivenomsPage() {
       await antivenomApi.remove(selectedId);
       await loadList(null);
       setSelectedDetail(null);
+      showToast('Đã xóa huyết thanh.', { type: 'success' });
     } catch (err) {
       console.error('Failed to delete antivenom', err);
       setActionError('Xóa huyết thanh thất bại. Vui lòng thử lại.');
+      showToast('Xóa huyết thanh thất bại.', { type: 'error' });
     } finally {
       setIsDeleting(false);
     }
@@ -198,6 +208,7 @@ export default function AntivenomsPage() {
 
   useEffect(() => {
     void loadList();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -206,6 +217,7 @@ export default function AntivenomsPage() {
     }
 
     void loadDetail(selectedId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedId]);
 
   return (

@@ -137,6 +137,9 @@ const attachHandlers = (connection: HubConnection, handlersRef: React.MutableRef
   connection.on('rescueraborted', (payload: RescuerAbortedPayload) => {
     handlersRef.current.onRescuerAborted?.(payload);
   });
+  connection.on('RescuerAborted', (payload: RescuerAbortedPayload) => {
+    handlersRef.current.onRescuerAborted?.(payload);
+  });
 
   connection.on('adminlog', (payload) => {
     handlersRef.current.onAdminLog?.(payload);
@@ -175,6 +178,7 @@ const detachHandlers = (connection: HubConnection) => {
   connection.off('rescuerdispatched');
   connection.off('incidentcancelled');
   connection.off('rescueraborted');
+  connection.off('RescuerAborted');
   connection.off('rescuermissionlocationupdated');
   connection.off('adminlog');
   connection.off('missioncompleted');
@@ -214,6 +218,38 @@ export function useRescuerHub(handlers: RescuerHubEvents = {}, options: UseRescu
 
     let mounted = true;
 
+    const joinAsOperator = async () => {
+      if (!autoJoin) {
+        return;
+      }
+
+      if (resolvedOperatorId) {
+        await connection.invoke('JoinAsOperator', resolvedOperatorId);
+        return;
+      }
+
+      await connection.invoke('JoinAsOperator');
+    };
+
+    connection.onreconnected(() => {
+      if (!mounted) {
+        return;
+      }
+
+      setConnected(true);
+      void joinAsOperator().catch((err) => {
+        setError((err as Error)?.message ?? 'Failed to rejoin operator group after reconnect');
+      });
+    });
+
+    connection.onclose(() => {
+      if (!mounted) {
+        return;
+      }
+
+      setConnected(false);
+    });
+
     const startConnection = async () => {
       try {
         if (connection.state !== HubConnectionState.Disconnected) {
@@ -235,14 +271,7 @@ export function useRescuerHub(handlers: RescuerHubEvents = {}, options: UseRescu
 
         setConnected(true);
 
-        if (autoJoin) {
-          // Join operator group (backend expects this)
-          if (resolvedOperatorId) {
-            await connection.invoke('JoinAsOperator', resolvedOperatorId);
-          } else {
-            await connection.invoke('JoinAsOperator');
-          }
-        }
+        await joinAsOperator();
       } catch (err) {
         if (!mounted) {
           return;

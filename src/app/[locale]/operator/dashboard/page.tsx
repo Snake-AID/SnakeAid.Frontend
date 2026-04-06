@@ -1,6 +1,7 @@
 'use client';
 
 import type { LiveIncident } from '@/components/operator/dashboard/OperatorMap';
+import type { RescuerAbortedUiPayload } from '@/hooks/useOperatorIncidents';
 import type { DetailSnakebiteIncidentResponse } from '@/types/snakebite-incident.type';
 import { UserCheck } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -23,6 +24,27 @@ import { useRescuerHub } from '@/hooks/useRescuerHub';
 export default function OperatorDashboardPage() {
   const { showToast } = useToast();
   const [focusTrigger, setFocusTrigger] = useState(0);
+
+  const normalizeRescuerAbortedPayload = (payload: unknown): RescuerAbortedUiPayload | null => {
+    if (!payload || typeof payload !== 'object') {
+      return null;
+    }
+
+    const data = payload as Record<string, unknown>;
+    const incidentId = (typeof data.incidentId === 'string' ? data.incidentId : data.IncidentId) as string | undefined;
+    if (!incidentId) {
+      return null;
+    }
+
+    const rescuerId = (typeof data.rescuerId === 'string' ? data.rescuerId : data.RescuerId) as string | undefined;
+    const reason = (typeof data.reason === 'string' ? data.reason : data.Reason) as string | undefined;
+
+    return {
+      incidentId,
+      rescuerId,
+      reason,
+    };
+  };
 
   const {
     requests,
@@ -47,17 +69,16 @@ export default function OperatorDashboardPage() {
     lastCreatedIncidentId,
     clearLastCreatedIncidentId,
     abortedIncident,
-    setAbortedIncident,
     clearAbortedIncident,
     confirmIncident,
     dispatchIncident,
     refreshIncidents,
     urgentIncidentIds,
-    setUrgentIncidentIds,
     clearUrgentIncident,
     handleIncidentCreated,
     handleIncidentCancelled,
     handleRescuerDispatched,
+    handleRescuerAborted: applyRescuerAborted,
   } = useOperatorIncidents(() => setFocusedRequestId(null));
 
   const {
@@ -75,34 +96,29 @@ export default function OperatorDashboardPage() {
   } = useOperatorRescuers();
 
   // Handle rescuer abort at page level to ensure toast and alert work properly
-  const handleRescuerAborted = useCallback((payload: any) => {
+  const handleRescuerAborted = useCallback((payload: unknown) => {
+    const normalizedPayload = normalizeRescuerAbortedPayload(payload);
+    if (!normalizedPayload) {
+      showToast('Không đọc được dữ liệu RescuerAborted từ SignalR.', { type: 'error' });
+      return;
+    }
+
     // Clear request focus when rescuer aborts
     setFocusedRequestId(null);
 
     // Clear mission location for this rescuer
-    clearMissionLocation(payload.rescuerId);
+    if (normalizedPayload.rescuerId) {
+      clearMissionLocation(normalizedPayload.rescuerId);
+    }
 
-    // Mark incident as urgent
-    setUrgentIncidentIds(prev => new Set(prev).add(payload.incidentId));
-
-    // Focus on this incident so operator can re-dispatch
-    setFocusedIncidentId(payload.incidentId);
-
-    // Set aborted incident to show alert
-    setAbortedIncident({
-      incidentId: payload.incidentId,
-      reason: payload.reason,
-    });
-
-    // Show toast notification
-    showToast(`Rescuer đã abort mission${payload.reason ? `: ${payload.reason}` : ''}. Incident đã được reset về Verified để điều phối lại.`, { type: 'warning' });
+    applyRescuerAborted(normalizedPayload);
 
     // Refresh incidents to get updated status from backend
-    refreshIncidents();
+    void refreshIncidents();
 
     // Reload rescuer data to get updated status
-    loadRescuerData();
-  }, [setFocusedRequestId, setFocusedIncidentId, setAbortedIncident, setUrgentIncidentIds, clearMissionLocation, showToast, refreshIncidents, loadRescuerData]);
+    void loadRescuerData();
+  }, [setFocusedRequestId, clearMissionLocation, refreshIncidents, loadRescuerData, applyRescuerAborted, showToast]);
 
   // Central SignalR hub connection with all handlers merged
   useRescuerHub({
