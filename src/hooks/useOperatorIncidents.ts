@@ -8,6 +8,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { incidentApi } from '@/apis/incident.api';
 import { useToast } from '@/components/ToastProvider';
 
+export interface RescuerAbortedUiPayload {
+  incidentId: string;
+  rescuerId?: string;
+  reason?: string;
+}
+
 export interface OperatorMapIncident {
   id: string;
   code: string;
@@ -68,6 +74,7 @@ export interface UseOperatorIncidentsResult {
   handleIncidentCreated: (payload: NewIncidentCreatedPayload) => void;
   handleIncidentCancelled: (payload: IncidentCancelledPayload) => void;
   handleRescuerDispatched: (payload: RescuerDispatchedPayload) => void;
+  handleRescuerAborted: (payload: RescuerAbortedUiPayload) => void;
 }
 
 const toOperatorMapIncident = (incident: OperatorIncidentSummaryResponse): OperatorMapIncident => ({
@@ -265,6 +272,40 @@ export function useOperatorIncidents(clearRequestFocus?: () => void): UseOperato
     showToast(`Rescuer đã chấp nhận nhiệm vụ cho case ${incidentCode}`, { type: 'success' });
   }, [showToast]);
 
+  const handleRescuerAborted = useCallback((payload: RescuerAbortedUiPayload) => {
+    const incidentId = payload.incidentId;
+    if (!incidentId) {
+      return;
+    }
+
+    setUrgentIncidentIds(prev => new Set(prev).add(incidentId));
+    setFocusedIncidentId(incidentId);
+    setAbortedIncident({
+      incidentId,
+      reason: payload.reason,
+    });
+
+    const incidentCode = `INC-${incidentId.slice(-6).toUpperCase()}`;
+    const reasonText = payload.reason ? `: ${payload.reason}` : '';
+    showToast(`Rescuer đã abort mission cho case ${incidentCode}${reasonText}`, { type: 'warning' });
+
+    // Reflect abort immediately while waiting for API refresh.
+    setIncidents((prev) => {
+      const next = prev.map(incident =>
+        incident.id === incidentId
+          ? {
+              ...incident,
+              stage: 'Verified',
+              stageLabel: translateIncidentStage('Verified'),
+              needsRedispatch: true,
+            }
+          : incident,
+      );
+      incidentsRef.current = next;
+      return next;
+    });
+  }, [showToast]);
+
   const value = useMemo(() => ({
     incidents,
     focusedIncidentId,
@@ -285,7 +326,8 @@ export function useOperatorIncidents(clearRequestFocus?: () => void): UseOperato
     handleIncidentCreated: addIncidentFromSignalR,
     handleIncidentCancelled: removeIncidentFromSignalR,
     handleRescuerDispatched,
-  }), [incidents, focusedIncidentId, lastCreatedIncidentId, clearLastCreatedIncidentId, abortedIncident, clearAbortedIncident, confirmIncident, dispatchIncident, refreshIncidents, hasError, isLoading, urgentIncidentIds, clearUrgentIncident, addIncidentFromSignalR, removeIncidentFromSignalR, handleRescuerDispatched]);
+    handleRescuerAborted,
+  }), [incidents, focusedIncidentId, lastCreatedIncidentId, clearLastCreatedIncidentId, abortedIncident, clearAbortedIncident, confirmIncident, dispatchIncident, refreshIncidents, hasError, isLoading, urgentIncidentIds, clearUrgentIncident, addIncidentFromSignalR, removeIncidentFromSignalR, handleRescuerDispatched, handleRescuerAborted]);
 
   return value;
 }
