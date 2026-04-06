@@ -561,7 +561,7 @@ export default function AdminDashboardPage() {
                       </defs>
                       <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                       <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                      <YAxis tickFormatter={v => formatVND(v as number)} tick={{ fontSize: 11 }} width={60} />
+                      <YAxis tickFormatter={(v: number) => formatVND(v)} tick={{ fontSize: 11 }} width={60} />
                       <Tooltip content={<VNDTooltip />} />
                       <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
                       <Area type="monotone" dataKey="consultation" name="Tư vấn" stroke="#6366f1" fill="url(#gc)" strokeWidth={2} dot={false} />
@@ -601,7 +601,7 @@ export default function AdminDashboardPage() {
                     <BarChart data={profit.timeline} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                       <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                      <YAxis tickFormatter={v => formatVND(v as number)} tick={{ fontSize: 11 }} width={60} />
+                      <YAxis tickFormatter={(v: number) => formatVND(v)} tick={{ fontSize: 11 }} width={60} />
                       <Tooltip content={<VNDTooltip />} />
                       <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
                       <Bar dataKey="consultation" name="Tư vấn" stackId="a" fill="#6366f1" radius={[0, 0, 0, 0]} />
@@ -620,7 +620,7 @@ export default function AdminDashboardPage() {
                     <LineChart data={commission.timeline} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                       <XAxis dataKey="label" tick={{ fontSize: 11 }} />
-                      <YAxis tickFormatter={v => formatVND(v as number)} tick={{ fontSize: 11 }} width={60} />
+                      <YAxis tickFormatter={(v: number) => formatVND(v)} tick={{ fontSize: 11 }} width={60} />
                       <Tooltip content={<VNDTooltip />} />
                       <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11 }} />
                       <Line type="monotone" dataKey="revenue" name="Doanh thu TV" stroke="#6366f1" strokeWidth={2} dot={false} />
