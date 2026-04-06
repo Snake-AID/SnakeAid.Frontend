@@ -16,9 +16,6 @@ import {
   AlertTriangle,
   BadgeCheck,
   Edit3,
-  Eye,
-  Maximize2,
-  Minimize2,
   Plus,
   RefreshCcw,
   ShieldAlert,
@@ -262,29 +259,6 @@ const smoothClosedPolygon = (points: Array<[number, number]>, iterations = 2) =>
   return current;
 };
 
-const islandLayers: Array<{ name: string; polygon: Array<[number, number]> }> = [
-  {
-    name: 'Quần đảo Hoàng Sa',
-    polygon: [
-      [16.95, 111.2],
-      [16.95, 113.4],
-      [15.95, 113.4],
-      [15.95, 111.2],
-      [16.95, 111.2],
-    ],
-  },
-  {
-    name: 'Quần đảo Trường Sa',
-    polygon: [
-      [11.4, 113.0],
-      [11.4, 116.2],
-      [7.2, 116.2],
-      [7.2, 113.0],
-      [11.4, 113.0],
-    ],
-  },
-];
-
 const getAntivenomLabel = (item: SnakeSpeciesDetail['antivenoms'][number]) => {
   if ('antivenomName' in item) {
     return item.antivenomName;
@@ -328,7 +302,6 @@ export default function SnakesPage() {
   const [isSubmittingForm, setIsSubmittingForm] = useState(false);
   const [isDeletingSnake, setIsDeletingSnake] = useState(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
-  const [isDetailExpanded, setIsDetailExpanded] = useState(false);
 
   const [venomTypeOptions, setVenomTypeOptions] = useState<Array<{ id: number; label: string }>>([]);
   const [antivenomOptions, setAntivenomOptions] = useState<Array<{ id: number; label: string }>>([]);
@@ -694,7 +667,7 @@ export default function SnakesPage() {
           )}
         </header>
 
-        <section className="grid min-h-0 flex-1 grid-cols-1 gap-5 lg:grid-cols-12">
+        <section className="relative grid min-h-0 flex-1 grid-cols-1 gap-5 lg:grid-cols-12">
           <div className="min-h-0 lg:col-span-4 xl:col-span-3">
             <div className="flex h-full flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
               <div className="mb-3 flex items-center justify-between">
@@ -733,9 +706,6 @@ export default function SnakesPage() {
                             if (next == null) {
                               setSelectedDetail(null);
                               setMappings([]);
-                              setIsDetailExpanded(false);
-                            } else {
-                              setIsDetailExpanded(false);
                             }
                             return next;
                           });
@@ -767,380 +737,363 @@ export default function SnakesPage() {
 
           <div className="min-h-0 lg:col-span-8 xl:col-span-9">
             <div className="relative h-full overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-              <MapContainer
-                center={[16.2, 106.2]}
-                zoom={6}
-                scrollWheelZoom
-                className="h-full w-full"
-              >
-                <TileLayer
-                  url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                  attribution="&copy; OpenStreetMap contributors"
-                />
-
-                {islandLayers.map(layer => (
-                  <Polygon
-                    key={layer.name}
-                    positions={layer.polygon}
-                    pathOptions={{
-                      color: '#0f766e',
-                      weight: 1.4,
-                      fillColor: '#14b8a6',
-                      fillOpacity: 0.08,
-                      dashArray: '6 4',
-                    }}
-                  >
-                    <Tooltip sticky>
-                      <p className="text-xs font-semibold text-slate-800">{layer.name}</p>
-                    </Tooltip>
-                  </Polygon>
-                ))}
-
-                {regions
-                  .filter(region => region.boundaryCoordinates.length >= 3)
-                  .map((region) => {
-                    const mapping = mappingByRegionId[region.id] ?? null;
-                    const raw = toLeafletPolygon(region.boundaryCoordinates);
-                    const smoothed = smoothClosedPolygon(raw, 2);
-                    const style = getRegionStyle(mapping);
-
-                    return (
-                      <Polygon
-                        key={region.id}
-                        positions={smoothed}
-                        pathOptions={{
-                          color: style.color,
-                          fillColor: style.fillColor,
-                          fillOpacity: style.fillOpacity,
-                          weight: style.weight,
-                          lineCap: 'round',
-                          lineJoin: 'round',
-                          dashArray: mapping ? undefined : '4 6',
-                        }}
-                        eventHandlers={{
-                          click: () => openRegionDialog(region),
-                        }}
-                      >
-                        <Tooltip sticky>
-                          <div className="text-xs">
-                            <p className="font-semibold text-slate-800">{region.name}</p>
-                            {mapping
-                              ? (
-                                  <>
-                                    <p className="mt-1 text-slate-700">
-                                      Mức độ:
-                                      {' '}
-                                      {commonLevelLabelMap[mapping.commonLevel]}
-                                    </p>
-                                    <p className="text-slate-700">
-                                      Độ ưu tiên:
-                                      {' '}
-                                      {mapping.priority}
-                                    </p>
-                                  </>
-                                )
-                              : <p className="mt-1 text-slate-600">Chưa có dữ liệu phân bố</p>}
-                          </div>
-                        </Tooltip>
-                      </Polygon>
-                    );
-                  })}
-              </MapContainer>
-
-              <div className="pointer-events-none absolute inset-x-0 top-0 z-500 p-4">
-                <div className="pointer-events-auto flex flex-wrap items-start justify-end gap-2 pr-3">
-                  <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white/95 px-3 py-2 shadow-sm backdrop-blur">
-                    <span className="inline-flex size-8 items-center justify-center rounded-full bg-rose-100 text-xs font-bold text-rose-700">
-                      {mappedRegionCount}
-                    </span>
-                    <p className="text-sm font-semibold text-slate-800">
-                      Phát hiện
-                      {' '}
-                      {mappedRegionCount}
-                      {' '}
-                      vùng
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className={`pointer-events-none absolute right-4 z-500 w-full ${isDetailExpanded ? 'top-18 bottom-4 max-w-3xl' : 'top-22 max-w-sm'}`}>
+              <div className="h-full overflow-y-auto p-4 pr-2">
                 {selectedId == null && (
-                  <div className="pointer-events-auto rounded-2xl border border-slate-200 bg-white/95 p-4 text-sm text-slate-600 shadow-lg backdrop-blur">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
                     Chọn một loài rắn ở danh sách bên trái để xem chi tiết.
                   </div>
                 )}
 
                 {selectedId != null && isDetailLoading && (
-                  <div className="pointer-events-auto rounded-2xl border border-slate-200 bg-white/95 p-4 text-sm text-slate-600 shadow-lg backdrop-blur">
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
                     Đang tải thông tin loài rắn...
                   </div>
                 )}
 
                 {selectedId != null && detailError && !isDetailLoading && (
-                  <div className="pointer-events-auto rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700 shadow-lg">
+                  <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
                     {detailError}
                   </div>
                 )}
 
                 {selectedDetail && !isDetailLoading && !detailError && (
-                  <div className={`pointer-events-auto rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-xl backdrop-blur ${isDetailExpanded ? 'h-full overflow-y-auto pr-2' : 'max-h-[calc(100vh-260px)] overflow-y-auto pr-1'}`}>
-                    <div className="flex items-start justify-between gap-3">
+                  <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_18rem]">
                       <div>
-                        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Chi tiết loài rắn</p>
-                        <h3 className="mt-1 text-lg font-bold text-slate-900">{selectedDetail.commonName}</h3>
-                        <p className="text-xs italic text-slate-500">{selectedDetail.scientificName}</p>
-                      </div>
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => setIsDetailExpanded(prev => !prev)}
-                          className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100"
-                          title={isDetailExpanded ? 'Thu gọn' : 'Phóng to'}
-                        >
-                          {isDetailExpanded ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setSelectedDetail(null)}
-                          className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100"
-                        >
-                          <X className="size-4" />
-                        </button>
-                      </div>
-                    </div>
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Chi tiết loài rắn</p>
+                            <h3 className="mt-1 text-lg font-bold text-slate-900">{selectedDetail.commonName}</h3>
+                            <p className="text-xs italic text-slate-500">{selectedDetail.scientificName}</p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedId(null);
+                              setSelectedDetail(null);
+                              setMappings([]);
+                            }}
+                            className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100"
+                          >
+                            <X className="size-4" />
+                          </button>
+                        </div>
 
-                    <div className="mt-3 flex items-start gap-3">
-                      <div className="relative h-18 w-18 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
-                        {selectedDetail.imageUrl
-                          ? (
-                              <Image
-                                src={selectedDetail.imageUrl}
-                                alt={selectedDetail.commonName}
-                                fill
-                                sizes="72px"
-                                className="object-cover"
-                              />
-                            )
-                          : null}
-                      </div>
-                      <div className="space-y-1 text-xs text-slate-700">
-                        <p>
-                          Mức rủi ro:
-                          {' '}
-                          <span className="font-semibold">{selectedDetail.riskLevel}</span>
-                        </p>
-                        <p>
-                          Vùng đã gán phân bố:
-                          {' '}
-                          <span className="font-semibold text-rose-700">{mappedRegionCount}</span>
-                        </p>
-                        <p className="line-clamp-3 text-slate-600">{selectedDetail.identificationSummary}</p>
-                      </div>
-                    </div>
+                        <div className="mt-3 flex items-start gap-3">
+                          <div className="relative h-18 w-18 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
+                            {selectedDetail.imageUrl
+                              ? (
+                                  <Image
+                                    src={selectedDetail.imageUrl}
+                                    alt={selectedDetail.commonName}
+                                    fill
+                                    sizes="72px"
+                                    className="object-cover"
+                                  />
+                                )
+                              : null}
+                          </div>
+                          <div className="space-y-1 text-sm text-slate-700">
+                            <p>
+                              Mức rủi ro:
+                              {' '}
+                              <span className="font-semibold">{selectedDetail.riskLevel}</span>
+                            </p>
+                            <p>
+                              Vùng đã gán phân bố:
+                              {' '}
+                              <span className="font-semibold text-rose-700">{mappedRegionCount}</span>
+                            </p>
+                            <p className="line-clamp-3 text-slate-600">{selectedDetail.identificationSummary}</p>
+                          </div>
+                        </div>
 
-                    <div className="mt-4 grid grid-cols-3 gap-2">
-                      <button
-                        type="button"
-                        onClick={() => void openUpdateForm()}
-                        className="inline-flex items-center justify-center gap-1 rounded-lg border border-slate-200 px-2 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100"
-                      >
-                        <Edit3 className="size-3.5" />
-                        Sửa
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setIsDeleteConfirmOpen(true)}
-                        className="inline-flex items-center justify-center gap-1 rounded-lg border border-rose-200 px-2 py-2 text-xs font-semibold text-rose-700 hover:bg-rose-50"
-                      >
-                        <Trash2 className="size-3.5" />
-                        Xóa
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void loadMappings(selectedId!)}
-                        className="inline-flex items-center justify-center gap-1 rounded-lg border border-amber-200 px-2 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-50"
-                      >
-                        <Eye className="size-3.5" />
-                        Đồng bộ phân bố
-                      </button>
-                    </div>
+                        <div className="mt-3 grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => void openUpdateForm()}
+                            className="inline-flex items-center justify-center gap-1 rounded-lg border border-slate-200 px-2.5 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                          >
+                            <Edit3 className="size-3.5" />
+                            Sửa
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setIsDeleteConfirmOpen(true)}
+                            className="inline-flex items-center justify-center gap-1 rounded-lg border border-rose-200 px-2.5 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50"
+                          >
+                            <Trash2 className="size-3.5" />
+                            Xóa
+                          </button>
+                        </div>
 
-                    {isDetailExpanded && (
-                      <div className="mt-4 space-y-4">
-                        <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                        <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
                           <h4 className="text-sm font-bold text-slate-800">Mô tả</h4>
                           <p className="mt-1 text-sm leading-6 text-slate-700">{selectedDetail.description || 'Không có dữ liệu.'}</p>
                         </div>
 
-                        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-                          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                            <h4 className="text-sm font-bold text-slate-800">Tóm tắt nhận diện</h4>
-                            <p className="mt-1 text-sm text-slate-700">{selectedDetail.identificationSummary || 'Không có dữ liệu.'}</p>
-                            {selectedDetail.identification?.habitat && (
-                              <p className="mt-2 text-sm text-slate-600">
-                                <span className="font-semibold text-slate-800">Môi trường sống:</span>
-                                {' '}
-                                {selectedDetail.identification.habitat}
-                              </p>
-                            )}
-                          </div>
-
-                          <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                            <h4 className="text-sm font-bold text-slate-800">Tên gọi khác</h4>
-                            {selectedDetail.alternativeNames.length === 0
-                              ? <p className="mt-1 text-sm text-slate-500">Không có dữ liệu.</p>
-                              : (
-                                  <ul className="mt-2 space-y-1 text-sm text-slate-700">
-                                    {selectedDetail.alternativeNames.map(name => (
-                                      <li key={name} className="flex items-start gap-2">
-                                        <BadgeCheck className="mt-0.5 size-4 shrink-0 text-teal-700" />
-                                        <span>{name}</span>
-                                      </li>
-                                    ))}
-                                  </ul>
-                                )}
-                          </div>
+                        <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                          <h4 className="text-sm font-bold text-slate-800">Tóm tắt nhận diện</h4>
+                          <p className="mt-1 text-sm leading-6 text-slate-700">{selectedDetail.identificationSummary || 'Không có dữ liệu.'}</p>
+                          {selectedDetail.identification?.habitat && (
+                            <p className="mt-2 text-sm leading-6 text-slate-600">
+                              <span className="font-semibold text-slate-800">Môi trường sống:</span>
+                              {' '}
+                              {selectedDetail.identification.habitat}
+                            </p>
+                          )}
                         </div>
 
-                        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-                          <div className="rounded-xl border border-slate-200 bg-white p-3">
-                            <h4 className="mb-2 flex items-center gap-2 text-sm font-bold text-slate-800">
-                              <ShieldAlert className="size-4 text-rose-600" />
-                              Biểu hiện theo thời gian
-                            </h4>
-                            {selectedDetail.symptomsByTime == null || selectedDetail.symptomsByTime.length === 0
-                              ? <p className="text-sm text-slate-500">Không có dữ liệu.</p>
-                              : (
-                                  <div className="space-y-2">
-                                    {selectedDetail.symptomsByTime.map(symptom => (
-                                      <div key={symptom.timeRange} className="rounded-lg border border-slate-200 bg-slate-50 p-2.5">
-                                        <p className="text-xs font-semibold text-slate-800">{symptom.timeRange}</p>
-                                        <p className={`mt-1 text-xs font-semibold ${symptom.isCritical ? 'text-rose-700' : 'text-emerald-700'}`}>
-                                          {symptom.isCritical ? 'Mức độ: Nguy kịch' : 'Mức độ: Theo dõi'}
-                                        </p>
-                                        <ul className="mt-1 list-disc pl-4 text-sm text-slate-700">
-                                          {symptom.signs.map(sign => (
-                                            <li key={sign}>{sign}</li>
-                                          ))}
-                                        </ul>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                          </div>
-
-                          <div className="rounded-xl border border-slate-200 bg-white p-3">
-                            <h4 className="mb-2 flex items-center gap-2 text-sm font-bold text-slate-800">
-                              <AlertTriangle className="size-4 text-amber-600" />
-                              Hướng dẫn sơ cứu
-                            </h4>
-                            {selectedDetail.firstAidGuidelineOverride?.content.steps?.length
-                              ? (
-                                  <ol className="space-y-2 text-sm text-slate-700">
-                                    {selectedDetail.firstAidGuidelineOverride.content.steps.map((step, index) => (
-                                      <li key={`${selectedDetail.id}-${step.text}-${step.mediaUrl ?? 'none'}`} className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2">
-                                        <span className="mr-2 font-semibold text-slate-800">
-                                          {index + 1}
-                                          .
-                                        </span>
-                                        {step.text}
-                                      </li>
-                                    ))}
-                                  </ol>
-                                )
-                              : <p className="text-sm text-slate-500">Không có dữ liệu.</p>}
-
-                            {(selectedDetail.firstAidGuidelineOverride?.content.dos?.length ?? 0) > 0 && (
-                              <div className="mt-3">
-                                <p className="text-xs font-semibold text-emerald-700">Nên làm</p>
-                                <ul className="mt-1 list-disc pl-4 text-sm text-slate-700">
-                                  {selectedDetail.firstAidGuidelineOverride?.content.dos.map(item => (
-                                    <li key={`do-${item.text}-${item.mediaUrl ?? 'none'}`}>{item.text}</li>
+                        <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                          <h4 className="text-sm font-bold text-slate-800">Tên gọi khác</h4>
+                          {selectedDetail.alternativeNames.length === 0
+                            ? <p className="mt-1 text-sm text-slate-500">Không có dữ liệu.</p>
+                            : (
+                                <ul className="mt-2 space-y-1 text-sm text-slate-700">
+                                  {selectedDetail.alternativeNames.map(name => (
+                                    <li key={name} className="flex items-start gap-1.5">
+                                      <BadgeCheck className="mt-0.5 size-4 shrink-0 text-teal-700" />
+                                      <span>{name}</span>
+                                    </li>
                                   ))}
                                 </ul>
-                              </div>
-                            )}
-
-                            {(selectedDetail.firstAidGuidelineOverride?.content.donts?.length ?? 0) > 0 && (
-                              <div className="mt-3">
-                                <p className="text-xs font-semibold text-rose-700">Không nên làm</p>
-                                <ul className="mt-1 list-disc pl-4 text-sm text-slate-700">
-                                  {selectedDetail.firstAidGuidelineOverride?.content.donts.map(item => (
-                                    <li key={`dont-${item.text}-${item.mediaUrl ?? 'none'}`}>{item.text}</li>
-                                  ))}
-                                </ul>
-                              </div>
-                            )}
-
-                            {(selectedDetail.firstAidGuidelineOverride?.content.notes?.length ?? 0) > 0 && (
-                              <div className="mt-3">
-                                <p className="text-xs font-semibold text-slate-700">Ghi chú</p>
-                                <ul className="mt-1 list-disc pl-4 text-sm text-slate-700">
-                                  {selectedDetail.firstAidGuidelineOverride?.content.notes.map(note => (
-                                    <li key={`note-${note}`}>{note}</li>
-                                  ))}
-                                </ul>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-                          <div className="rounded-xl border border-slate-200 bg-white p-3">
-                            <h4 className="mb-2 text-sm font-bold text-slate-800">Thông tin độc tố</h4>
-                            {selectedDetail.venoms.length === 0
-                              ? <p className="text-sm text-slate-500">Không có dữ liệu.</p>
-                              : (
-                                  <div className="space-y-2">
-                                    {selectedDetail.venoms.map(venom => (
-                                      <div key={`${venom.venomType}-${venom.description}`} className="rounded-lg border border-slate-200 bg-slate-50 p-2.5">
-                                        <p className="text-sm font-semibold text-slate-800">{venom.venomType}</p>
-                                        <p className="mt-1 text-sm text-slate-700">{venom.description}</p>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                          </div>
-
-                          <div className="rounded-xl border border-slate-200 bg-white p-3">
-                            <h4 className="mb-2 text-sm font-bold text-slate-800">Huyết thanh khuyến nghị</h4>
-                            {selectedDetail.antivenoms.length === 0
-                              ? <p className="text-sm text-slate-500">Không có dữ liệu.</p>
-                              : (
-                                  <div className="space-y-2">
-                                    {selectedDetail.antivenoms.map(item => (
-                                      <div key={`${getAntivenomLabel(item)}-${getAntivenomDescription(item)}`} className="rounded-lg border border-slate-200 bg-slate-50 p-2.5">
-                                        <p className="text-sm font-semibold text-slate-800">{getAntivenomLabel(item)}</p>
-                                        <p className="mt-1 text-sm text-slate-700">{getAntivenomDescription(item)}</p>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                          </div>
+                              )}
                         </div>
                       </div>
-                    )}
+
+                      <div className="xl:flex xl:items-stretch">
+                        <div className="relative h-full min-h-104 w-72 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                          <MapContainer
+                            center={[16.2, 106.1]}
+                            zoom={5.4}
+                            dragging={false}
+                            scrollWheelZoom={false}
+                            doubleClickZoom={false}
+                            boxZoom={false}
+                            keyboard={false}
+                            touchZoom={false}
+                            zoomControl={false}
+                            className="h-full w-full"
+                          >
+                            <TileLayer
+                              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                              attribution="&copy; OpenStreetMap contributors"
+                            />
+
+                            {regions
+                              .filter(region => region.boundaryCoordinates.length >= 3)
+                              .map((region) => {
+                                const mapping = mappingByRegionId[region.id] ?? null;
+                                const raw = toLeafletPolygon(region.boundaryCoordinates);
+                                const smoothed = smoothClosedPolygon(raw, 2);
+                                const style = getRegionStyle(mapping);
+
+                                return (
+                                  <Polygon
+                                    key={region.id}
+                                    positions={smoothed}
+                                    pathOptions={{
+                                      color: style.color,
+                                      fillColor: style.fillColor,
+                                      fillOpacity: style.fillOpacity,
+                                      weight: style.weight,
+                                      lineCap: 'round',
+                                      lineJoin: 'round',
+                                      dashArray: mapping ? undefined : '4 6',
+                                    }}
+                                    eventHandlers={{
+                                      click: () => openRegionDialog(region),
+                                    }}
+                                  >
+                                    <Tooltip sticky>
+                                      <div className="text-xs">
+                                        <p className="font-semibold text-slate-800">{region.name}</p>
+                                        {mapping
+                                          ? (
+                                              <>
+                                                <p className="mt-1 text-slate-700">
+                                                  Mức độ:
+                                                  {' '}
+                                                  {commonLevelLabelMap[mapping.commonLevel]}
+                                                </p>
+                                                <p className="text-slate-700">
+                                                  Độ ưu tiên:
+                                                  {' '}
+                                                  {mapping.priority}
+                                                </p>
+                                              </>
+                                            )
+                                          : <p className="mt-1 text-slate-600">Chưa có dữ liệu phân bố</p>}
+                                      </div>
+                                    </Tooltip>
+                                  </Polygon>
+                                );
+                              })}
+                          </MapContainer>
+
+                          <div className="absolute left-2 top-2 z-10 inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white/95 px-2 py-1 text-[11px] font-semibold text-slate-700">
+                            <span className="inline-flex size-5 items-center justify-center rounded-full bg-rose-100 text-[10px] font-bold text-rose-700">
+                              {mappedRegionCount}
+                            </span>
+                            vùng
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (selectedId != null) {
+                                void loadMappings(selectedId);
+                              }
+                            }}
+                            disabled={selectedId == null || isMapLoading}
+                            className="absolute right-2 top-2 z-10 rounded-md bg-white/95 p-1.5 text-amber-700 transition hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-60"
+                            title="Đồng bộ phân bố"
+                          >
+                            <RefreshCcw className={`size-4 ${isMapLoading ? 'animate-spin' : ''}`} />
+                          </button>
+
+                          {(isMapLoading || mapError) && (
+                            <div className="pointer-events-none absolute bottom-3 left-3 z-10">
+                              {isMapLoading && (
+                                <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 shadow">
+                                  Đang tải dữ liệu phân bố...
+                                </div>
+                              )}
+                              {!isMapLoading && mapError && (
+                                <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 shadow">
+                                  {mapError}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 space-y-4">
+                      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                        <div className="rounded-xl border border-slate-200 bg-white p-3">
+                          <h4 className="mb-2 flex items-center gap-2 text-sm font-bold text-slate-800">
+                            <ShieldAlert className="size-4 text-rose-600" />
+                            Biểu hiện theo thời gian
+                          </h4>
+                          {selectedDetail.symptomsByTime == null || selectedDetail.symptomsByTime.length === 0
+                            ? <p className="text-sm text-slate-500">Không có dữ liệu.</p>
+                            : (
+                                <div className="space-y-2">
+                                  {selectedDetail.symptomsByTime.map(symptom => (
+                                    <div key={symptom.timeRange} className="rounded-lg border border-slate-200 bg-slate-50 p-2.5">
+                                      <p className="text-xs font-semibold text-slate-800">{symptom.timeRange}</p>
+                                      <p className={`mt-1 text-xs font-semibold ${symptom.isCritical ? 'text-rose-700' : 'text-emerald-700'}`}>
+                                        {symptom.isCritical ? 'Mức độ: Nguy kịch' : 'Mức độ: Theo dõi'}
+                                      </p>
+                                      <ul className="mt-1 list-disc pl-4 text-sm text-slate-700">
+                                        {symptom.signs.map(sign => (
+                                          <li key={sign}>{sign}</li>
+                                        ))}
+                                      </ul>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                        </div>
+
+                        <div className="rounded-xl border border-slate-200 bg-white p-3">
+                          <h4 className="mb-2 flex items-center gap-2 text-sm font-bold text-slate-800">
+                            <AlertTriangle className="size-4 text-amber-600" />
+                            Hướng dẫn sơ cứu
+                          </h4>
+                          {selectedDetail.firstAidGuidelineOverride?.content.steps?.length
+                            ? (
+                                <ol className="space-y-2 text-sm text-slate-700">
+                                  {selectedDetail.firstAidGuidelineOverride.content.steps.map((step, index) => (
+                                    <li key={`${selectedDetail.id}-${step.text}-${step.mediaUrl ?? 'none'}`} className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2">
+                                      <span className="mr-2 font-semibold text-slate-800">
+                                        {index + 1}
+                                        .
+                                      </span>
+                                      {step.text}
+                                    </li>
+                                  ))}
+                                </ol>
+                              )
+                            : <p className="text-sm text-slate-500">Không có dữ liệu.</p>}
+
+                          {(selectedDetail.firstAidGuidelineOverride?.content.dos?.length ?? 0) > 0 && (
+                            <div className="mt-3">
+                              <p className="text-xs font-semibold text-emerald-700">Nên làm</p>
+                              <ul className="mt-1 list-disc pl-4 text-sm text-slate-700">
+                                {selectedDetail.firstAidGuidelineOverride?.content.dos.map(item => (
+                                  <li key={`do-${item.text}-${item.mediaUrl ?? 'none'}`}>{item.text}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
+                          {(selectedDetail.firstAidGuidelineOverride?.content.donts?.length ?? 0) > 0 && (
+                            <div className="mt-3">
+                              <p className="text-xs font-semibold text-rose-700">Không nên làm</p>
+                              <ul className="mt-1 list-disc pl-4 text-sm text-slate-700">
+                                {selectedDetail.firstAidGuidelineOverride?.content.donts.map(item => (
+                                  <li key={`dont-${item.text}-${item.mediaUrl ?? 'none'}`}>{item.text}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+
+                          {(selectedDetail.firstAidGuidelineOverride?.content.notes?.length ?? 0) > 0 && (
+                            <div className="mt-3">
+                              <p className="text-xs font-semibold text-slate-700">Ghi chú</p>
+                              <ul className="mt-1 list-disc pl-4 text-sm text-slate-700">
+                                {selectedDetail.firstAidGuidelineOverride?.content.notes.map(note => (
+                                  <li key={`note-${note}`}>{note}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                        <div className="rounded-xl border border-slate-200 bg-white p-3">
+                          <h4 className="mb-2 text-sm font-bold text-slate-800">Thông tin độc tố</h4>
+                          {selectedDetail.venoms.length === 0
+                            ? <p className="text-sm text-slate-500">Không có dữ liệu.</p>
+                            : (
+                                <div className="space-y-2">
+                                  {selectedDetail.venoms.map(venom => (
+                                    <div key={`${venom.venomType}-${venom.description}`} className="rounded-lg border border-slate-200 bg-slate-50 p-2.5">
+                                      <p className="text-sm font-semibold text-slate-800">{venom.venomType}</p>
+                                      <p className="mt-1 text-sm text-slate-700">{venom.description}</p>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                        </div>
+
+                        <div className="rounded-xl border border-slate-200 bg-white p-3">
+                          <h4 className="mb-2 text-sm font-bold text-slate-800">Huyết thanh khuyến nghị</h4>
+                          {selectedDetail.antivenoms.length === 0
+                            ? <p className="text-sm text-slate-500">Không có dữ liệu.</p>
+                            : (
+                                <div className="space-y-2">
+                                  {selectedDetail.antivenoms.map(item => (
+                                    <div key={`${getAntivenomLabel(item)}-${getAntivenomDescription(item)}`} className="rounded-lg border border-slate-200 bg-slate-50 p-2.5">
+                                      <p className="text-sm font-semibold text-slate-800">{getAntivenomLabel(item)}</p>
+                                      <p className="mt-1 text-sm text-slate-700">{getAntivenomDescription(item)}</p>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
-
-              {(isMapLoading || mapError) && (
-                <div className="pointer-events-none absolute bottom-4 left-4 z-500">
-                  {isMapLoading && (
-                    <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 shadow">
-                      Đang tải dữ liệu phân bố...
-                    </div>
-                  )}
-                  {!isMapLoading && mapError && (
-                    <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 shadow">
-                      {mapError}
-                    </div>
-                  )}
-                </div>
-              )}
             </div>
           </div>
+
         </section>
       </div>
 
