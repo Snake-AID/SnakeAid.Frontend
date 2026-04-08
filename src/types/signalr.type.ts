@@ -105,6 +105,7 @@ export interface IncidentCancelledPayload {
 export interface RescuerAbortedPayload {
   incidentId: string;
   rescuerId: string;
+  operatorId?: string | null;
   reason?: string;
   updatedAt: string;
 }
@@ -118,6 +119,12 @@ export interface RescuerMissionLocationUpdatedPayload {
 }
 
 export interface MissionCompletedPayload {
+  incidentId: string;
+  rescuerId: string;
+  completedAt: string;
+}
+
+export interface IncidentCompletedPayload {
   incidentId: string;
   rescuerId: string;
   completedAt: string;

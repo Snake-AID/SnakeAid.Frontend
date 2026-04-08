@@ -2,6 +2,7 @@
 
 import type { LiveIncident } from '@/components/operator/dashboard/OperatorMap';
 import type { RescuerAbortedUiPayload } from '@/hooks/useOperatorIncidents';
+import type { IncidentCompletedPayload } from '@/types/signalr.type';
 import type { DetailSnakebiteIncidentResponse } from '@/types/snakebite-incident.type';
 import { UserCheck } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -20,10 +21,12 @@ import { useOperatorIncidents } from '@/hooks/useOperatorIncidents';
 import { useOperatorRequests } from '@/hooks/useOperatorRequests';
 import { useOperatorRescuers } from '@/hooks/useOperatorRescuers';
 import { useRescuerHub } from '@/hooks/useRescuerHub';
+import { getStoredUser } from '@/utils/auth-session';
 
 export default function OperatorDashboardPage() {
   const { showToast } = useToast();
   const [focusTrigger, setFocusTrigger] = useState(0);
+  const currentOperatorId = getStoredUser()?.id ?? null;
 
   const normalizeRescuerAbortedPayload = (payload: unknown): RescuerAbortedUiPayload | null => {
     if (!payload || typeof payload !== 'object') {
@@ -37,12 +40,35 @@ export default function OperatorDashboardPage() {
     }
 
     const rescuerId = (typeof data.rescuerId === 'string' ? data.rescuerId : data.RescuerId) as string | undefined;
+    const operatorId = (typeof data.operatorId === 'string' ? data.operatorId : data.OperatorId) as string | null | undefined;
     const reason = (typeof data.reason === 'string' ? data.reason : data.Reason) as string | undefined;
 
     return {
       incidentId,
       rescuerId,
+      operatorId: operatorId ?? null,
       reason,
+    };
+  };
+
+  const normalizeIncidentCompletedPayload = (payload: unknown): IncidentCompletedPayload | null => {
+    if (!payload || typeof payload !== 'object') {
+      return null;
+    }
+
+    const data = payload as Record<string, unknown>;
+    const incidentId = (typeof data.incidentId === 'string' ? data.incidentId : data.IncidentId) as string | undefined;
+    const rescuerId = (typeof data.rescuerId === 'string' ? data.rescuerId : data.RescuerId) as string | undefined;
+    const completedAt = (typeof data.completedAt === 'string' ? data.completedAt : data.CompletedAt) as string | undefined;
+
+    if (!incidentId || !rescuerId || !completedAt) {
+      return null;
+    }
+
+    return {
+      incidentId,
+      rescuerId,
+      completedAt,
     };
   };
 
@@ -77,6 +103,7 @@ export default function OperatorDashboardPage() {
     clearUrgentIncident,
     handleIncidentCreated,
     handleIncidentCancelled,
+    handleIncidentCompleted: applyIncidentCompleted,
     handleRescuerDispatched,
     handleRescuerAborted: applyRescuerAborted,
   } = useOperatorIncidents(() => setFocusedRequestId(null));
@@ -92,14 +119,17 @@ export default function OperatorDashboardPage() {
     handleRescuerIdleLocationUpdated,
     handleRescuerMissionLocationUpdated,
     handleMissionCompleted,
-    handleIncidentCompleted,
+    handleIncidentCompleted: syncRescuerAfterIncidentCompleted,
   } = useOperatorRescuers();
 
   // Handle rescuer abort at page level to ensure toast and alert work properly
   const handleRescuerAborted = useCallback((payload: unknown) => {
     const normalizedPayload = normalizeRescuerAbortedPayload(payload);
     if (!normalizedPayload) {
-      showToast('Không đọc được dữ liệu RescuerAborted từ SignalR.', { type: 'error' });
+      return;
+    }
+
+    if (normalizedPayload.operatorId && normalizedPayload.operatorId !== currentOperatorId) {
       return;
     }
 
@@ -118,7 +148,24 @@ export default function OperatorDashboardPage() {
 
     // Reload rescuer data to get updated status
     void loadRescuerData();
-  }, [setFocusedRequestId, clearMissionLocation, refreshIncidents, loadRescuerData, applyRescuerAborted, showToast]);
+  }, [currentOperatorId, setFocusedRequestId, clearMissionLocation, refreshIncidents, loadRescuerData, applyRescuerAborted]);
+
+  const handleIncidentCompleted = useCallback((payload: unknown) => {
+    const normalizedPayload = normalizeIncidentCompletedPayload(payload);
+    if (!normalizedPayload) {
+      console.error('[SignalR][OperatorDashboard] Failed to normalize IncidentCompleted payload:', payload);
+      return;
+    }
+
+    // Keep incident list in sync and notify operator.
+    applyIncidentCompleted(normalizedPayload);
+
+    // Keep rescuer layer in sync.
+    syncRescuerAfterIncidentCompleted(normalizedPayload);
+
+    // Ensure active list is consistent with backend source of truth.
+    void refreshIncidents();
+  }, [applyIncidentCompleted, syncRescuerAfterIncidentCompleted, refreshIncidents]);
 
   // Central SignalR hub connection with all handlers merged
   useRescuerHub({

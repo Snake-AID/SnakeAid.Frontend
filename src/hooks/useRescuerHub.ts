@@ -135,9 +135,13 @@ const attachHandlers = (connection: HubConnection, handlersRef: React.MutableRef
   });
 
   connection.on('rescueraborted', (payload: RescuerAbortedPayload) => {
+    // eslint-disable-next-line no-console
+    console.log('[SignalR][RescuerHub] rescueraborted received:', payload);
     handlersRef.current.onRescuerAborted?.(payload);
   });
   connection.on('RescuerAborted', (payload: RescuerAbortedPayload) => {
+    // eslint-disable-next-line no-console
+    console.log('[SignalR][RescuerHub] RescuerAborted received:', payload);
     handlersRef.current.onRescuerAborted?.(payload);
   });
 

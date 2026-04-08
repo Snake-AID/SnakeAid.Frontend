@@ -1,7 +1,12 @@
 'use client';
 
 import type { OperatorIncidentSummaryResponse } from '@/types/operator.type';
-import type { IncidentCancelledPayload, NewIncidentCreatedPayload, RescuerDispatchedPayload } from '@/types/signalr.type';
+import type {
+  IncidentCancelledPayload,
+  IncidentCompletedPayload,
+  NewIncidentCreatedPayload,
+  RescuerDispatchedPayload,
+} from '@/types/signalr.type';
 import type { CreateIncidentResponse } from '@/types/snakebite-incident.type';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
@@ -11,6 +16,7 @@ import { useToast } from '@/components/ToastProvider';
 export interface RescuerAbortedUiPayload {
   incidentId: string;
   rescuerId?: string;
+  operatorId?: string | null;
   reason?: string;
 }
 
@@ -73,6 +79,7 @@ export interface UseOperatorIncidentsResult {
   clearUrgentIncident: (incidentId: string) => void;
   handleIncidentCreated: (payload: NewIncidentCreatedPayload) => void;
   handleIncidentCancelled: (payload: IncidentCancelledPayload) => void;
+  handleIncidentCompleted: (payload: IncidentCompletedPayload) => void;
   handleRescuerDispatched: (payload: RescuerDispatchedPayload) => void;
   handleRescuerAborted: (payload: RescuerAbortedUiPayload) => void;
 }
@@ -201,7 +208,7 @@ export function useOperatorIncidents(clearRequestFocus?: () => void): UseOperato
     const incidentCode = `INC-${removedId.slice(-6).toUpperCase()}`;
     const reasonText = payload.reason ? `: ${payload.reason}` : '';
 
-    showToast(`Ca ${incidentCode} đã hủy bởi người dùng${reasonText}`, { type: 'info' });
+    showToast(`Ca ${incidentCode} đã hủy bởi người dùng với lí do: ${reasonText}`, { type: 'info' });
 
     setIncidents((prev) => {
       const next = prev.filter(incident => incident.id !== removedId);
@@ -214,6 +221,39 @@ export function useOperatorIncidents(clearRequestFocus?: () => void): UseOperato
         return incidentsRef.current[0]?.id ?? null;
       }
       return current;
+    });
+  }, [showToast]);
+
+  const completeIncidentFromSignalR = useCallback((payload: IncidentCompletedPayload) => {
+    const completedId = payload.incidentId;
+    if (!completedId) {
+      return;
+    }
+
+    const incidentCode = `INC-${completedId.slice(-6).toUpperCase()}`;
+    showToast(`Case ${incidentCode} đã hoàn thành.`, { type: 'success' });
+
+    setIncidents((prev) => {
+      const next = prev.filter(incident => incident.id !== completedId);
+      incidentsRef.current = next;
+      return next;
+    });
+
+    setFocusedIncidentId((current) => {
+      if (current === completedId) {
+        return incidentsRef.current[0]?.id ?? null;
+      }
+      return current;
+    });
+
+    setUrgentIncidentIds((prev) => {
+      if (!prev.has(completedId)) {
+        return prev;
+      }
+
+      const next = new Set(prev);
+      next.delete(completedId);
+      return next;
     });
   }, [showToast]);
 
@@ -325,9 +365,10 @@ export function useOperatorIncidents(clearRequestFocus?: () => void): UseOperato
     clearUrgentIncident,
     handleIncidentCreated: addIncidentFromSignalR,
     handleIncidentCancelled: removeIncidentFromSignalR,
+    handleIncidentCompleted: completeIncidentFromSignalR,
     handleRescuerDispatched,
     handleRescuerAborted,
-  }), [incidents, focusedIncidentId, lastCreatedIncidentId, clearLastCreatedIncidentId, abortedIncident, clearAbortedIncident, confirmIncident, dispatchIncident, refreshIncidents, hasError, isLoading, urgentIncidentIds, clearUrgentIncident, addIncidentFromSignalR, removeIncidentFromSignalR, handleRescuerDispatched, handleRescuerAborted]);
+  }), [incidents, focusedIncidentId, lastCreatedIncidentId, clearLastCreatedIncidentId, abortedIncident, clearAbortedIncident, confirmIncident, dispatchIncident, refreshIncidents, hasError, isLoading, urgentIncidentIds, clearUrgentIncident, addIncidentFromSignalR, removeIncidentFromSignalR, completeIncidentFromSignalR, handleRescuerDispatched, handleRescuerAborted]);
 
   return value;
 }
