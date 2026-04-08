@@ -76,7 +76,7 @@ const getValidationMessage = (error: unknown, fallback: string) => {
 
   const validationEntries = Object.entries(error.error?.validationErrors ?? {});
   if (!validationEntries.length) {
-    return error.message || fallback;
+    return fallback;
   }
 
   return validationEntries
@@ -285,7 +285,9 @@ export default function UsersPage() {
 
         console.error('Failed to load admin users', error);
         setUsers([]);
-        setUsersError('Không thể tải danh sách người dùng.');
+        const message = getValidationMessage(error, 'Không thể tải danh sách người dùng.');
+        setUsersError(message);
+        showToast(message, { type: 'error' });
       } finally {
         if (!cancelled) {
           setUsersLoading(false);
@@ -311,7 +313,9 @@ export default function UsersPage() {
       setSelectedUserDetail(detail);
     } catch (error) {
       console.error('Failed to load user detail', error);
-      setDetailError('Không thể tải chi tiết người dùng.');
+      const message = getValidationMessage(error, 'Không thể tải chi tiết người dùng.');
+      setDetailError(message);
+      showToast(message, { type: 'error' });
     } finally {
       setDetailLoading(false);
     }

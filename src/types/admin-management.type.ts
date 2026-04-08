@@ -197,6 +197,7 @@ export interface AdminIncidentPaymentSummaryResponse {
 
 export interface AdminDetailSnakebiteIncidentResponse {
   id: string;
+  createdAt?: string | null;
   locationCoordinates: GeoPointResponse;
   address: string | null;
   status: SnakebiteIncidentStatus | number;
@@ -253,7 +254,7 @@ export interface AdminMissionSummaryResponse {
   status: string;
   price: number;
   actualCost: number | null;
-  costFromCenter: number;
+  costFromCenter: number | null;
   createdAt: string;
   updatedAt: string | null;
   startedAt: string | null;
@@ -261,7 +262,7 @@ export interface AdminMissionSummaryResponse {
   completedAt: string | null;
   incidentStatus: string;
   incidentAddress: string | null;
-  rescuerName: string;
+  rescuerName: string | null;
 }
 
 export interface AdminMissionDetailResponse {
