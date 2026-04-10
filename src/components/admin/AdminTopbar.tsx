@@ -1,11 +1,16 @@
 'use client';
 
-import { Bell, LogOut } from 'lucide-react';
+import { Bell, LogOut, Menu } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useMemo } from 'react';
 import { clearAuthSession, getStoredUser } from '@/utils/auth-session';
 
-export default function AdminTopbar() {
+interface AdminTopbarProps {
+  sidebarOpen?: boolean;
+  onToggleSidebar?: () => void;
+}
+
+export default function AdminTopbar({ sidebarOpen, onToggleSidebar }: AdminTopbarProps) {
   const router = useRouter();
 
   const adminEmail = useMemo(() => {
@@ -24,9 +29,22 @@ export default function AdminTopbar() {
   return (
     <header className="sticky top-0 z-20 border-b border-slate-200 bg-white">
       <div className="mx-auto flex max-w-360 items-center justify-between px-6 py-4">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-wide text-blue-700">Cổng quản trị</p>
-          <h1 className="text-2xl font-bold text-slate-900">Bảng điều khiển</h1>
+        <div className="flex items-center gap-3">
+          {onToggleSidebar && (
+            <button
+              type="button"
+              onClick={onToggleSidebar}
+              className="rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-100 hover:text-blue-700"
+              aria-label={sidebarOpen ? 'Hide sidebar' : 'Show sidebar'}
+            >
+              <Menu className="size-5" />
+            </button>
+          )}
+
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-wide text-blue-700">Cổng quản trị</p>
+            <h1 className="text-2xl font-bold text-slate-900">Bảng điều khiển</h1>
+          </div>
         </div>
 
         <div className="flex items-center gap-3">

@@ -66,9 +66,21 @@ export const incidentApi = {
 
   getAdminIncidentDetail: async (incidentId: string) => {
     try {
-      return await api.get<AdminDetailSnakebiteIncidentResponse>(`/incidents/${incidentId}`);
+      return await api.get<AdminDetailSnakebiteIncidentResponse>(`/incidents/admin/${incidentId}`);
     } catch (error) {
-      if (error instanceof ApiClientError && error.statusCode === 404) {
+      if (error instanceof ApiClientError && (error.statusCode === 404 || error.statusCode === 405)) {
+        try {
+          return await api.get<AdminDetailSnakebiteIncidentResponse>(`/incidents/${incidentId}`);
+        } catch (legacyError) {
+          if (!(legacyError instanceof ApiClientError) || legacyError.statusCode !== 404) {
+            throw legacyError;
+          }
+
+          return api.get<AdminDetailSnakebiteIncidentResponse>(`/snakebite-incidents/${incidentId}`);
+        }
+      }
+
+      if (error instanceof ApiClientError && error.statusCode === 400) {
         return api.get<AdminDetailSnakebiteIncidentResponse>(`/snakebite-incidents/${incidentId}`);
       }
 
