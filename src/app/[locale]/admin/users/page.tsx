@@ -340,6 +340,15 @@ export default function UsersPage() {
     setUsersMeta(latest.meta);
   };
 
+  const getUserDisplayName = (userId: string) => {
+    if (selectedUserDetail?.id === userId) {
+      return selectedUserDetail.fullName || selectedUserDetail.userName;
+    }
+
+    const listedUser = users.find(item => item.id === userId);
+    return listedUser?.fullName || listedUser?.userName || 'người dùng';
+  };
+
   const openBanDialog = (userId: string, userName: string) => {
     setBanDialog({ userId, userName, reason: '', submitting: false });
   };
@@ -367,7 +376,7 @@ export default function UsersPage() {
 
     try {
       await adminUserApi.banUser(banDialog.userId, { reason });
-      showToast('Đã khóa tài khoản người dùng.', { type: 'success' });
+      showToast(`Đã khóa tài khoản ${banDialog.userName}.`, { type: 'success' });
 
       await refreshUsers();
 
@@ -385,9 +394,11 @@ export default function UsersPage() {
   };
 
   const handleUnbanUser = async (userId: string) => {
+    const displayName = getUserDisplayName(userId);
+
     try {
       await adminUserApi.unbanUser(userId);
-      showToast('Đã mở khóa tài khoản.', { type: 'success' });
+      showToast(`Đã mở khóa tài khoản ${displayName}.`, { type: 'success' });
 
       await refreshUsers();
 
