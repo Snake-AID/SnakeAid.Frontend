@@ -14,7 +14,7 @@ import type {
 } from '@/types/workshift.type';
 import {
   CalendarDays,
-  Check,
+  // Check,
   ChevronLeft,
   ChevronRight,
   Clock3,
@@ -22,7 +22,7 @@ import {
   Plus,
   RefreshCcw,
   Save,
-  ShieldCheck,
+  // ShieldCheck,
   Trash2,
   UserPlus,
   Users,
@@ -358,6 +358,7 @@ export default function WorkShiftsPage() {
   const [shiftModalMode, setShiftModalMode] = useState<'create' | 'update'>('create');
   const [selectedShiftId, setSelectedShiftId] = useState<string | null>(null);
   const [shiftDraft, setShiftDraft] = useState<ShiftFormDraft>(() => createShiftDraft());
+  const [shiftModalError, setShiftModalError] = useState<string | null>(null);
   const [isShiftSubmitting, setIsShiftSubmitting] = useState(false);
   const [isShiftDeleting, setIsShiftDeleting] = useState(false);
 
@@ -509,6 +510,7 @@ export default function WorkShiftsPage() {
 
   const openCreateShiftModal = () => {
     setActionError(null);
+    setShiftModalError(null);
     setShiftModalMode('create');
     setSelectedShiftId(null);
     setShiftDraft(createShiftDraft());
@@ -526,6 +528,7 @@ export default function WorkShiftsPage() {
       }
       setShiftModalMode('update');
       setSelectedShiftId(shiftId);
+      setShiftModalError(null);
       setShiftDraft({
         name: shiftData.name,
         startTime: toTimeInput(shiftData.startTime),
@@ -542,18 +545,22 @@ export default function WorkShiftsPage() {
   };
 
   const submitShift = async () => {
-    if (!shiftDraft.name.trim()) {
-      setActionError('Tên ca làm việc không được để trống.');
+    const trimmedShiftName = shiftDraft.name.trim();
+    if (!trimmedShiftName) {
+      const message = 'Tên ca làm việc không được để trống.';
+      setShiftModalError(message);
+      showToast(message, { type: 'error' });
       return;
     }
 
+    setShiftModalError(null);
     setIsShiftSubmitting(true);
     setActionError(null);
 
     try {
       if (shiftModalMode === 'create') {
         const payload: CreateWorkShiftRequest = {
-          name: shiftDraft.name.trim(),
+          name: trimmedShiftName,
           startTime: normalizeTimeToApi(shiftDraft.startTime),
           endTime: normalizeTimeToApi(shiftDraft.endTime),
           requiredRescuers: Number(shiftDraft.requiredRescuers),
@@ -562,7 +569,7 @@ export default function WorkShiftsPage() {
         showToast('Đã tạo mẫu ca mới.', { type: 'success' });
       } else if (selectedShiftId) {
         const payload: UpdateWorkShiftRequest = {
-          name: shiftDraft.name.trim(),
+          name: trimmedShiftName,
           startTime: normalizeTimeToApi(shiftDraft.startTime),
           endTime: normalizeTimeToApi(shiftDraft.endTime),
           requiredRescuers: Number(shiftDraft.requiredRescuers),
@@ -574,13 +581,14 @@ export default function WorkShiftsPage() {
 
       await reloadPageData();
       setIsShiftModalOpen(false);
+      setShiftModalError(null);
     } catch (error) {
       console.error('Failed to submit shift form', error);
       const fallback = shiftModalMode === 'create'
         ? 'Tạo mẫu ca thất bại.'
         : 'Cập nhật mẫu ca thất bại.';
       const message = getValidationMessage(error, fallback);
-      setActionError(message);
+      setShiftModalError(message);
       showToast(message, { type: 'error' });
     } finally {
       setIsShiftSubmitting(false);
@@ -770,41 +778,41 @@ export default function WorkShiftsPage() {
     }
   };
 
-  const checkInAssignment = async (assignmentId: string) => {
-    setIsAssignmentSubmitting(true);
-    setActionError(null);
+  // const checkInAssignment = async (assignmentId: string) => {
+  //   setIsAssignmentSubmitting(true);
+  //   setActionError(null);
 
-    try {
-      await workShiftApi.checkInAssignment(assignmentId);
-      await reloadAssignmentsOnly();
-      showToast('Check-in thành công.', { type: 'success' });
-    } catch (error) {
-      console.error('Failed to check-in assignment', error);
-      const message = getValidationMessage(error, 'Check-in thất bại.');
-      setActionError(message);
-      showToast(message, { type: 'error' });
-    } finally {
-      setIsAssignmentSubmitting(false);
-    }
-  };
+  //   try {
+  //     await workShiftApi.checkInAssignment(assignmentId);
+  //     await reloadAssignmentsOnly();
+  //     showToast('Check-in thành công.', { type: 'success' });
+  //   } catch (error) {
+  //     console.error('Failed to check-in assignment', error);
+  //     const message = getValidationMessage(error, 'Check-in thất bại.');
+  //     setActionError(message);
+  //     showToast(message, { type: 'error' });
+  //   } finally {
+  //     setIsAssignmentSubmitting(false);
+  //   }
+  // };
 
-  const checkOutAssignment = async (assignmentId: string) => {
-    setIsAssignmentSubmitting(true);
-    setActionError(null);
+  // const checkOutAssignment = async (assignmentId: string) => {
+  //   setIsAssignmentSubmitting(true);
+  //   setActionError(null);
 
-    try {
-      await workShiftApi.checkOutAssignment(assignmentId);
-      await reloadAssignmentsOnly();
-      showToast('Check-out thành công.', { type: 'success' });
-    } catch (error) {
-      console.error('Failed to check-out assignment', error);
-      const message = getValidationMessage(error, 'Check-out thất bại.');
-      setActionError(message);
-      showToast(message, { type: 'error' });
-    } finally {
-      setIsAssignmentSubmitting(false);
-    }
-  };
+  //   try {
+  //     await workShiftApi.checkOutAssignment(assignmentId);
+  //     await reloadAssignmentsOnly();
+  //     showToast('Check-out thành công.', { type: 'success' });
+  //   } catch (error) {
+  //     console.error('Failed to check-out assignment', error);
+  //     const message = getValidationMessage(error, 'Check-out thất bại.');
+  //     setActionError(message);
+  //     showToast(message, { type: 'error' });
+  //   } finally {
+  //     setIsAssignmentSubmitting(false);
+  //   }
+  // };
 
   const openRescuerDetail = async (rescuerId: string) => {
     setIsRescuerDetailLoading(true);
@@ -1160,6 +1168,12 @@ export default function WorkShiftsPage() {
           }}
         >
           <div className="w-full max-w-xl rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
+            {shiftModalError && (
+              <div className="mb-4 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
+                {shiftModalError}
+              </div>
+            )}
+
             <div className="mb-4 flex items-start justify-between">
               <div>
                 <h3 className="text-xl font-bold text-slate-900">
@@ -1177,9 +1191,21 @@ export default function WorkShiftsPage() {
                 <p className="mb-1 text-xs font-semibold text-slate-700">Tên ca</p>
                 <input
                   value={shiftDraft.name}
-                  onChange={event => setShiftDraft(prev => ({ ...prev, name: event.target.value }))}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                  onChange={(event) => {
+                    setShiftDraft(prev => ({ ...prev, name: event.target.value }));
+                    if (shiftModalError) {
+                      setShiftModalError(null);
+                    }
+                  }}
+                  className={`w-full rounded-lg border px-3 py-2 text-sm ${
+                    !shiftDraft.name.trim() && shiftModalError
+                      ? 'border-rose-300 bg-rose-50 text-rose-900 placeholder:text-rose-400'
+                      : 'border-slate-300'
+                  }`}
                 />
+                {!shiftDraft.name.trim() && shiftModalError && (
+                  <p className="mt-1 text-xs text-rose-600">Tên ca làm việc không được để trống.</p>
+                )}
               </div>
 
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -1501,7 +1527,7 @@ export default function WorkShiftsPage() {
                           Lưu
                         </button>
 
-                        <button
+                        {/* <button
                           type="button"
                           disabled={isAssignmentSubmitting}
                           onClick={() => void checkInAssignment(assignment.id)}
@@ -1519,7 +1545,7 @@ export default function WorkShiftsPage() {
                         >
                           <ShieldCheck className="size-3.5" />
                           Điểm danh ra ca
-                        </button>
+                        </button> */}
 
                         <button
                           type="button"
