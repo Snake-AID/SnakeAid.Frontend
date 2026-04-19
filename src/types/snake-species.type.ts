@@ -24,17 +24,27 @@ export interface FirstAidGuidelineContent {
   notes: string[];
 }
 
+export interface FirstAidGuidelineReference {
+  id: number;
+  name: string;
+  content: FirstAidGuidelineContent;
+  type: string;
+  summary: string;
+}
+
 export interface FirstAidGuidelineOverride {
   mode: 'Replace' | 'Append' | string;
   content: FirstAidGuidelineContent;
 }
 
 export interface SnakeVenomInfo {
+  id: number;
   venomType: string;
   description: string;
 }
 
 export interface SnakeAntivenomInfo {
+  id: number;
   antivenomName: string;
   manufacturer?: string | null;
   effectiveness?: string | null;
@@ -53,6 +63,8 @@ export interface SnakeSpeciesSummary {
   identification: SnakeSpeciesIdentification | null;
   symptomsByTime: SnakeSpeciesSymptomByTime[] | null;
   firstAidGuidelineOverride: FirstAidGuidelineOverride | null;
+  baseFirstAidGuideline?: FirstAidGuidelineReference | null;
+  effectiveFirstAidGuideline?: FirstAidGuidelineContent | null;
   riskLevel: number;
   isVenomous: boolean;
   isActive: boolean;
@@ -70,6 +82,7 @@ export interface SnakeSpeciesUpsertPayload {
   scientificName: string;
   commonName: string;
   mediaId: string;
+  imageUrl?: string | null;
   description: string;
   identificationSummary: string;
   primaryVenomType: PrimaryVenomType | null;

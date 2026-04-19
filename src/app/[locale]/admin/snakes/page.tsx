@@ -7,6 +7,7 @@ import type {
   UpdateRegionSnakeMappingRequest,
 } from '@/types/geographic-region.type';
 import type {
+  FirstAidGuidelineContent,
   FirstAidGuidelineOverride,
   SnakeSpeciesDetail,
   SnakeSpeciesSummary,
@@ -50,6 +51,7 @@ const createEmptyPayload = (): SnakeSpeciesUpsertPayload => ({
   scientificName: '',
   commonName: '',
   mediaId: '',
+  imageUrl: '',
   description: '',
   identificationSummary: '',
   primaryVenomType: 'None',
@@ -97,8 +99,10 @@ const sanitizePayload = (payload: SnakeSpeciesUpsertPayload): SnakeSpeciesUpsert
       }
     : null;
 
+  const { imageUrl, ...rest } = payload;
+
   return {
-    ...payload,
+    ...rest,
     scientificName: sanitizeText(payload.scientificName),
     commonName: sanitizeText(payload.commonName),
     mediaId: sanitizeText(payload.mediaId),
@@ -148,11 +152,12 @@ const mapDetailToPayload = (detail: SnakeSpeciesDetail): SnakeSpeciesUpsertPaylo
   },
   symptomsByTime: detail.symptomsByTime ?? [],
   firstAidGuidelineOverride: detail.firstAidGuidelineOverride ?? emptyFirstAid,
+  imageUrl: detail.imageUrl ?? '',
   riskLevel: detail.riskLevel ?? 1,
   isVenomous: detail.isVenomous,
   isActive: detail.isActive,
-  venomIds: detail.venomIds ?? [],
-  antivenomIds: detail.antivenomIds ?? [],
+  venomIds: detail.venomIds ?? detail.venoms.map(item => item.id).filter(Number.isInteger),
+  antivenomIds: detail.antivenomIds ?? detail.antivenoms.map(item => item.id).filter(Number.isInteger),
   alternativeNames: detail.alternativeNames ?? [],
 });
 
@@ -273,6 +278,70 @@ const getAntivenomDescription = (item: SnakeSpeciesDetail['antivenoms'][number])
   }
 
   return item.description;
+};
+
+const renderFirstAidContent = (content: FirstAidGuidelineContent | null | undefined) => {
+  if (!content
+    || (content.steps.length === 0
+      && content.dos.length === 0
+      && content.donts.length === 0
+      && content.notes.length === 0)) {
+    return <p className="text-sm text-slate-500">Không có dữ liệu.</p>;
+  }
+
+  return (
+    <div className="space-y-3">
+      {content.steps.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-slate-800">Các bước</p>
+          <ol className="mt-2 space-y-2 text-sm text-slate-700">
+            {content.steps.map((step, index) => (
+              <li key={`${step.text}-${step.mediaUrl ?? 'none'}`} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                <span className="font-semibold text-slate-800">
+                  {index + 1}
+                  .
+                </span>
+                {step.text}
+              </li>
+            ))}
+          </ol>
+        </div>
+      )}
+
+      {content.dos.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-emerald-700">Nên làm</p>
+          <ul className="mt-2 list-disc pl-4 text-sm text-slate-700">
+            {content.dos.map(item => (
+              <li key={`do-${item.text}-${item.mediaUrl ?? 'none'}`}>{item.text}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {content.donts.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-rose-700">Không nên làm</p>
+          <ul className="mt-2 list-disc pl-4 text-sm text-slate-700">
+            {content.donts.map(item => (
+              <li key={`dont-${item.text}-${item.mediaUrl ?? 'none'}`}>{item.text}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {content.notes.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-slate-700">Ghi chú</p>
+          <ul className="mt-2 list-disc pl-4 text-sm text-slate-700">
+            {content.notes.map(note => (
+              <li key={`note-${note}`}>{note}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
 };
 
 interface ActiveRegionDialog {
@@ -1003,54 +1072,55 @@ export default function SnakesPage() {
                             <AlertTriangle className="size-4 text-amber-600" />
                             Hướng dẫn sơ cứu
                           </h4>
-                          {selectedDetail.firstAidGuidelineOverride?.content.steps?.length
-                            ? (
-                                <ol className="space-y-2 text-sm text-slate-700">
-                                  {selectedDetail.firstAidGuidelineOverride.content.steps.map((step, index) => (
-                                    <li key={`${selectedDetail.id}-${step.text}-${step.mediaUrl ?? 'none'}`} className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2">
-                                      <span className="mr-2 font-semibold text-slate-800">
-                                        {index + 1}
-                                        .
-                                      </span>
-                                      {step.text}
-                                    </li>
-                                  ))}
-                                </ol>
-                              )
-                            : <p className="text-sm text-slate-500">Không có dữ liệu.</p>}
 
-                          {(selectedDetail.firstAidGuidelineOverride?.content.dos?.length ?? 0) > 0 && (
-                            <div className="mt-3">
-                              <p className="text-xs font-semibold text-emerald-700">Nên làm</p>
-                              <ul className="mt-1 list-disc pl-4 text-sm text-slate-700">
-                                {selectedDetail.firstAidGuidelineOverride?.content.dos.map(item => (
-                                  <li key={`do-${item.text}-${item.mediaUrl ?? 'none'}`}>{item.text}</li>
-                                ))}
-                              </ul>
+                          <div className="grid gap-4 xl:grid-cols-3">
+                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.15em] text-slate-500">Base guideline</p>
+                              {selectedDetail.baseFirstAidGuideline
+                                ? (
+                                    <div className="space-y-3">
+                                      <div className="rounded-lg border border-slate-200 bg-white p-3">
+                                        <p className="text-sm font-semibold text-slate-900">{selectedDetail.baseFirstAidGuideline.name}</p>
+                                        <p className="mt-2 text-xs text-slate-500">{selectedDetail.baseFirstAidGuideline.summary}</p>
+                                      </div>
+                                      {renderFirstAidContent(selectedDetail.baseFirstAidGuideline.content)}
+                                    </div>
+                                  )
+                                : (
+                                    <p className="text-sm text-slate-500">Chưa có base guideline.</p>
+                                  )}
                             </div>
-                          )}
 
-                          {(selectedDetail.firstAidGuidelineOverride?.content.donts?.length ?? 0) > 0 && (
-                            <div className="mt-3">
-                              <p className="text-xs font-semibold text-rose-700">Không nên làm</p>
-                              <ul className="mt-1 list-disc pl-4 text-sm text-slate-700">
-                                {selectedDetail.firstAidGuidelineOverride?.content.donts.map(item => (
-                                  <li key={`dont-${item.text}-${item.mediaUrl ?? 'none'}`}>{item.text}</li>
-                                ))}
-                              </ul>
+                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.15em] text-slate-500">Override</p>
+                              {selectedDetail.firstAidGuidelineOverride && selectedDetail.firstAidGuidelineOverride.content
+                                ? renderFirstAidContent(selectedDetail.firstAidGuidelineOverride.content)
+                                : (
+                                    <p className="text-sm text-slate-500">
+                                      {
+                                        selectedDetail.baseFirstAidGuideline
+                                          ? 'Không có override, đang dùng base guideline.'
+                                          : 'Chưa có override cho loài rắn này.'
+                                      }
+                                    </p>
+                                  )}
                             </div>
-                          )}
 
-                          {(selectedDetail.firstAidGuidelineOverride?.content.notes?.length ?? 0) > 0 && (
-                            <div className="mt-3">
-                              <p className="text-xs font-semibold text-slate-700">Ghi chú</p>
-                              <ul className="mt-1 list-disc pl-4 text-sm text-slate-700">
-                                {selectedDetail.firstAidGuidelineOverride?.content.notes.map(note => (
-                                  <li key={`note-${note}`}>{note}</li>
-                                ))}
-                              </ul>
+                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
+                              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.15em] text-slate-500">Effective guideline</p>
+                              {selectedDetail.effectiveFirstAidGuideline
+                                ? renderFirstAidContent(selectedDetail.effectiveFirstAidGuideline)
+                                : (
+                                    <p className="text-sm text-slate-500">
+                                      {
+                                        selectedDetail.baseFirstAidGuideline
+                                          ? 'Chỉ có base guideline, chưa có override.'
+                                          : 'Chưa có first aid guideline cho loài rắn này.'
+                                      }
+                                    </p>
+                                  )}
                             </div>
-                          )}
+                          </div>
                         </div>
                       </div>
 

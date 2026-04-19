@@ -129,6 +129,7 @@ function LineItemEditor({ label, values, onChange }: LineItemEditorProps) {
             <div className="mb-2 flex items-center justify-between">
               <p className="text-xs font-semibold text-slate-500">
                 Mục
+                {' '}
                 {index + 1}
               </p>
               <button
@@ -175,23 +176,23 @@ export default function SnakeSpeciesUpsertModal({
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
   const [mediaUploadError, setMediaUploadError] = useState<string | null>(null);
   const [isUploadSuccess, setIsUploadSuccess] = useState(false);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(initialValue.imageUrl ?? null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const isPrimaryVenomTypeNone = (draft.primaryVenomType ?? 'None') === 'None';
 
   useEffect(() => {
-    if (!selectedImageFile) {
-      setPreviewUrl(null);
-      return;
+    if (selectedImageFile) {
+      const nextPreviewUrl = URL.createObjectURL(selectedImageFile);
+      setPreviewUrl(nextPreviewUrl);
+
+      return () => {
+        URL.revokeObjectURL(nextPreviewUrl);
+      };
     }
 
-    const nextPreviewUrl = URL.createObjectURL(selectedImageFile);
-    setPreviewUrl(nextPreviewUrl);
-
-    return () => {
-      URL.revokeObjectURL(nextPreviewUrl);
-    };
-  }, [selectedImageFile]);
+    setPreviewUrl(draft.imageUrl ?? null);
+    return undefined;
+  }, [selectedImageFile, draft.imageUrl]);
 
   if (!isOpen) {
     return null;
@@ -221,8 +222,8 @@ export default function SnakeSpeciesUpsertModal({
     event.preventDefault();
     setSubmitError(null);
 
-    if (!draft.mediaId.trim()) {
-      setSubmitError('Vui lòng upload ảnh để lấy mediaId trước khi lưu loài rắn.');
+    if (!draft.mediaId.trim() && !(draft.imageUrl?.trim())) {
+      setSubmitError('Vui lòng upload ảnh hoặc giữ ảnh hiện tại trước khi lưu loài rắn.');
       return;
     }
 
@@ -332,7 +333,7 @@ export default function SnakeSpeciesUpsertModal({
                     Chọn ảnh
                   </button>
                   <div className="min-h-10 flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
-                    {selectedImageFile?.name ?? 'Chưa chọn ảnh'}
+                    {selectedImageFile?.name ?? (draft.imageUrl ? 'Ảnh hiện tại' : 'Chưa chọn ảnh')}
                   </div>
                   <button
                     type="button"
@@ -356,7 +357,9 @@ export default function SnakeSpeciesUpsertModal({
                 )}
                 {previewUrl && (
                   <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
-                    <p className="border-b border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700">Preview ảnh</p>
+                    <p className="border-b border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700">
+                      {selectedImageFile ? 'Preview ảnh mới' : 'Ảnh hiện tại'}
+                    </p>
                     <div
                       className="h-44 w-full bg-contain bg-center bg-no-repeat"
                       style={{ backgroundImage: `url('${previewUrl}')` }}
@@ -483,6 +486,7 @@ export default function SnakeSpeciesUpsertModal({
                   <div className="mb-2 flex items-center justify-between">
                     <p className="text-xs font-semibold text-slate-500">
                       Mốc
+                      {' '}
                       {index + 1}
                     </p>
                     <button type="button" onClick={() => removeSymptom(index)} className="text-rose-600 hover:text-rose-700">
@@ -533,6 +537,22 @@ export default function SnakeSpeciesUpsertModal({
                 <option value="Append">Append (Bổ sung)</option>
                 <option value="Replace">Replace (Thay thế)</option>
               </select>
+              <div className="mt-2 space-y-2 text-xs text-slate-500">
+                <p>
+                  Ghi đè áp dụng cho bộ sơ cứu của loại độc chính của loài rắn:
+                  <strong>{` ${venomOptionLabel[draft.primaryVenomType ?? 'None'] ?? draft.primaryVenomType ?? 'None'}`}</strong>
+                </p>
+                <ul className="list-disc pl-4">
+                  <li>
+                    <strong>Replace</strong>
+                    : thay thế hoàn toàn guideline hiện có.
+                  </li>
+                  <li>
+                    <strong>Append</strong>
+                    : bổ sung thêm vào guideline hiện có.
+                  </li>
+                </ul>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
