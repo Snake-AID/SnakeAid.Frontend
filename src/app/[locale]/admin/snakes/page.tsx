@@ -879,12 +879,27 @@ export default function SnakesPage() {
                         }`}
                       >
                         <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-semibold text-slate-900">{item.commonName}</p>
-                            <p className="mt-0.5 text-xs italic text-slate-500">{item.scientificName}</p>
+                          <div className="flex min-w-0 flex-1 items-start gap-2.5">
+                            <div className="relative size-11 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
+                              {item.imageUrl
+                                ? (
+                                    <Image
+                                      src={item.imageUrl}
+                                      alt={item.commonName}
+                                      fill
+                                      sizes="44px"
+                                      className="object-cover"
+                                    />
+                                  )
+                                : null}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-semibold text-slate-900">{item.commonName}</p>
+                              <p className="mt-0.5 truncate text-xs italic text-slate-500">{item.scientificName}</p>
+                            </div>
                           </div>
-                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">
-                            Rủi ro
+                          <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">
+                            Độ nguy hiểm
                             {' '}
                             {item.riskLevel}
                           </span>
@@ -920,72 +935,96 @@ export default function SnakesPage() {
 
                 {selectedDetail && !isDetailLoading && !detailError && (
                   <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                    <section className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_18rem]">
-                      <div className="space-y-3">
-                        <div className="relative rounded-xl border border-slate-200 bg-white p-3 pr-44">
-                          <div className="absolute right-3 top-3 flex flex-wrap items-center justify-end gap-2">
-                            <button
-                              type="button"
-                              onClick={() => void openUpdateForm()}
-                              className="inline-flex items-center justify-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
-                            >
-                              <Edit3 className="size-3.5" />
-                              Sửa
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setIsDeleteConfirmOpen(true)}
-                              className="inline-flex items-center justify-center gap-1 rounded-lg border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50"
-                            >
-                              <Trash2 className="size-3.5" />
-                              Xóa
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setSelectedId(null);
-                                setSelectedDetail(null);
-                                setMappings([]);
-                              }}
-                              className="inline-flex items-center justify-center rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-100"
-                              title="Đóng chi tiết"
-                            >
-                              <X className="size-4" />
-                            </button>
-                          </div>
+                    <section className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_18rem] xl:items-start">
+                      <div className="flex items-center">
+                        <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-600">Chi tiết loài rắn</p>
+                      </div>
 
-                          <div className="flex items-start gap-3">
-                            <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
+                      <div className="flex flex-wrap items-center justify-start gap-2 xl:justify-end">
+                        <button
+                          type="button"
+                          onClick={() => void openUpdateForm()}
+                          className="inline-flex items-center justify-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                        >
+                          <Edit3 className="size-3.5" />
+                          Sửa
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setIsDeleteConfirmOpen(true)}
+                          className="inline-flex items-center justify-center gap-1 rounded-lg border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50"
+                        >
+                          <Trash2 className="size-3.5" />
+                          Xóa
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedId(null);
+                            setSelectedDetail(null);
+                            setMappings([]);
+                          }}
+                          className="inline-flex items-center justify-center rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-100"
+                          title="Đóng chi tiết"
+                        >
+                          <X className="size-4" />
+                        </button>
+                      </div>
+
+                      <div className="space-y-3">
+                        <div className="bg-white px-1 py-1">
+                          <div className="flex flex-col gap-3 md:flex-row md:items-stretch md:gap-5">
+                            <div className="flex h-56 w-full items-center overflow-hidden rounded-xl bg-white md:h-60 md:w-auto md:max-w-[28rem] md:shrink-0">
                               {selectedDetail.imageUrl
                                 ? (
                                     <Image
                                       src={selectedDetail.imageUrl}
                                       alt={selectedDetail.commonName}
-                                      fill
-                                      sizes="80px"
-                                      className="object-cover"
+                                      width={560}
+                                      height={360}
+                                      sizes="(max-width: 768px) 100vw, 448px"
+                                      className="h-full w-full object-contain object-left md:w-auto"
                                     />
                                   )
                                 : null}
                             </div>
-                            <div>
-                              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Chi tiết loài rắn</p>
-                              <h3 className="mt-1 text-xl font-bold text-slate-900">{selectedDetail.commonName}</h3>
-                              <p className="text-sm italic text-slate-500">{selectedDetail.scientificName}</p>
-                              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-                                <span className="rounded-full bg-amber-100 px-2.5 py-1 font-semibold text-amber-800">
-                                  Mức rủi ro
-                                  {' '}
-                                  {selectedDetail.riskLevel}
-                                </span>
-                                <span className="rounded-full bg-rose-100 px-2.5 py-1 font-semibold text-rose-700">
-                                  {mappedRegionCount}
-                                  {' '}
-                                  vùng phân bố
-                                </span>
-                                <span className={`rounded-full px-2.5 py-1 font-semibold ${selectedDetail.isVenomous ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                                  {selectedDetail.isVenomous ? 'Rắn có độc' : 'Rắn không độc'}
-                                </span>
+
+                            <div className="flex min-w-0 flex-1 flex-col gap-3">
+                              <div className="py-1">
+                                <h3 className="text-2xl font-bold leading-tight text-slate-900 lg:text-[1.7rem]">{selectedDetail.commonName}</h3>
+                                <p className="mt-1 text-sm italic text-slate-600 lg:text-base">{selectedDetail.scientificName}</p>
+
+                                <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                                  <span className="rounded-full bg-amber-100 px-2.5 py-1 font-semibold text-amber-800">
+                                    Mức độ nguy hiểm
+                                    {' '}
+                                    {selectedDetail.riskLevel}
+                                  </span>
+                                  <span className="rounded-full bg-rose-100 px-2.5 py-1 font-semibold text-rose-700">
+                                    {mappedRegionCount}
+                                    {' '}
+                                    vùng phân bố
+                                  </span>
+                                  <span className={`rounded-full px-2.5 py-1 font-semibold ${selectedDetail.isVenomous ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                                    {selectedDetail.isVenomous ? 'Rắn có độc' : 'Rắn không độc'}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="mt-auto pb-1">
+                                <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">Tên gọi khác</p>
+                                {selectedDetail.alternativeNames.length === 0
+                                  ? <p className="mt-1 text-sm text-slate-500">Không có dữ liệu.</p>
+                                  : (
+                                      <ul className="mt-2 grid grid-cols-1 gap-1 text-sm text-slate-700 md:grid-cols-2">
+                                        {selectedDetail.alternativeNames.map(name => (
+                                          <li key={name} className="flex items-start gap-1.5">
+                                            <BadgeCheck className="mt-0.5 size-4 shrink-0 text-teal-700" />
+                                            <span>{name}</span>
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    )}
                               </div>
                             </div>
                           </div>
@@ -1006,24 +1045,9 @@ export default function SnakesPage() {
                             </p>
                           )}
                         </div>
-                        <div className="rounded-xl border border-slate-200 bg-white p-3">
-                          <h4 className="text-sm font-bold text-slate-800">Tên gọi khác</h4>
-                          {selectedDetail.alternativeNames.length === 0
-                            ? <p className="mt-1 text-sm text-slate-500">Không có dữ liệu.</p>
-                            : (
-                                <ul className="mt-2 grid grid-cols-1 gap-1 text-sm text-slate-700 md:grid-cols-2">
-                                  {selectedDetail.alternativeNames.map(name => (
-                                    <li key={name} className="flex items-start gap-1.5">
-                                      <BadgeCheck className="mt-0.5 size-4 shrink-0 text-teal-700" />
-                                      <span>{name}</span>
-                                    </li>
-                                  ))}
-                                </ul>
-                              )}
-                        </div>
                       </div>
 
-                      <aside className="relative self-start h-full overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm xl:h-[28.5rem]">
+                      <aside className="relative self-start h-[25.5rem] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm xl:h-[28.5rem]">
                         <MapContainer
                           center={[16.2, 106.1]}
                           zoom={5.4}
@@ -1131,6 +1155,43 @@ export default function SnakesPage() {
                     </section>
 
                     <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+                      <h4 className="mb-2 text-sm font-bold text-slate-800">Đặc điểm nhận diện và hành vi</h4>
+                      <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+                        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">Đặc điểm hình thái</p>
+                          {selectedDetail.identification?.physicalTraits?.length
+                            ? (
+                                <ul className="mt-2 space-y-1 text-sm text-slate-700">
+                                  {selectedDetail.identification.physicalTraits.map(trait => (
+                                    <li key={trait} className="flex items-start gap-1.5">
+                                      <BadgeCheck className="mt-0.5 size-4 shrink-0 text-teal-700" />
+                                      <span>{trait}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              )
+                            : <p className="mt-2 text-sm text-slate-500">Không có dữ liệu.</p>}
+                        </div>
+
+                        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">Hành vi</p>
+                          {selectedDetail.identification?.behaviors?.length
+                            ? (
+                                <ul className="mt-2 space-y-1 text-sm text-slate-700">
+                                  {selectedDetail.identification.behaviors.map(behavior => (
+                                    <li key={behavior} className="flex items-start gap-1.5">
+                                      <BadgeCheck className="mt-0.5 size-4 shrink-0 text-teal-700" />
+                                      <span>{behavior}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              )
+                            : <p className="mt-2 text-sm text-slate-500">Không có dữ liệu.</p>}
+                        </div>
+                      </div>
+                    </section>
+
+                    <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
                       <h4 className="mb-2 flex items-center gap-2 text-sm font-bold text-slate-800">
                         <ShieldAlert className="size-4 text-rose-600" />
                         Biểu hiện theo thời gian
@@ -1181,8 +1242,8 @@ export default function SnakesPage() {
                             )}
                       </div>
 
-                      <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-2">
-                        <details className="group rounded-xl border border-slate-200 bg-white p-3">
+                      <div className="mt-3 grid grid-cols-1 items-start gap-3 xl:grid-cols-2">
+                        <details name="snake-first-aid-layer" className="group self-start rounded-xl border border-slate-200 bg-white p-3">
                           <summary className="cursor-pointer list-none text-sm font-semibold text-slate-800">
                             <span className="inline-flex items-center gap-2">
                               Hướng dẫn nền
@@ -1213,7 +1274,7 @@ export default function SnakesPage() {
                           </div>
                         </details>
 
-                        <details className="group rounded-xl border border-slate-200 bg-white p-3">
+                        <details name="snake-first-aid-layer" className="group self-start rounded-xl border border-slate-200 bg-white p-3">
                           <summary className="cursor-pointer list-none text-sm font-semibold text-slate-800">
                             <span className="inline-flex items-center gap-2">
                               Tùy chỉnh riêng
