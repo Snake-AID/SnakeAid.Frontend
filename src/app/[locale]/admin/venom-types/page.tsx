@@ -8,9 +8,7 @@ import { firstAidGuidelineApi } from '@/apis/first-aid-guideline.api';
 import { venomTypeApi } from '@/apis/venom-type.api';
 
 const getFirstAidLabel = (guideline: FirstAidGuideline) => {
-  const name = typeof guideline.name === 'string' ? guideline.name.trim() : '';
-  const title = typeof guideline.title === 'string' ? guideline.title.trim() : '';
-  const fallback = name || title || `Guideline #${guideline.id}`;
+  const fallback = guideline.name?.trim() || `Guideline #${guideline.id}`;
   return `${guideline.id} - ${fallback}`;
 };
 
@@ -282,9 +280,9 @@ export default function VenomTypesPage() {
                     <p className="text-sm text-slate-700">
                       {firstAidOptionMap[selectedDetail.firstAidGuidelineId] ?? `Guideline #${selectedDetail.firstAidGuidelineId}`}
                     </p>
-                    {firstAidDetail?.description && (
+                    {firstAidDetail?.summary && (
                       <p className="mt-2 text-sm leading-6 text-slate-600">
-                        {firstAidDetail.description}
+                        {firstAidDetail.summary}
                       </p>
                     )}
                   </div>
