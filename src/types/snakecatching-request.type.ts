@@ -1,5 +1,6 @@
 // Types for Snake Catching Request APIs & SignalR payloads
 
+import type { BriefRescuerProfileResponse } from './operator.type';
 import type { GeoPointResponse } from './snakebite-incident.type';
 
 export enum SnakeCatchingRequestStatus {
@@ -27,7 +28,7 @@ export interface CreateSnakeCatchingRequestResponse {
   isPrePaid?: boolean | null;
   assignedAt?: string | null;
   assignedRescuerId?: string | null;
-  assignedRescuer?: unknown;
+  assignedRescuer?: BriefRescuerProfileResponse | null;
   dispatchedAt?: string | null;
   cancellationReason?: string | null;
   lat?: number | null;

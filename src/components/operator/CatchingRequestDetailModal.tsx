@@ -205,6 +205,11 @@ export default function CatchingRequestDetailModal({
     );
   };
 
+  const rescuer = request?.assignedRescuer ?? null;
+  const rescuerName = rescuer?.account?.fullName ?? rescuer?.account?.email ?? 'Chưa có thông tin';
+  const rescuerPhone = rescuer?.phoneNumber ?? 'Không có SĐT';
+  const rescuerAvatar = rescuer?.account?.avatarUrl ?? null;
+
   return (
     <div className="fixed inset-0 z-99999 flex items-center justify-center bg-black/40 p-4">
       <div className="relative w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-xl">
@@ -348,16 +353,69 @@ export default function CatchingRequestDetailModal({
                           </div>
                         )}
 
-                        {request.assignedRescuerId && (
+                        {(request.assignedRescuerId || rescuer) && (
                           <div className="rounded-xl border border-sky-200 bg-sky-50 p-4">
-                            <p className="text-xs font-semibold text-sky-700 uppercase tracking-wide">Rescuer được phân công</p>
-                            <p className="mt-1 text-sm text-slate-900">
-                              ID:
-                              {' '}
-                              {request.assignedRescuerId}
-                            </p>
+                            <div className="flex items-center gap-2">
+                              <User className="size-4 text-sky-700" />
+                              <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">Đội cứu hộ được phân công</p>
+                            </div>
+
+                            {rescuer
+                              ? (
+                                  <div className="mt-3 flex items-start gap-3 rounded-xl border border-sky-200 bg-white p-3">
+                                    {rescuerAvatar
+                                      ? (
+                                          <img
+                                            src={rescuerAvatar}
+                                            alt={rescuerName}
+                                            className="h-12 w-12 rounded-full border border-sky-200 object-cover"
+                                          />
+                                        )
+                                      : (
+                                          <div className="flex h-12 w-12 items-center justify-center rounded-full border border-sky-200 bg-sky-100 text-sky-700">
+                                            <User className="size-6" />
+                                          </div>
+                                        )}
+
+                                    <div className="min-w-0 flex-1">
+                                      <p className="truncate text-sm font-semibold text-slate-900">{rescuerName}</p>
+                                      <p className="mt-0.5 text-xs text-slate-500">{rescuerPhone}</p>
+
+                                      <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-slate-600">
+                                        <span className="rounded-full bg-sky-100 px-2 py-0.5 font-semibold text-sky-700">
+                                          {rescuer.isOnline ? 'Online' : 'Offline'}
+                                        </span>
+                                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 font-semibold text-emerald-700">
+                                          {rescuer.isAvailable ? 'Sẵn sàng' : 'Đang bận'}
+                                        </span>
+                                        {rescuer.type && (
+                                          <span className="rounded-full bg-slate-100 px-2 py-0.5 font-semibold text-slate-700">
+                                            {rescuer.type}
+                                          </span>
+                                        )}
+                                      </div>
+
+                                      <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-600 md:grid-cols-4">
+                                        <div>
+                                          <p className="font-semibold text-slate-500">Đánh giá</p>
+                                          <p className="font-semibold text-slate-900">{rescuer.rating ?? '-'}</p>
+                                        </div>
+                                        <div>
+                                          <p className="font-semibold text-slate-500">Cập nhật cuối</p>
+                                          <p className="font-semibold text-slate-900">
+                                            {rescuer.lastLocationUpdate ? new Date(rescuer.lastLocationUpdate).toLocaleString('vi-VN') : '-'}
+                                          </p>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )
+                              : (
+                                  <p className="mt-3 text-sm text-slate-600">Chưa có thông tin rescuer được phân công.</p>
+                                )}
+
                             {request.assignedAt && (
-                              <p className="mt-1 text-xs text-slate-600">
+                              <p className="mt-2 text-xs text-slate-600">
                                 Phân công lúc:
                                 {' '}
                                 {new Date(request.assignedAt).toLocaleString('vi-VN')}
@@ -399,7 +457,7 @@ export default function CatchingRequestDetailModal({
                                 className="w-full inline-flex items-center justify-center gap-2 rounded-full border border-sky-600 bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed"
                               >
                                 <Send className="size-4" />
-                                Điều phối rescuer
+                                Điều phối đội cứu hộ
                               </button>
                             )}
 
