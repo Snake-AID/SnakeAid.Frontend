@@ -280,62 +280,155 @@ const getAntivenomDescription = (item: SnakeSpeciesDetail['antivenoms'][number])
   return item.description;
 };
 
+const hasFirstAidData = (content: FirstAidGuidelineContent | null | undefined) => Boolean(content
+  && (content.steps.length > 0
+    || content.dos.length > 0
+    || content.donts.length > 0
+    || content.notes.length > 0));
+
+const normalizeMediaUrl = (mediaUrl: string | null | undefined) => {
+  const value = (mediaUrl ?? '').trim();
+  return value.length > 0 ? value : null;
+};
+
+const getGuidelineTypeLabel = (type: string | null | undefined) => {
+  const normalized = (type ?? '').trim().toLowerCase();
+  if (normalized === 'general') {
+    return 'Chung';
+  }
+  if (normalized === 'venomtype') {
+    return 'Theo loại độc';
+  }
+
+  return type || 'Không xác định';
+};
+
+const getOverrideModeLabel = (mode: string | null | undefined) => {
+  const normalized = (mode ?? '').trim().toLowerCase();
+  if (normalized === 'replace') {
+    return 'Thay thế';
+  }
+  if (normalized === 'append') {
+    return 'Bổ sung';
+  }
+
+  return mode || 'Bổ sung';
+};
+
 const renderFirstAidContent = (content: FirstAidGuidelineContent | null | undefined) => {
-  if (!content
-    || (content.steps.length === 0
-      && content.dos.length === 0
-      && content.donts.length === 0
-      && content.notes.length === 0)) {
+  if (!hasFirstAidData(content)) {
     return <p className="text-sm text-slate-500">Không có dữ liệu.</p>;
   }
 
+  const resolvedContent = content as FirstAidGuidelineContent;
+
+  const sections: Array<{
+    key: 'steps' | 'dos' | 'donts';
+    title: string;
+    emptyLabel: string;
+    items: FirstAidGuidelineContent['steps'];
+    titleClass: string;
+    badgeClass: string;
+  }> = [
+    {
+      key: 'steps',
+      title: 'Các bước',
+      emptyLabel: 'Chưa có bước xử lý.',
+      items: resolvedContent.steps,
+      titleClass: 'text-amber-700',
+      badgeClass: 'bg-amber-100 text-amber-700',
+    },
+    {
+      key: 'dos',
+      title: 'Nên làm',
+      emptyLabel: 'Không có mục bắt buộc.',
+      items: resolvedContent.dos,
+      titleClass: 'text-emerald-700',
+      badgeClass: 'bg-emerald-100 text-emerald-700',
+    },
+    {
+      key: 'donts',
+      title: 'Không nên làm',
+      emptyLabel: 'Không có chống chỉ định.',
+      items: resolvedContent.donts,
+      titleClass: 'text-rose-700',
+      badgeClass: 'bg-rose-100 text-rose-700',
+    },
+  ];
+
   return (
-    <div className="space-y-3">
-      {content.steps.length > 0 && (
+    <div className="space-y-4">
+      {sections.map(section => (
+        <div key={section.key}>
+          <p className={`mb-2 text-xs font-bold uppercase tracking-wide ${section.titleClass}`}>
+            {section.title}
+          </p>
+
+          {section.items.length === 0
+            ? (
+                <div className="rounded-xl border border-dashed border-slate-300 bg-white px-3 py-2 text-sm text-slate-500">
+                  {section.emptyLabel}
+                </div>
+              )
+            : (
+                <div className="space-y-2">
+                  {section.items.map((item, index) => {
+                    const mediaUrl = normalizeMediaUrl(item.mediaUrl);
+
+                    return (
+                      <article key={`${section.key}-${item.text}-${mediaUrl ?? 'none'}`} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                        <div className="flex flex-col gap-2.5 md:flex-row md:items-start">
+                          {mediaUrl
+                            ? (
+                                <a
+                                  href={mediaUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="block w-full shrink-0 overflow-hidden rounded-lg border border-slate-200 md:w-40"
+                                  title="Mở ảnh minh họa"
+                                >
+                                  <img
+                                    src={mediaUrl}
+                                    alt="Ảnh minh họa bước sơ cứu"
+                                    className="h-26 w-full object-cover"
+                                    loading="lazy"
+                                  />
+                                  <p className="border-t border-slate-200 bg-slate-50 px-2 py-1 text-[11px] font-semibold text-slate-600">
+                                    Mở ảnh minh họa
+                                  </p>
+                                </a>
+                              )
+                            : (
+                                <div className="flex h-26 w-full shrink-0 items-center justify-center rounded-lg border border-dashed border-slate-300 bg-slate-50 px-2 text-center text-xs font-semibold text-slate-500 md:w-40">
+                                  Không có hình ảnh
+                                </div>
+                              )}
+
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-start gap-2.5">
+                              <span className={`mt-0.5 inline-flex min-w-6 items-center justify-center rounded-full px-1.5 py-1 text-[11px] font-bold ${section.badgeClass}`}>
+                                {index + 1}
+                              </span>
+                              <p className="text-sm leading-6 text-slate-700">{item.text}</p>
+                            </div>
+                          </div>
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+              )}
+        </div>
+      ))}
+
+      {resolvedContent.notes.length > 0 && (
         <div>
-          <p className="text-xs font-semibold text-slate-800">Các bước</p>
-          <ol className="mt-2 space-y-2 text-sm text-slate-700">
-            {content.steps.map((step, index) => (
-              <li key={`${step.text}-${step.mediaUrl ?? 'none'}`} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
-                <span className="font-semibold text-slate-800">
-                  {index + 1}
-                  .
-                </span>
-                {step.text}
+          <p className="mb-2 text-xs font-bold uppercase tracking-wide text-slate-600">Ghi chú quan trọng</p>
+          <ul className="space-y-2">
+            {resolvedContent.notes.map(note => (
+              <li key={`note-${note}`} className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                {note}
               </li>
-            ))}
-          </ol>
-        </div>
-      )}
-
-      {content.dos.length > 0 && (
-        <div>
-          <p className="text-xs font-semibold text-emerald-700">Nên làm</p>
-          <ul className="mt-2 list-disc pl-4 text-sm text-slate-700">
-            {content.dos.map(item => (
-              <li key={`do-${item.text}-${item.mediaUrl ?? 'none'}`}>{item.text}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {content.donts.length > 0 && (
-        <div>
-          <p className="text-xs font-semibold text-rose-700">Không nên làm</p>
-          <ul className="mt-2 list-disc pl-4 text-sm text-slate-700">
-            {content.donts.map(item => (
-              <li key={`dont-${item.text}-${item.mediaUrl ?? 'none'}`}>{item.text}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {content.notes.length > 0 && (
-        <div>
-          <p className="text-xs font-semibold text-slate-700">Ghi chú</p>
-          <ul className="mt-2 list-disc pl-4 text-sm text-slate-700">
-            {content.notes.map(note => (
-              <li key={`note-${note}`}>{note}</li>
             ))}
           </ul>
         </div>
@@ -786,12 +879,27 @@ export default function SnakesPage() {
                         }`}
                       >
                         <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-semibold text-slate-900">{item.commonName}</p>
-                            <p className="mt-0.5 text-xs italic text-slate-500">{item.scientificName}</p>
+                          <div className="flex min-w-0 flex-1 items-start gap-2.5">
+                            <div className="relative size-11 shrink-0 overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
+                              {item.imageUrl
+                                ? (
+                                    <Image
+                                      src={item.imageUrl}
+                                      alt={item.commonName}
+                                      fill
+                                      sizes="44px"
+                                      className="object-cover"
+                                    />
+                                  )
+                                : null}
+                            </div>
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-semibold text-slate-900">{item.commonName}</p>
+                              <p className="mt-0.5 truncate text-xs italic text-slate-500">{item.scientificName}</p>
+                            </div>
                           </div>
-                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">
-                            Rủi ro
+                          <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">
+                            Độ nguy hiểm
                             {' '}
                             {item.riskLevel}
                           </span>
@@ -826,82 +934,107 @@ export default function SnakesPage() {
                 )}
 
                 {selectedDetail && !isDetailLoading && !detailError && (
-                  <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                    <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_18rem]">
-                      <div>
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Chi tiết loài rắn</p>
-                            <h3 className="mt-1 text-lg font-bold text-slate-900">{selectedDetail.commonName}</h3>
-                            <p className="text-xs italic text-slate-500">{selectedDetail.scientificName}</p>
+                  <div className="space-y-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                    <section className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,1fr)_18rem] xl:items-start">
+                      <div className="flex items-center">
+                        <p className="text-xs font-bold uppercase tracking-[0.16em] text-slate-600">Chi tiết loài rắn</p>
+                      </div>
+
+                      <div className="flex flex-wrap items-center justify-start gap-2 xl:justify-end">
+                        <button
+                          type="button"
+                          onClick={() => void openUpdateForm()}
+                          className="inline-flex items-center justify-center gap-1 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                        >
+                          <Edit3 className="size-3.5" />
+                          Sửa
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setIsDeleteConfirmOpen(true)}
+                          className="inline-flex items-center justify-center gap-1 rounded-lg border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50"
+                        >
+                          <Trash2 className="size-3.5" />
+                          Xóa
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedId(null);
+                            setSelectedDetail(null);
+                            setMappings([]);
+                          }}
+                          className="inline-flex items-center justify-center rounded-lg border border-slate-200 p-2 text-slate-500 hover:bg-slate-100"
+                          title="Đóng chi tiết"
+                        >
+                          <X className="size-4" />
+                        </button>
+                      </div>
+
+                      <div className="space-y-3">
+                        <div className="bg-white px-1 py-1">
+                          <div className="flex flex-col gap-3 md:flex-row md:items-stretch md:gap-5">
+                            <div className="flex h-56 w-full items-center overflow-hidden rounded-xl bg-white md:h-60 md:w-auto md:max-w-[28rem] md:shrink-0">
+                              {selectedDetail.imageUrl
+                                ? (
+                                    <Image
+                                      src={selectedDetail.imageUrl}
+                                      alt={selectedDetail.commonName}
+                                      width={560}
+                                      height={360}
+                                      sizes="(max-width: 768px) 100vw, 448px"
+                                      className="h-full w-full object-contain object-left md:w-auto"
+                                    />
+                                  )
+                                : null}
+                            </div>
+
+                            <div className="flex min-w-0 flex-1 flex-col gap-3">
+                              <div className="py-1">
+                                <h3 className="text-2xl font-bold leading-tight text-slate-900 lg:text-[1.7rem]">{selectedDetail.commonName}</h3>
+                                <p className="mt-1 text-sm italic text-slate-600 lg:text-base">{selectedDetail.scientificName}</p>
+
+                                <div className="mt-3 flex flex-wrap gap-2 text-xs">
+                                  <span className="rounded-full bg-amber-100 px-2.5 py-1 font-semibold text-amber-800">
+                                    Mức độ nguy hiểm
+                                    {' '}
+                                    {selectedDetail.riskLevel}
+                                  </span>
+                                  <span className="rounded-full bg-rose-100 px-2.5 py-1 font-semibold text-rose-700">
+                                    {mappedRegionCount}
+                                    {' '}
+                                    vùng phân bố
+                                  </span>
+                                  <span className={`rounded-full px-2.5 py-1 font-semibold ${selectedDetail.isVenomous ? 'bg-red-100 text-red-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                                    {selectedDetail.isVenomous ? 'Rắn có độc' : 'Rắn không độc'}
+                                  </span>
+                                </div>
+                              </div>
+
+                              <div className="mt-auto pb-1">
+                                <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">Tên gọi khác</p>
+                                {selectedDetail.alternativeNames.length === 0
+                                  ? <p className="mt-1 text-sm text-slate-500">Không có dữ liệu.</p>
+                                  : (
+                                      <ul className="mt-2 grid grid-cols-1 gap-1 text-sm text-slate-700 md:grid-cols-2">
+                                        {selectedDetail.alternativeNames.map(name => (
+                                          <li key={name} className="flex items-start gap-1.5">
+                                            <BadgeCheck className="mt-0.5 size-4 shrink-0 text-teal-700" />
+                                            <span>{name}</span>
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    )}
+                              </div>
+                            </div>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedId(null);
-                              setSelectedDetail(null);
-                              setMappings([]);
-                            }}
-                            className="rounded-lg p-1.5 text-slate-500 hover:bg-slate-100"
-                          >
-                            <X className="size-4" />
-                          </button>
                         </div>
 
-                        <div className="mt-3 flex items-start gap-3">
-                          <div className="relative h-18 w-18 shrink-0 overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
-                            {selectedDetail.imageUrl
-                              ? (
-                                  <Image
-                                    src={selectedDetail.imageUrl}
-                                    alt={selectedDetail.commonName}
-                                    fill
-                                    sizes="72px"
-                                    className="object-cover"
-                                  />
-                                )
-                              : null}
-                          </div>
-                          <div className="space-y-1 text-sm text-slate-700">
-                            <p>
-                              Mức rủi ro:
-                              {' '}
-                              <span className="font-semibold">{selectedDetail.riskLevel}</span>
-                            </p>
-                            <p>
-                              Vùng đã gán phân bố:
-                              {' '}
-                              <span className="font-semibold text-rose-700">{mappedRegionCount}</span>
-                            </p>
-                            <p className="line-clamp-3 text-slate-600">{selectedDetail.identificationSummary}</p>
-                          </div>
-                        </div>
-
-                        <div className="mt-3 grid grid-cols-2 gap-2">
-                          <button
-                            type="button"
-                            onClick={() => void openUpdateForm()}
-                            className="inline-flex items-center justify-center gap-1 rounded-lg border border-slate-200 px-2.5 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
-                          >
-                            <Edit3 className="size-3.5" />
-                            Sửa
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setIsDeleteConfirmOpen(true)}
-                            className="inline-flex items-center justify-center gap-1 rounded-lg border border-rose-200 px-2.5 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50"
-                          >
-                            <Trash2 className="size-3.5" />
-                            Xóa
-                          </button>
-                        </div>
-
-                        <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                        <div className="rounded-xl border border-slate-200 bg-white p-3">
                           <h4 className="text-sm font-bold text-slate-800">Mô tả</h4>
                           <p className="mt-1 text-sm leading-6 text-slate-700">{selectedDetail.description || 'Không có dữ liệu.'}</p>
                         </div>
-
-                        <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                        <div className="rounded-xl border border-slate-200 bg-white p-3">
                           <h4 className="text-sm font-bold text-slate-800">Tóm tắt nhận diện</h4>
                           <p className="mt-1 text-sm leading-6 text-slate-700">{selectedDetail.identificationSummary || 'Không có dữ liệu.'}</p>
                           {selectedDetail.identification?.habitat && (
@@ -912,252 +1045,291 @@ export default function SnakesPage() {
                             </p>
                           )}
                         </div>
+                      </div>
 
-                        <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
-                          <h4 className="text-sm font-bold text-slate-800">Tên gọi khác</h4>
-                          {selectedDetail.alternativeNames.length === 0
-                            ? <p className="mt-1 text-sm text-slate-500">Không có dữ liệu.</p>
-                            : (
+                      <aside className="relative self-start h-[25.5rem] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm xl:h-[28.5rem]">
+                        <MapContainer
+                          center={[16.2, 106.1]}
+                          zoom={5.4}
+                          dragging={false}
+                          scrollWheelZoom={false}
+                          doubleClickZoom={false}
+                          boxZoom={false}
+                          keyboard={false}
+                          touchZoom={false}
+                          zoomControl={false}
+                          className="h-full w-full"
+                        >
+                          <TileLayer
+                            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                            attribution="&copy; OpenStreetMap contributors"
+                          />
+
+                          {regions
+                            .filter(region => region.boundaryCoordinates.length >= 3)
+                            .map((region) => {
+                              const mapping = mappingByRegionId[region.id] ?? null;
+                              const raw = toLeafletPolygon(region.boundaryCoordinates);
+                              const smoothed = smoothClosedPolygon(raw, 2);
+                              const style = getRegionStyle(mapping);
+
+                              return (
+                                <Polygon
+                                  key={region.id}
+                                  positions={smoothed}
+                                  pathOptions={{
+                                    color: style.color,
+                                    fillColor: style.fillColor,
+                                    fillOpacity: style.fillOpacity,
+                                    weight: style.weight,
+                                    lineCap: 'round',
+                                    lineJoin: 'round',
+                                    dashArray: mapping ? undefined : '4 6',
+                                  }}
+                                  eventHandlers={{
+                                    click: () => openRegionDialog(region),
+                                  }}
+                                >
+                                  <Tooltip sticky>
+                                    <div className="text-xs">
+                                      <p className="font-semibold text-slate-800">{region.name}</p>
+                                      {mapping
+                                        ? (
+                                            <>
+                                              <p className="mt-1 text-slate-700">
+                                                Mức độ:
+                                                {' '}
+                                                {commonLevelLabelMap[mapping.commonLevel]}
+                                              </p>
+                                              <p className="text-slate-700">
+                                                Độ ưu tiên:
+                                                {' '}
+                                                {mapping.priority}
+                                              </p>
+                                            </>
+                                          )
+                                        : <p className="mt-1 text-slate-600">Chưa có dữ liệu phân bố</p>}
+                                    </div>
+                                  </Tooltip>
+                                </Polygon>
+                              );
+                            })}
+                        </MapContainer>
+
+                        <div className="absolute left-2 top-2 z-10 inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white/95 px-2 py-1 text-[11px] font-semibold text-slate-700">
+                          <span className="inline-flex size-5 items-center justify-center rounded-full bg-rose-100 text-[10px] font-bold text-rose-700">
+                            {mappedRegionCount}
+                          </span>
+                          vùng
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (selectedId != null) {
+                              void loadMappings(selectedId);
+                            }
+                          }}
+                          disabled={selectedId == null || isMapLoading}
+                          className="absolute right-2 top-2 z-10 rounded-md bg-white/95 p-1.5 text-amber-700 transition hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-60"
+                          title="Đồng bộ phân bố"
+                        >
+                          <RefreshCcw className={`size-4 ${isMapLoading ? 'animate-spin' : ''}`} />
+                        </button>
+
+                        {(isMapLoading || mapError) && (
+                          <div className="pointer-events-none absolute bottom-3 left-3 z-10">
+                            {isMapLoading && (
+                              <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 shadow">
+                                Đang tải dữ liệu phân bố...
+                              </div>
+                            )}
+                            {!isMapLoading && mapError && (
+                              <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 shadow">
+                                {mapError}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </aside>
+                    </section>
+
+                    <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+                      <h4 className="mb-2 text-sm font-bold text-slate-800">Đặc điểm nhận diện và hành vi</h4>
+                      <div className="grid grid-cols-1 gap-3 xl:grid-cols-2">
+                        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">Đặc điểm hình thái</p>
+                          {selectedDetail.identification?.physicalTraits?.length
+                            ? (
                                 <ul className="mt-2 space-y-1 text-sm text-slate-700">
-                                  {selectedDetail.alternativeNames.map(name => (
-                                    <li key={name} className="flex items-start gap-1.5">
+                                  {selectedDetail.identification.physicalTraits.map(trait => (
+                                    <li key={trait} className="flex items-start gap-1.5">
                                       <BadgeCheck className="mt-0.5 size-4 shrink-0 text-teal-700" />
-                                      <span>{name}</span>
+                                      <span>{trait}</span>
                                     </li>
                                   ))}
                                 </ul>
-                              )}
+                              )
+                            : <p className="mt-2 text-sm text-slate-500">Không có dữ liệu.</p>}
+                        </div>
+
+                        <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                          <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">Hành vi</p>
+                          {selectedDetail.identification?.behaviors?.length
+                            ? (
+                                <ul className="mt-2 space-y-1 text-sm text-slate-700">
+                                  {selectedDetail.identification.behaviors.map(behavior => (
+                                    <li key={behavior} className="flex items-start gap-1.5">
+                                      <BadgeCheck className="mt-0.5 size-4 shrink-0 text-teal-700" />
+                                      <span>{behavior}</span>
+                                    </li>
+                                  ))}
+                                </ul>
+                              )
+                            : <p className="mt-2 text-sm text-slate-500">Không có dữ liệu.</p>}
                         </div>
                       </div>
+                    </section>
 
-                      <div className="xl:flex xl:items-stretch">
-                        <div className="relative h-full min-h-104 w-72 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-                          <MapContainer
-                            center={[16.2, 106.1]}
-                            zoom={5.4}
-                            dragging={false}
-                            scrollWheelZoom={false}
-                            doubleClickZoom={false}
-                            boxZoom={false}
-                            keyboard={false}
-                            touchZoom={false}
-                            zoomControl={false}
-                            className="h-full w-full"
-                          >
-                            <TileLayer
-                              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-                              attribution="&copy; OpenStreetMap contributors"
-                            />
-
-                            {regions
-                              .filter(region => region.boundaryCoordinates.length >= 3)
-                              .map((region) => {
-                                const mapping = mappingByRegionId[region.id] ?? null;
-                                const raw = toLeafletPolygon(region.boundaryCoordinates);
-                                const smoothed = smoothClosedPolygon(raw, 2);
-                                const style = getRegionStyle(mapping);
-
-                                return (
-                                  <Polygon
-                                    key={region.id}
-                                    positions={smoothed}
-                                    pathOptions={{
-                                      color: style.color,
-                                      fillColor: style.fillColor,
-                                      fillOpacity: style.fillOpacity,
-                                      weight: style.weight,
-                                      lineCap: 'round',
-                                      lineJoin: 'round',
-                                      dashArray: mapping ? undefined : '4 6',
-                                    }}
-                                    eventHandlers={{
-                                      click: () => openRegionDialog(region),
-                                    }}
-                                  >
-                                    <Tooltip sticky>
-                                      <div className="text-xs">
-                                        <p className="font-semibold text-slate-800">{region.name}</p>
-                                        {mapping
-                                          ? (
-                                              <>
-                                                <p className="mt-1 text-slate-700">
-                                                  Mức độ:
-                                                  {' '}
-                                                  {commonLevelLabelMap[mapping.commonLevel]}
-                                                </p>
-                                                <p className="text-slate-700">
-                                                  Độ ưu tiên:
-                                                  {' '}
-                                                  {mapping.priority}
-                                                </p>
-                                              </>
-                                            )
-                                          : <p className="mt-1 text-slate-600">Chưa có dữ liệu phân bố</p>}
-                                      </div>
-                                    </Tooltip>
-                                  </Polygon>
-                                );
-                              })}
-                          </MapContainer>
-
-                          <div className="absolute left-2 top-2 z-10 inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white/95 px-2 py-1 text-[11px] font-semibold text-slate-700">
-                            <span className="inline-flex size-5 items-center justify-center rounded-full bg-rose-100 text-[10px] font-bold text-rose-700">
-                              {mappedRegionCount}
-                            </span>
-                            vùng
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (selectedId != null) {
-                                void loadMappings(selectedId);
-                              }
-                            }}
-                            disabled={selectedId == null || isMapLoading}
-                            className="absolute right-2 top-2 z-10 rounded-md bg-white/95 p-1.5 text-amber-700 transition hover:bg-amber-50 disabled:cursor-not-allowed disabled:opacity-60"
-                            title="Đồng bộ phân bố"
-                          >
-                            <RefreshCcw className={`size-4 ${isMapLoading ? 'animate-spin' : ''}`} />
-                          </button>
-
-                          {(isMapLoading || mapError) && (
-                            <div className="pointer-events-none absolute bottom-3 left-3 z-10">
-                              {isMapLoading && (
-                                <div className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 shadow">
-                                  Đang tải dữ liệu phân bố...
+                    <section className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+                      <h4 className="mb-2 flex items-center gap-2 text-sm font-bold text-slate-800">
+                        <ShieldAlert className="size-4 text-rose-600" />
+                        Biểu hiện theo thời gian
+                      </h4>
+                      {selectedDetail.symptomsByTime == null || selectedDetail.symptomsByTime.length === 0
+                        ? <p className="text-sm text-slate-500">Không có dữ liệu.</p>
+                        : (
+                            <div className="grid grid-cols-1 gap-2 xl:grid-cols-2">
+                              {selectedDetail.symptomsByTime.map(symptom => (
+                                <div key={symptom.timeRange} className="rounded-lg border border-slate-200 bg-slate-50 p-2.5">
+                                  <p className="text-xs font-semibold text-slate-800">{symptom.timeRange}</p>
+                                  <p className={`mt-1 text-xs font-semibold ${symptom.isCritical ? 'text-rose-700' : 'text-emerald-700'}`}>
+                                    {symptom.isCritical ? 'Mức độ: Nguy kịch' : 'Mức độ: Theo dõi'}
+                                  </p>
+                                  <ul className="mt-1 list-disc pl-4 text-sm text-slate-700">
+                                    {symptom.signs.map(sign => (
+                                      <li key={sign}>{sign}</li>
+                                    ))}
+                                  </ul>
                                 </div>
-                              )}
-                              {!isMapLoading && mapError && (
-                                <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700 shadow">
-                                  {mapError}
-                                </div>
-                              )}
+                              ))}
                             </div>
                           )}
-                        </div>
+                    </section>
+
+                    <section className="rounded-2xl border border-amber-200 bg-gradient-to-b from-amber-50 to-white p-3">
+                      <div className="mb-3 flex flex-wrap items-center gap-2">
+                        <h4 className="flex items-center gap-2 text-sm font-bold text-slate-800">
+                          <AlertTriangle className="size-4 text-amber-600" />
+                          Bộ hướng dẫn sơ cứu áp dụng
+                        </h4>
+                        <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-700">
+                          Đang sử dụng thực tế
+                        </span>
                       </div>
-                    </div>
 
-                    <div className="mt-3 space-y-4">
-                      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-                        <div className="rounded-xl border border-slate-200 bg-white p-3">
-                          <h4 className="mb-2 flex items-center gap-2 text-sm font-bold text-slate-800">
-                            <ShieldAlert className="size-4 text-rose-600" />
-                            Biểu hiện theo thời gian
-                          </h4>
-                          {selectedDetail.symptomsByTime == null || selectedDetail.symptomsByTime.length === 0
-                            ? <p className="text-sm text-slate-500">Không có dữ liệu.</p>
-                            : (
-                                <div className="space-y-2">
-                                  {selectedDetail.symptomsByTime.map(symptom => (
-                                    <div key={symptom.timeRange} className="rounded-lg border border-slate-200 bg-slate-50 p-2.5">
-                                      <p className="text-xs font-semibold text-slate-800">{symptom.timeRange}</p>
-                                      <p className={`mt-1 text-xs font-semibold ${symptom.isCritical ? 'text-rose-700' : 'text-emerald-700'}`}>
-                                        {symptom.isCritical ? 'Mức độ: Nguy kịch' : 'Mức độ: Theo dõi'}
-                                      </p>
-                                      <ul className="mt-1 list-disc pl-4 text-sm text-slate-700">
-                                        {symptom.signs.map(sign => (
-                                          <li key={sign}>{sign}</li>
-                                        ))}
-                                      </ul>
-                                    </div>
-                                  ))}
-                                </div>
+                      <div className="rounded-2xl border border-emerald-200 bg-white p-3 shadow-sm">
+                        {selectedDetail.effectiveFirstAidGuideline
+                          ? renderFirstAidContent(selectedDetail.effectiveFirstAidGuideline)
+                          : (
+                              <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-500">
+                                {
+                                  selectedDetail.baseFirstAidGuideline
+                                    ? 'Hiện chưa có bộ áp dụng sau cùng. Bạn có thể xem hướng dẫn nền bên dưới.'
+                                    : 'Chưa có hướng dẫn sơ cứu cho loài rắn này.'
+                                }
+                              </p>
+                            )}
+                      </div>
+
+                      <div className="mt-3 grid grid-cols-1 items-start gap-3 xl:grid-cols-2">
+                        <details name="snake-first-aid-layer" className="group self-start rounded-xl border border-slate-200 bg-white p-3">
+                          <summary className="cursor-pointer list-none text-sm font-semibold text-slate-800">
+                            <span className="inline-flex items-center gap-2">
+                              Hướng dẫn nền
+                              {selectedDetail.baseFirstAidGuideline?.type && (
+                                <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-700">
+                                  {getGuidelineTypeLabel(selectedDetail.baseFirstAidGuideline.type)}
+                                </span>
                               )}
-                        </div>
+                            </span>
+                          </summary>
 
-                        <div className="rounded-xl border border-slate-200 bg-white p-3">
-                          <h4 className="mb-2 flex items-center gap-2 text-sm font-bold text-slate-800">
-                            <AlertTriangle className="size-4 text-amber-600" />
-                            Hướng dẫn sơ cứu
-                          </h4>
-
-                          <div className="grid gap-4 xl:grid-cols-3">
-                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.15em] text-slate-500">Base guideline</p>
-                              {selectedDetail.baseFirstAidGuideline
-                                ? (
-                                    <div className="space-y-3">
-                                      <div className="rounded-lg border border-slate-200 bg-white p-3">
-                                        <p className="text-sm font-semibold text-slate-900">{selectedDetail.baseFirstAidGuideline.name}</p>
-                                        <p className="mt-2 text-xs text-slate-500">{selectedDetail.baseFirstAidGuideline.summary}</p>
-                                      </div>
-                                      {renderFirstAidContent(selectedDetail.baseFirstAidGuideline.content)}
+                          <div className="mt-3 space-y-3">
+                            {selectedDetail.baseFirstAidGuideline
+                              ? (
+                                  <>
+                                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                                      <p className="text-sm font-semibold text-slate-900">{selectedDetail.baseFirstAidGuideline.name}</p>
+                                      <p className="mt-1 text-xs leading-5 text-slate-600">{selectedDetail.baseFirstAidGuideline.summary}</p>
                                     </div>
-                                  )
-                                : (
-                                    <p className="text-sm text-slate-500">Chưa có base guideline.</p>
-                                  )}
-                            </div>
-
-                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.15em] text-slate-500">Override</p>
-                              {selectedDetail.firstAidGuidelineOverride && selectedDetail.firstAidGuidelineOverride.content
-                                ? renderFirstAidContent(selectedDetail.firstAidGuidelineOverride.content)
-                                : (
-                                    <p className="text-sm text-slate-500">
-                                      {
-                                        selectedDetail.baseFirstAidGuideline
-                                          ? 'Không có override, đang dùng base guideline.'
-                                          : 'Chưa có override cho loài rắn này.'
-                                      }
-                                    </p>
-                                  )}
-                            </div>
-
-                            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-3">
-                              <p className="mb-2 text-xs font-semibold uppercase tracking-[0.15em] text-slate-500">Effective guideline</p>
-                              {selectedDetail.effectiveFirstAidGuideline
-                                ? renderFirstAidContent(selectedDetail.effectiveFirstAidGuideline)
-                                : (
-                                    <p className="text-sm text-slate-500">
-                                      {
-                                        selectedDetail.baseFirstAidGuideline
-                                          ? 'Chỉ có base guideline, chưa có override.'
-                                          : 'Chưa có first aid guideline cho loài rắn này.'
-                                      }
-                                    </p>
-                                  )}
-                            </div>
+                                    {renderFirstAidContent(selectedDetail.baseFirstAidGuideline.content)}
+                                  </>
+                                )
+                              : (
+                                  <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-500">
+                                    Chưa có hướng dẫn nền.
+                                  </p>
+                                )}
                           </div>
-                        </div>
+                        </details>
+
+                        <details name="snake-first-aid-layer" className="group self-start rounded-xl border border-slate-200 bg-white p-3">
+                          <summary className="cursor-pointer list-none text-sm font-semibold text-slate-800">
+                            <span className="inline-flex items-center gap-2">
+                              Tùy chỉnh riêng
+                              <span className="rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-semibold text-blue-700">
+                                {getOverrideModeLabel(selectedDetail.firstAidGuidelineOverride?.mode)}
+                              </span>
+                            </span>
+                          </summary>
+
+                          <div className="mt-3">
+                            {selectedDetail.firstAidGuidelineOverride?.content
+                              ? renderFirstAidContent(selectedDetail.firstAidGuidelineOverride.content)
+                              : (
+                                  <p className="rounded-xl border border-dashed border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-500">
+                                    Không có tùy chỉnh riêng cho loài rắn này.
+                                  </p>
+                                )}
+                          </div>
+                        </details>
+                      </div>
+                    </section>
+
+                    <section className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+                      <div className="rounded-xl border border-slate-200 bg-white p-3">
+                        <h4 className="mb-2 text-sm font-bold text-slate-800">Thông tin độc tố</h4>
+                        {selectedDetail.venoms.length === 0
+                          ? <p className="text-sm text-slate-500">Không có dữ liệu.</p>
+                          : (
+                              <div className="space-y-2">
+                                {selectedDetail.venoms.map(venom => (
+                                  <div key={`${venom.venomType}-${venom.description}`} className="rounded-lg border border-slate-200 bg-slate-50 p-2.5">
+                                    <p className="text-sm font-semibold text-slate-800">{venom.venomType}</p>
+                                    <p className="mt-1 text-sm text-slate-700">{venom.description}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                       </div>
 
-                      <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
-                        <div className="rounded-xl border border-slate-200 bg-white p-3">
-                          <h4 className="mb-2 text-sm font-bold text-slate-800">Thông tin độc tố</h4>
-                          {selectedDetail.venoms.length === 0
-                            ? <p className="text-sm text-slate-500">Không có dữ liệu.</p>
-                            : (
-                                <div className="space-y-2">
-                                  {selectedDetail.venoms.map(venom => (
-                                    <div key={`${venom.venomType}-${venom.description}`} className="rounded-lg border border-slate-200 bg-slate-50 p-2.5">
-                                      <p className="text-sm font-semibold text-slate-800">{venom.venomType}</p>
-                                      <p className="mt-1 text-sm text-slate-700">{venom.description}</p>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                        </div>
-
-                        <div className="rounded-xl border border-slate-200 bg-white p-3">
-                          <h4 className="mb-2 text-sm font-bold text-slate-800">Huyết thanh khuyến nghị</h4>
-                          {selectedDetail.antivenoms.length === 0
-                            ? <p className="text-sm text-slate-500">Không có dữ liệu.</p>
-                            : (
-                                <div className="space-y-2">
-                                  {selectedDetail.antivenoms.map(item => (
-                                    <div key={`${getAntivenomLabel(item)}-${getAntivenomDescription(item)}`} className="rounded-lg border border-slate-200 bg-slate-50 p-2.5">
-                                      <p className="text-sm font-semibold text-slate-800">{getAntivenomLabel(item)}</p>
-                                      <p className="mt-1 text-sm text-slate-700">{getAntivenomDescription(item)}</p>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-                        </div>
+                      <div className="rounded-xl border border-slate-200 bg-white p-3">
+                        <h4 className="mb-2 text-sm font-bold text-slate-800">Huyết thanh khuyến nghị</h4>
+                        {selectedDetail.antivenoms.length === 0
+                          ? <p className="text-sm text-slate-500">Không có dữ liệu.</p>
+                          : (
+                              <div className="space-y-2">
+                                {selectedDetail.antivenoms.map(item => (
+                                  <div key={`${getAntivenomLabel(item)}-${getAntivenomDescription(item)}`} className="rounded-lg border border-slate-200 bg-slate-50 p-2.5">
+                                    <p className="text-sm font-semibold text-slate-800">{getAntivenomLabel(item)}</p>
+                                    <p className="mt-1 text-sm text-slate-700">{getAntivenomDescription(item)}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                       </div>
-                    </div>
+                    </section>
                   </div>
                 )}
               </div>
