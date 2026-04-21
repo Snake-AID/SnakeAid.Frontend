@@ -327,6 +327,22 @@ export function useOperatorRescuers() {
     });
   }, []);
 
+  const clearMissionLocationByIncidentId = useCallback((incidentId: string) => {
+    setMissionLocations((prev) => {
+      const next = { ...prev };
+      let didRemove = false;
+
+      for (const [rescuerId, mission] of Object.entries(prev)) {
+        if (mission.incidentId === incidentId) {
+          delete next[rescuerId];
+          didRemove = true;
+        }
+      }
+
+      return didRemove ? next : prev;
+    });
+  }, []);
+
   return {
     rescuerRegistry,
     liveRescuers,
@@ -334,6 +350,7 @@ export function useOperatorRescuers() {
     loadRescuerData,
     loadOnlineRescuers,
     clearMissionLocation,
+    clearMissionLocationByIncidentId,
     handleRescuerOnlineStatus,
     handleRescuerIdleLocationUpdated,
     handleRescuerMissionLocationUpdated,
