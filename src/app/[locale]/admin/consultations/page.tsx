@@ -44,6 +44,19 @@ const formatShortId = (id: string | null | undefined) => {
   return `${id.slice(0, 8)}...${id.slice(-4)}`;
 };
 
+const formatReportSnippet = (value: string | null | undefined, maxLength = 140) => {
+  const content = value?.trim() ?? '';
+  if (!content) {
+    return 'Chưa có nội dung báo cáo.';
+  }
+
+  if (content.length <= maxLength) {
+    return content;
+  }
+
+  return `${content.slice(0, maxLength)}...`;
+};
+
 const getApiErrorMessage = (error: unknown, fallback: string) => {
   if (!(error instanceof ApiClientError)) {
     return fallback;
@@ -166,6 +179,7 @@ export default function ConsultationsManagementPage() {
   const [selectedItem, setSelectedItem] = useState<AdminConsultationDetailResponse | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
+  const [incidentItems, setIncidentItems] = useState<AdminConsultationItem[]>([]);
 
   const [typeFilter, setTypeFilter] = useState<AdminConsultationType | ''>('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -221,6 +235,40 @@ export default function ConsultationsManagementPage() {
       cancelled = true;
     };
   }, [pageNumber, pageSize, statusFilter, showToast, typeFilter]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadIncidents = async () => {
+      try {
+        const response = await adminConsultationApi.getPaged({
+          pageNumber: 1,
+          pageSize: 8,
+          status: 'ExpertAbsent',
+        });
+
+        if (cancelled) {
+          return;
+        }
+
+        const withReport = (response.items ?? []).filter(item => (item.customerReport?.trim() ?? '').length > 0);
+        setIncidentItems(withReport);
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+
+        console.error('Failed to load consultation incidents', error);
+        setIncidentItems([]);
+      }
+    };
+
+    void loadIncidents();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const openDetail = async (consultationId: string) => {
     setDetailLoading(true);
@@ -302,6 +350,47 @@ export default function ConsultationsManagementPage() {
         </header>
 
         <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          {incidentItems.length > 0 && (
+            <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50/70 p-4">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-sm font-bold text-slate-900">Sự cố tư vấn (Khách báo chuyên gia vắng mặt)</h3>
+                <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-800">
+                  {incidentItems.length}
+                  {' '}
+                  sự cố gần nhất
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                {incidentItems.map(item => (
+                  <div key={`incident-${item.consultationId}`} className="rounded-lg border border-amber-100 bg-white px-3 py-2">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs font-semibold text-slate-500">
+                        Mã phiên:
+                        {formatShortId(item.consultationId)}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          void openDetail(item.consultationId);
+                        }}
+                        className="rounded-md border border-slate-200 px-2 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100"
+                      >
+                        Xem chi tiết
+                      </button>
+                    </div>
+                    <p className="mt-1 text-sm text-slate-700">{formatReportSnippet(item.customerReport)}</p>
+                    <p className="mt-1 text-[11px] text-slate-500">
+                      Gửi lúc:
+                      {' '}
+                      {formatDateTime(item.customerReportSubmittedAt)}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="overflow-x-auto">
             <table className="min-w-full text-left text-sm">
               <thead className="bg-slate-100 text-slate-700">
@@ -528,6 +617,22 @@ export default function ConsultationsManagementPage() {
                           <span className="font-semibold">Loại:</span>
                           {' '}
                           {getConsultationTypeLabel(selectedItem.type)}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-4 shadow-sm">
+                      <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Báo cáo vắng mặt chuyên gia từ khách hàng</p>
+                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                        <p className="rounded-lg border border-amber-100 bg-white px-3 py-2 md:col-span-2">
+                          <span className="font-semibold">Nội dung báo cáo:</span>
+                          {' '}
+                          {selectedItem.customerReport?.trim() || 'Chưa có báo cáo vắng mặt chuyên gia từ khách hàng.'}
+                        </p>
+                        <p className="rounded-lg border border-amber-100 bg-white px-3 py-2">
+                          <span className="font-semibold">Thời điểm gửi báo cáo:</span>
+                          {' '}
+                          {formatDateTime(selectedItem.customerReportSubmittedAt)}
                         </p>
                       </div>
                     </div>
