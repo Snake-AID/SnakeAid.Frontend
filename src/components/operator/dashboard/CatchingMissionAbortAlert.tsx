@@ -1,30 +1,38 @@
-interface RescuerAbortAlertProps {
-  incidentId: string;
-  reason?: string;
+interface CatchingMissionAbortAlertProps {
+  requestId: string;
+  missionId?: string;
+  rescuerName?: string | null;
+  reason?: string | null;
   onViewDetail: (id: string) => void;
   onDismiss: () => void;
-  onRedispatch: (id: string) => void;
 }
 
-export default function RescuerAbortAlert({
-  incidentId,
+export default function CatchingMissionAbortAlert({
+  requestId,
+  rescuerName,
   reason,
   onViewDetail,
   onDismiss,
-  onRedispatch,
-}: RescuerAbortAlertProps) {
-  const incidentCode = `INC-${incidentId.slice(-6).toUpperCase()}`;
+}: CatchingMissionAbortAlertProps) {
+  const requestCode = `CAR-${requestId.slice(-6).toUpperCase()}`;
 
   return (
     <div className="fixed bottom-4 right-4 z-9999 w-[min(100%,420px)]">
       <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-xl">
-        <h2 className="text-lg font-bold text-amber-900">⚠️ Cứu hộ viên đã hủy nhiệm vụ cứu hộ</h2>
+        <h2 className="text-lg font-bold text-amber-900">⚠️ Nhiệm vụ bắt rắn bị hủy </h2>
         <p className="mt-2 text-sm text-amber-800">
-          Cứu hộ viên đã hủy nhiệm vụ cứu hộ cho sự cố
+          Cứu hộ viên đã hủy nhiệm vụ cho yêu cầu
           {' '}
-          <span className="font-semibold">{incidentCode}</span>
-          . Sự cố cần được điều phối lại.
+          <span className="font-semibold">{requestCode}</span>
+          .
         </p>
+        {rescuerName && (
+          <p className="mt-1 text-sm text-amber-800">
+            Cứu hộ viên:
+            {' '}
+            {rescuerName}
+          </p>
+        )}
         {reason && (
           <div className="mt-4 rounded-2xl border border-amber-300 bg-white p-4">
             <p className="text-sm font-semibold text-amber-900">Lý do</p>
@@ -41,17 +49,10 @@ export default function RescuerAbortAlert({
           </button>
           <button
             type="button"
-            onClick={() => onViewDetail(incidentId)}
-            className="rounded-xl border border-amber-300 bg-white px-4 py-2 text-sm font-semibold text-amber-800 hover:bg-amber-50"
-          >
-            Xem chi tiết
-          </button>
-          <button
-            type="button"
-            onClick={() => onRedispatch(incidentId)}
+            onClick={() => onViewDetail(requestId)}
             className="rounded-xl bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700"
           >
-            Điều phối lại
+            Xem chi tiết
           </button>
         </div>
       </div>
