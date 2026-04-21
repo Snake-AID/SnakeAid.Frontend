@@ -86,6 +86,26 @@ export interface SnakeCatchingRequestCancelledPayload {
   cancellationReason?: string | null;
 }
 
+export interface SnakeCatchingMissionAbortedPayload {
+  requestId: string;
+  missionId: string;
+  rescuerId: string;
+  operatorUserId?: string | null;
+  rescuerName?: string | null;
+  reason?: string | null;
+  updatedAt: string;
+}
+
+export interface SnakeCatchingMissionCompletedPayload {
+  requestId: string;
+  missionId: string;
+  memberUserId: string;
+  rescuerUserId: string;
+  rescuerName?: string | null;
+  actualCost?: number | null;
+  completedAt: string;
+}
+
 export interface AssignSnakeCatchingRequestPayload {
   rescuerId: string;
 }
