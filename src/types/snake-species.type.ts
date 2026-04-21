@@ -15,6 +15,7 @@ export interface SnakeSpeciesSymptomByTime {
 export interface FirstAidLineItem {
   text: string;
   mediaUrl: string | null;
+  mediaId?: string | null;
 }
 
 export interface FirstAidGuidelineContent {

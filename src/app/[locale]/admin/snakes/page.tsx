@@ -86,13 +86,25 @@ const sanitizePayload = (payload: SnakeSpeciesUpsertPayload): SnakeSpeciesUpsert
         mode: payload.firstAidGuidelineOverride.mode,
         content: {
           steps: payload.firstAidGuidelineOverride.content.steps
-            .map(item => ({ text: sanitizeText(item.text), mediaUrl: item.mediaUrl?.trim() ?? '' }))
+            .map(item => ({
+              text: sanitizeText(item.text),
+              mediaUrl: item.mediaUrl?.trim() || null,
+              mediaId: item.mediaId?.trim() || null,
+            }))
             .filter(item => item.text.length > 0),
           dos: payload.firstAidGuidelineOverride.content.dos
-            .map(item => ({ text: sanitizeText(item.text), mediaUrl: item.mediaUrl?.trim() ?? '' }))
+            .map(item => ({
+              text: sanitizeText(item.text),
+              mediaUrl: item.mediaUrl?.trim() || null,
+              mediaId: item.mediaId?.trim() || null,
+            }))
             .filter(item => item.text.length > 0),
           donts: payload.firstAidGuidelineOverride.content.donts
-            .map(item => ({ text: sanitizeText(item.text), mediaUrl: item.mediaUrl?.trim() ?? '' }))
+            .map(item => ({
+              text: sanitizeText(item.text),
+              mediaUrl: item.mediaUrl?.trim() || null,
+              mediaId: item.mediaId?.trim() || null,
+            }))
             .filter(item => item.text.length > 0),
           notes: payload.firstAidGuidelineOverride.content.notes.map(sanitizeText).filter(Boolean),
         },
