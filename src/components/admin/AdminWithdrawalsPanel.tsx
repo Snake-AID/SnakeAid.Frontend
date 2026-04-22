@@ -309,7 +309,17 @@ export default function AdminWithdrawalsPanel() {
           <div>
             <h3 className="text-2xl font-bold text-slate-900">Duyệt rút tiền</h3>
             <p className="mt-1 text-sm text-slate-500">
-              Admin xử lý các yêu cầu rút tiền.
+              Admin xử lý các yêu cầu rút tiền theo flow FinOps mới.
+            </p>
+            <p className="mt-1 text-xs text-slate-500">
+              Tạo yêu cầu rút đã ghi nhận giao dịch
+              {' '}
+              <span className="font-semibold">WithdrawalInitiated</span>
+              {' '}
+              và trừ ví. Duyệt/Hoàn tất không tạo thêm giao dịch tài chính. Từ chối/Thất bại sẽ hoàn tiền bằng
+              {' '}
+              <span className="font-semibold">WithdrawalRefund</span>
+              .
             </p>
           </div>
 
