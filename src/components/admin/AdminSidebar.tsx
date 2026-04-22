@@ -123,7 +123,7 @@ export default function AdminSidebar({
     {
       id: 'library-media',
       icon: Images,
-      label: 'Thư viện media',
+      label: 'Quản lý thư viện ảnh',
       href: '/admin/library-media',
       enabled: true,
     },
