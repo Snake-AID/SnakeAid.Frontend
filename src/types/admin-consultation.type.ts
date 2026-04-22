@@ -15,6 +15,8 @@ export interface AdminConsultationItem {
   endTime: string | null;
   price: number | null;
   problemDescription: string | null;
+  customerReport: string | null;
+  customerReportSubmittedAt: string | null;
   bookingId: string | null;
   bookingStatus: string | null;
   bookedAt: string | null;

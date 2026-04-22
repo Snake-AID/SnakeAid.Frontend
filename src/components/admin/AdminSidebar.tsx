@@ -11,6 +11,7 @@ import {
   ClipboardList,
   FlaskConical,
   HandCoins,
+  Images,
   LayoutDashboard,
   MessageSquare,
   Shield,
@@ -117,6 +118,13 @@ export default function AdminSidebar({
       icon: Bot,
       label: 'Quản lý ảnh báo cáo rắn',
       href: '/admin/ai-recognition',
+      enabled: true,
+    },
+    {
+      id: 'library-media',
+      icon: Images,
+      label: 'Quản lý thư viện ảnh',
+      href: '/admin/library-media',
       enabled: true,
     },
     {
