@@ -61,6 +61,7 @@ export interface UseOperatorRequestsResult {
   confirmRequest: (requestId: string) => Promise<void>;
   assignRequest: (requestId: string, rescuerId: string) => Promise<void>;
   cancelRequest: (requestId: string, reason: string) => Promise<void>;
+  abortMission: (missionId: string, reason: string) => Promise<void>;
   refreshRequests: () => Promise<void>;
   hasError: boolean;
   isLoading: boolean;
@@ -238,6 +239,10 @@ export function useOperatorRequests(): UseOperatorRequestsResult {
     await snakeCatchingRequestApi.cancelRequest(requestId, { reason });
   }, []);
 
+  const abortMission = useCallback(async (missionId: string, reason: string) => {
+    await snakeCatchingRequestApi.abortMission(missionId, { reason });
+  }, []);
+
   const value = useMemo(() => ({
     requests,
     focusedRequestId,
@@ -247,6 +252,7 @@ export function useOperatorRequests(): UseOperatorRequestsResult {
     confirmRequest,
     assignRequest,
     cancelRequest,
+    abortMission,
     refreshRequests,
     hasError,
     isLoading,
@@ -264,6 +270,7 @@ export function useOperatorRequests(): UseOperatorRequestsResult {
     confirmRequest,
     assignRequest,
     cancelRequest,
+    abortMission,
     refreshRequests,
     hasError,
     isLoading,

@@ -1,9 +1,16 @@
 'use client';
 
-import type { CreateSnakeCatchingRequestResponse } from '@/types/snakecatching-request.type';
+import type {
+  CreateSnakeCatchingRequestResponse,
+  SnakeCatchingMissionInfo,
+  SnakeCatchingRequestDetailItem,
+  SnakeCatchingRequestMediaItem,
+} from '@/types/snakecatching-request.type';
 import { AlertCircle, CheckCircle, MapPin, RotateCcw, Send, User, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { SnakeCatchingRequestStatus } from '@/types/snakecatching-request.type';
+import CatchingMissionAbortModal from './CatchingMissionAbortModal';
+import CatchingRequestCancelModal from './CatchingRequestCancelModal';
 import DispatchRescuerModal from './DispatchRescuerModal';
 
 const getShortRequestId = (id: string) => {
@@ -30,6 +37,80 @@ const getStatusPalette = (status: string) => {
   }
 };
 
+const formatDateTime = (value?: string | null) => {
+  if (!value) {
+    return '-';
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return value;
+  }
+
+  return date.toLocaleString('vi-VN', { hour12: false });
+};
+
+const formatVndCurrency = (value?: number | null) => {
+  if (value == null) {
+    return '-';
+  }
+
+  return new Intl.NumberFormat('vi-VN', {
+    style: 'currency',
+    currency: 'VND',
+    maximumFractionDigits: 0,
+  }).format(value);
+};
+
+const getMissionStatusLabel = (status?: string | null) => {
+  switch (status) {
+    case 'Preparing':
+      return 'Chuẩn bị';
+    case 'EnRoute':
+      return 'Đang di chuyển';
+    case 'Arrived':
+      return 'Đã đến nơi';
+    case 'MissionCompleted':
+      return 'Hoàn thành nhiệm vụ';
+    case 'MissionUncompleted':
+      return 'Nhiệm vụ chưa hoàn thành';
+    case 'MissionAborted':
+      return 'Nhiệm vụ bị hủy giữa chừng';
+    case 'Cancelled':
+      return 'Đã hủy nhiệm vụ';
+    default:
+      return status ?? 'Không xác định';
+  }
+};
+
+const getRequestMediaKey = (media: SnakeCatchingRequestMediaItem) => {
+  return [
+    media.mediaUrl ?? '',
+    media.fileName ?? '',
+    media.contentType ?? '',
+    media.fileSize ?? '',
+  ].join('-');
+};
+
+const getRequestDetailKey = (detail: SnakeCatchingRequestDetailItem) => {
+  return [
+    detail.id ?? '',
+    detail.snakeSpeciesId ?? '',
+    detail.snakeSpeciesName ?? '',
+    detail.quantity ?? '',
+  ].join('-');
+};
+
+const getMissionKey = (mission: SnakeCatchingMissionInfo) => {
+  return [
+    mission.status ?? '',
+    mission.startedAt ?? '',
+    mission.arrivedAt ?? '',
+    mission.completedAt ?? '',
+    mission.actualCost ?? '',
+  ].join('-');
+};
+
 export interface CatchingRequestDetailModalProps {
   request: CreateSnakeCatchingRequestResponse | null;
   requestId: string | null;
@@ -39,7 +120,8 @@ export interface CatchingRequestDetailModalProps {
   onClose: () => void;
   onConfirm?: (requestId: string) => Promise<void>;
   onAssign?: (requestId: string, rescuerId: string) => Promise<void>;
-  onCancel?: (requestId: string) => Promise<void>;
+  onCancel?: (requestId: string, reason: string) => Promise<void>;
+  onAbort?: (missionId: string, reason: string) => Promise<void>;
   onRefresh?: () => void;
 }
 
@@ -53,9 +135,13 @@ export default function CatchingRequestDetailModal({
   onConfirm,
   onAssign,
   onCancel,
+  onAbort,
   onRefresh,
 }: CatchingRequestDetailModalProps) {
   const [isDispatchModalOpen, setIsDispatchModalOpen] = useState(false);
+  const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
+  const [isAbortModalOpen, setIsAbortModalOpen] = useState(false);
+  const [abortMissionId, setAbortMissionId] = useState<string | null>(null);
   const [isActionLoading, setIsActionLoading] = useState(false);
 
   useEffect(() => {
@@ -84,9 +170,9 @@ export default function CatchingRequestDetailModal({
 
     return (
       <div className="grid grid-cols-2 gap-2">
-        {request.media.map((m: any) => (
+        {request.media.map((m: SnakeCatchingRequestMediaItem) => (
           <div
-            key={m.id}
+            key={getRequestMediaKey(m)}
             className="relative h-32 overflow-hidden rounded-xl border border-slate-200"
             style={{ backgroundImage: `url(${m.mediaUrl})`, backgroundPosition: 'center', backgroundSize: 'cover' }}
             role="img"
@@ -114,20 +200,52 @@ export default function CatchingRequestDetailModal({
     }
   };
 
-  const handleCancel = async () => {
+  const handleCancelClick = () => {
+    setIsCancelModalOpen(true);
+  };
+
+  const handleCancelConfirm = async (reason: string) => {
     if (!request?.id || !onCancel) {
       return;
     }
 
     setIsActionLoading(true);
     try {
-      await onCancel(request.id);
+      await onCancel(request.id, reason);
       onRefresh?.();
       onClose();
     } catch (err) {
       console.error('Failed to cancel request', err);
     } finally {
       setIsActionLoading(false);
+    }
+  };
+
+  const handleAbortClick = (mission: SnakeCatchingMissionInfo) => {
+    if (!mission.id) {
+      return;
+    }
+
+    setAbortMissionId(mission.id);
+    setIsAbortModalOpen(true);
+  };
+
+  const handleAbortConfirm = async (reason: string) => {
+    if (!abortMissionId || !onAbort) {
+      return;
+    }
+
+    setIsActionLoading(true);
+    try {
+      await onAbort(abortMissionId, reason);
+      onRefresh?.();
+      onClose();
+    } catch (err) {
+      console.error('Failed to abort mission', err);
+    } finally {
+      setIsActionLoading(false);
+      setAbortMissionId(null);
+      setIsAbortModalOpen(false);
     }
   };
 
@@ -149,16 +267,18 @@ export default function CatchingRequestDetailModal({
     }
   };
 
+  const hasPreparingMission = request?.missions?.some(mission => mission.status === 'Preparing') ?? false;
+
   const renderDetails = () => {
-    const details = request?.details as any[] | undefined;
+    const details = request?.details;
     if (!details || details.length === 0) {
       return <p className="text-sm text-slate-500">Không có thông tin loài/chi tiết.</p>;
     }
 
     return (
       <div className="space-y-2">
-        {details.map((d: any) => (
-          <div key={d.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+        {details.map((d: SnakeCatchingRequestDetailItem) => (
+          <div key={getRequestDetailKey(d)} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
             <p className="text-sm font-semibold text-slate-900">{d.snakeSpeciesName}</p>
             <p className="text-xs text-slate-500">
               Số lượng:
@@ -175,7 +295,7 @@ export default function CatchingRequestDetailModal({
       return <p className="mt-3 text-sm text-slate-500">Không có thông tin người yêu cầu.</p>;
     }
 
-    const user = request.user as any;
+    const user = request.user;
 
     return (
       <div className="mt-3 flex flex-row items-center gap-3 rounded-xl border border-slate-200 bg-white p-3">
@@ -201,6 +321,135 @@ export default function CatchingRequestDetailModal({
             </p>
           )}
         </div>
+      </div>
+    );
+  };
+
+  const renderMissions = () => {
+    const missions = request?.missions;
+    if (!missions || missions.length === 0) {
+      return <p className="text-sm text-slate-500">Chưa có thông tin nhiệm vụ cứu hộ.</p>;
+    }
+
+    return (
+      <div className="space-y-3">
+        {missions.map((mission: SnakeCatchingMissionInfo, missionIndex) => (
+          <div key={getMissionKey(mission)} className="rounded-xl border border-indigo-200 bg-white p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-sm font-semibold text-slate-900">
+                Nhiệm vụ
+                {' '}
+                {missionIndex + 1}
+              </p>
+              <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs font-semibold text-indigo-700">
+                {getMissionStatusLabel(mission.status)}
+              </span>
+            </div>
+
+            <div className="mt-3 grid grid-cols-1 gap-2 text-xs text-slate-700 md:grid-cols-2">
+              <p>
+                <span className="font-semibold text-slate-500">Bắt đầu:</span>
+                {' '}
+                {formatDateTime(mission.startedAt)}
+              </p>
+              <p>
+                <span className="font-semibold text-slate-500">Đến nơi:</span>
+                {' '}
+                {formatDateTime(mission.arrivedAt)}
+              </p>
+              <p>
+                <span className="font-semibold text-slate-500">Hoàn thành:</span>
+                {' '}
+                {formatDateTime(mission.completedAt)}
+              </p>
+              <p>
+                <span className="font-semibold text-slate-500">Chi phí ước tính:</span>
+                {' '}
+                {formatVndCurrency(mission.estimatedCost)}
+              </p>
+              <p>
+                <span className="font-semibold text-slate-500">Chi phí thực tế:</span>
+                {' '}
+                {formatVndCurrency(mission.actualCost)}
+              </p>
+              <p>
+                <span className="font-semibold text-slate-500">Giá nhiệm vụ:</span>
+                {' '}
+                {formatVndCurrency(mission.price)}
+              </p>
+            </div>
+
+            {mission.catchingEnvironment?.name && (
+              <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">Môi trường bắt rắn</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900">{mission.catchingEnvironment.name}</p>
+                {mission.catchingEnvironment.description && (
+                  <p className="mt-1 text-xs text-slate-600">{mission.catchingEnvironment.description}</p>
+                )}
+              </div>
+            )}
+
+            {mission.missionDetails && mission.missionDetails.length > 0 && (
+              <div className="mt-3 space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">Chi tiết bắt được</p>
+                {mission.missionDetails.map(detail => (
+                  <div key={`${detail.snakeSpeciesName ?? ''}-${detail.quantity ?? ''}-${detail.price ?? ''}`} className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+                    <p className="font-semibold text-slate-900">{detail.snakeSpeciesName ?? 'Chưa rõ loài'}</p>
+                    <p className="mt-0.5 text-xs">
+                      Số lượng:
+                      {' '}
+                      {detail.quantity ?? '-'}
+                    </p>
+                    <p className="mt-0.5 text-xs">
+                      Đơn giá:
+                      {' '}
+                      {formatVndCurrency(detail.price)}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {mission.media && mission.media.length > 0 && (
+              <div className="mt-3 space-y-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-600">Ảnh bằng chứng nhiệm vụ</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {mission.media.map(mediaItem => (
+                    <div
+                      key={getRequestMediaKey(mediaItem)}
+                      className="relative h-28 overflow-hidden rounded-lg border border-slate-200"
+                      style={{ backgroundImage: `url(${mediaItem.mediaUrl})`, backgroundPosition: 'center', backgroundSize: 'cover' }}
+                      role="img"
+                      aria-label={mediaItem.fileName ?? 'mission-media'}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {(mission.status === 'Preparing' || mission.status === 'EnRoute') && mission.id && (
+              <div className="mt-3">
+                <button
+                  type="button"
+                  onClick={() => handleAbortClick(mission)}
+                  disabled={isActionLoading || !onAbort}
+                  className="w-full inline-flex items-center justify-center gap-2 rounded-full border border-rose-600 bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <RotateCcw className="size-4" />
+                  Hủy đơn nhiệm vụ
+                </button>
+              </div>
+            )}
+
+            {mission.notes && (
+              <p className="mt-3 text-xs text-slate-600">
+                <span className="font-semibold text-slate-500">Ghi chú:</span>
+                {' '}
+                {mission.notes}
+              </p>
+            )}
+          </div>
+        ))}
       </div>
     );
   };
@@ -259,9 +508,11 @@ export default function CatchingRequestDetailModal({
                         <div className="rounded-xl border border-blue-200 bg-blue-50 p-4">
                           <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Thời gian yêu cầu</p>
                           <p className="mt-1 text-sm font-semibold text-slate-900">
-                            {request.createdAt
-                              ? new Date(request.createdAt).toLocaleString('vi-VN')
-                              : 'Không xác định'}
+                            {request.requestDate
+                              ? new Date(request.requestDate).toLocaleString('vi-VN')
+                              : request.createdAt
+                                ? new Date(request.createdAt).toLocaleString('vi-VN')
+                                : 'Không xác định'}
                           </p>
                         </div>
 
@@ -424,6 +675,11 @@ export default function CatchingRequestDetailModal({
                           </div>
                         )}
 
+                        <div className="rounded-xl border border-indigo-200 bg-indigo-50 p-4">
+                          <p className="text-xs font-semibold text-indigo-700 uppercase tracking-wide">Thông tin nhiệm vụ cứu hộ</p>
+                          <div className="mt-2">{renderMissions()}</div>
+                        </div>
+
                         {request.cancellationReason && (
                           <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
                             <div className="flex items-center gap-2">
@@ -438,33 +694,55 @@ export default function CatchingRequestDetailModal({
                         <div className="border-t border-slate-200 pt-4">
                           <div className="flex flex-col gap-2">
                             {request.status === SnakeCatchingRequestStatus.Pending && (
-                              <button
-                                type="button"
-                                onClick={handleConfirm}
-                                disabled={isActionLoading || !onConfirm}
-                                className="w-full inline-flex items-center justify-center gap-2 rounded-full border border-emerald-600 bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                              >
-                                <CheckCircle className="size-4" />
-                                Xác nhận yêu cầu
-                              </button>
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={handleConfirm}
+                                  disabled={isActionLoading || !onConfirm}
+                                  className="w-full inline-flex items-center justify-center gap-2 rounded-full border border-emerald-600 bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  <CheckCircle className="size-4" />
+                                  Xác nhận yêu cầu
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={handleCancelClick}
+                                  disabled={isActionLoading || !onCancel}
+                                  className="w-full inline-flex items-center justify-center gap-2 rounded-full border border-amber-600 bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  <AlertCircle className="size-4" />
+                                  Báo động giả
+                                </button>
+                              </>
                             )}
 
                             {request.status === SnakeCatchingRequestStatus.Confirmed && (
-                              <button
-                                type="button"
-                                onClick={() => setIsDispatchModalOpen(true)}
-                                disabled={isActionLoading || !onAssign}
-                                className="w-full inline-flex items-center justify-center gap-2 rounded-full border border-sky-600 bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                              >
-                                <Send className="size-4" />
-                                Điều phối đội cứu hộ
-                              </button>
+                              <>
+                                <button
+                                  type="button"
+                                  onClick={() => setIsDispatchModalOpen(true)}
+                                  disabled={isActionLoading || !onAssign}
+                                  className="w-full inline-flex items-center justify-center gap-2 rounded-full border border-sky-600 bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  <Send className="size-4" />
+                                  Điều phối đội cứu hộ
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={handleCancelClick}
+                                  disabled={isActionLoading || !onCancel}
+                                  className="w-full inline-flex items-center justify-center gap-2 rounded-full border border-rose-600 bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  <RotateCcw className="size-4" />
+                                  Hủy yêu cầu
+                                </button>
+                              </>
                             )}
 
-                            {(request.status === SnakeCatchingRequestStatus.Assigned || request.status === SnakeCatchingRequestStatus.Confirmed) && (
+                            {request.status === SnakeCatchingRequestStatus.Assigned && hasPreparingMission && (
                               <button
                                 type="button"
-                                onClick={handleCancel}
+                                onClick={handleCancelClick}
                                 disabled={isActionLoading || !onCancel}
                                 className="w-full inline-flex items-center justify-center gap-2 rounded-full border border-rose-600 bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed"
                               >
@@ -485,6 +763,29 @@ export default function CatchingRequestDetailModal({
             isOpen={isDispatchModalOpen}
             onClose={() => setIsDispatchModalOpen(false)}
             onDispatch={handleAssign}
+          />
+        )}
+
+        {/* Cancel Request Modal */}
+        {isOpen && (
+          <CatchingRequestCancelModal
+            isOpen={isCancelModalOpen}
+            isLoading={isActionLoading}
+            requestStatus={request?.status}
+            onClose={() => setIsCancelModalOpen(false)}
+            onConfirm={handleCancelConfirm}
+          />
+        )}
+
+        {isOpen && (
+          <CatchingMissionAbortModal
+            isOpen={isAbortModalOpen}
+            isLoading={isActionLoading}
+            onClose={() => {
+              setIsAbortModalOpen(false);
+              setAbortMissionId(null);
+            }}
+            onConfirm={handleAbortConfirm}
           />
         )}
       </div>
