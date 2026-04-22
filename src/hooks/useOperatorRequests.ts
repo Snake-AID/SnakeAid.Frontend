@@ -2,6 +2,8 @@
 
 import type { OperatorSnakeCatchingRequestSummaryResponse } from '@/types/operator.type';
 import type {
+  SnakeCatchingMissionAbortedPayload,
+  SnakeCatchingMissionCompletedPayload,
   SnakeCatchingRequestCancelledPayload,
   SnakeCatchingRequestCreatedPayload,
 } from '@/types/snakecatching-request.type';
@@ -42,6 +44,14 @@ const translateRequestStatus = (status: string) => {
   }
 };
 
+export interface AbortedRequestInfo {
+  requestId: string;
+  missionId?: string;
+  rescuerId?: string;
+  rescuerName?: string;
+  reason?: string;
+}
+
 export interface UseOperatorRequestsResult {
   requests: OperatorRequestSummary[];
   focusedRequestId: string | null;
@@ -54,8 +64,12 @@ export interface UseOperatorRequestsResult {
   refreshRequests: () => Promise<void>;
   hasError: boolean;
   isLoading: boolean;
+  abortedRequest: AbortedRequestInfo | null;
+  clearAbortedRequest: () => void;
   handleRequestCreated: (payload: SnakeCatchingRequestCreatedPayload) => void;
   handleRequestCancelled: (payload: SnakeCatchingRequestCancelledPayload) => void;
+  handleRequestAborted: (payload: SnakeCatchingMissionAbortedPayload) => void;
+  handleRequestCompleted: (payload: SnakeCatchingMissionCompletedPayload) => void;
 }
 
 export function useOperatorRequests(): UseOperatorRequestsResult {
@@ -67,6 +81,7 @@ export function useOperatorRequests(): UseOperatorRequestsResult {
   }, []);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
+  const [abortedRequest, setAbortedRequest] = useState<AbortedRequestInfo | null>(null);
 
   const requestsRef = useRef<OperatorRequestSummary[]>([]);
   const { showToast } = useToast();
@@ -74,7 +89,7 @@ export function useOperatorRequests(): UseOperatorRequestsResult {
   const addRequestFromSignalR = useCallback((payload: SnakeCatchingRequestCreatedPayload) => {
     const id = payload.id;
     const requestCode = `CAR-${id.slice(-6).toUpperCase()}`;
-    showToast(`Yêu cầu ${requestCode} đã tạo`, { type: 'info' });
+    showToast(`Có yêu cầu bắt rắn mới: ${requestCode}`, { type: 'info' });
 
     if (requestsRef.current.some(r => r.id === id)) {
       setRequests((prev) => {
@@ -119,7 +134,7 @@ export function useOperatorRequests(): UseOperatorRequestsResult {
         lng: item.locationCoordinates.longitude,
         distanceKm: null,
         assignedRescuerId: item.assignedRescuerId ?? null,
-        needsRedispatch: false,
+        needsRedispatch: requestsRef.current.find(r => r.id === item.id)?.needsRedispatch ?? false,
       }));
       requestsRef.current = mapped;
       setRequests(mapped);
@@ -159,8 +174,51 @@ export function useOperatorRequests(): UseOperatorRequestsResult {
       return current;
     });
 
-    showToast(`Yêu cầu ${requestCode} đã hủy${reason}`, { type: 'info' });
+    showToast(`Người dùng đã hủy yêu cầu bắt rắn ${requestCode}${reason}`, { type: 'info' });
   }, [showToast]);
+
+  const handleRequestAborted = useCallback((payload: SnakeCatchingMissionAbortedPayload) => {
+    setAbortedRequest({
+      requestId: payload.requestId,
+      missionId: payload.missionId,
+      rescuerId: payload.rescuerId,
+      rescuerName: payload.rescuerName ?? undefined,
+      reason: payload.reason ?? undefined,
+    });
+
+    setRequests((prev) => {
+      const next = prev.map(request => (
+        request.id === payload.requestId
+          ? { ...request, needsRedispatch: true }
+          : request
+      ));
+      requestsRef.current = next;
+      return next;
+    });
+  }, []);
+
+  const handleRequestCompleted = useCallback((payload: SnakeCatchingMissionCompletedPayload) => {
+    const requestCode = `CAR-${payload.requestId.slice(-6).toUpperCase()}`;
+
+    showToast(`Yêu cầu bắt rắn ${requestCode} đã hoàn thành`, { type: 'success' });
+
+    setRequests((prev) => {
+      const next = prev.filter(r => r.id !== payload.requestId);
+      requestsRef.current = next;
+      return next;
+    });
+
+    setFocusedRequestId((current) => {
+      if (current === payload.requestId) {
+        return requestsRef.current[0]?.id ?? null;
+      }
+      return current;
+    });
+  }, [showToast]);
+
+  const clearAbortedRequest = useCallback(() => {
+    setAbortedRequest(null);
+  }, []);
 
   // Don't call useRescuerHub here - will be called centrally in page
   // useRescuerHub({
@@ -192,8 +250,12 @@ export function useOperatorRequests(): UseOperatorRequestsResult {
     refreshRequests,
     hasError,
     isLoading,
+    abortedRequest,
+    clearAbortedRequest,
     handleRequestCreated: handleCreated,
     handleRequestCancelled: handleCancelled,
+    handleRequestAborted,
+    handleRequestCompleted,
   }), [
     requests,
     focusedRequestId,
@@ -205,8 +267,12 @@ export function useOperatorRequests(): UseOperatorRequestsResult {
     refreshRequests,
     hasError,
     isLoading,
+    abortedRequest,
+    clearAbortedRequest,
     handleCreated,
     handleCancelled,
+    handleRequestAborted,
+    handleRequestCompleted,
   ]);
 
   return value;
