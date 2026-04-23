@@ -116,6 +116,16 @@ export interface BanUserRequest {
   reason: string;
 }
 
+export type RescuerType = 'Emergency' | 'Catching' | 'Both';
+
+export interface AdminCreateRescuerRequest {
+  email: string;
+  password: string;
+  fullName: string;
+  phoneNumber?: string;
+  type: RescuerType;
+}
+
 export interface AdminUserListQuery {
   role?: AdminRoleFilter;
   isActive?: boolean;

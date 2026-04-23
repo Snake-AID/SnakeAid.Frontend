@@ -21,6 +21,7 @@ import {
 import { adminUserApi } from '@/apis/admin-user.api';
 import { analyticsApi } from '@/apis/analytics.api';
 import { ApiClientError } from '@/apis/client';
+import CreateRescuerModal from '@/components/admin/CreateRescuerModal';
 import { useToast } from '@/components/ToastProvider';
 import CertificatesTab from './CertificatesTab';
 
@@ -200,6 +201,7 @@ export default function UsersPage() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
   const [detailModal, setDetailModal] = useState<{ type: 'user'; id: string } | null>(null);
+  const [isCreateRescuerOpen, setIsCreateRescuerOpen] = useState(false);
   const [banDialog, setBanDialog] = useState<{
     userId: string;
     userName: string;
@@ -418,10 +420,22 @@ export default function UsersPage() {
     <main className="h-[calc(100vh-81px)] overflow-y-auto bg-slate-50 p-6 lg:p-8">
       <div className="mx-auto flex max-w-360 flex-col gap-6">
         <header className="rounded-2xl border border-slate-200 bg-white px-6 py-5 shadow-sm">
-          <h2 className="text-3xl font-bold text-slate-900">Quản lý người dùng</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            Quản trị tài khoản người dùng theo API quản trị.
-          </p>
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <h2 className="text-3xl font-bold text-slate-900">Quản lý người dùng</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Quản trị tài khoản người dùng theo API quản trị.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setIsCreateRescuerOpen(true)}
+              className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition-all hover:bg-emerald-700 hover:shadow"
+            >
+              <UserPlus className="size-4" />
+              Đăng ký tài khoản Cứu hộ
+            </button>
+          </div>
           <div className="mt-6 flex gap-6 border-b border-slate-200">
             <button
               onClick={() => setActiveTab('users')}
@@ -1071,6 +1085,13 @@ export default function UsersPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {isCreateRescuerOpen && (
+        <CreateRescuerModal
+          onClose={() => setIsCreateRescuerOpen(false)}
+          onSuccess={() => void refreshUsers()}
+        />
       )}
     </main>
   );
