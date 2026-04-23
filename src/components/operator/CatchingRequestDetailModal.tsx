@@ -727,6 +727,15 @@ export default function CatchingRequestDetailModal({
                                   <Send className="size-4" />
                                   Điều phối đội cứu hộ
                                 </button>
+                                <button
+                                  type="button"
+                                  onClick={handleCancelClick}
+                                  disabled={isActionLoading || !onCancel}
+                                  className="w-full inline-flex items-center justify-center gap-2 rounded-full border border-amber-600 bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  <RotateCcw className="size-4" />
+                                  Hủy yêu cầu
+                                </button>
                               </>
                             )}
 

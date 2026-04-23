@@ -211,7 +211,7 @@ export default function SnakeCatchingRequestsManagementPage() {
 
   const [keyword, setKeyword] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
-  const [mainTab, setMainTab] = useState<'all' | 'complaints' | 'low-rating'>('all');
+  const [mainTab, setMainTab] = useState<'all' | 'complaints'>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const PAGE_SIZE = 10;
 
@@ -280,9 +280,10 @@ export default function SnakeCatchingRequestsManagementPage() {
   const filteredItems = useMemo(() => {
     let result = items;
     if (mainTab === 'complaints') {
-      result = result.filter(item => item.status === 'Completed' && item.missions?.some(m => m.status === 'MissionUncompleted'));
-    } else if (mainTab === 'low-rating') {
-      result = result.filter(item => item.feedbacks?.some(f => f.rating <= 3));
+      result = result.filter(item =>
+        (item.status === 'Completed' && item.missions?.some(m => m.status === 'MissionUncompleted'))
+        || (item.status === 'Cancelled' && !!item.cancellationReason),
+      );
     }
     if (statusFilter !== 'All') {
       result = result.filter(item => item.status === statusFilter);
@@ -314,6 +315,7 @@ export default function SnakeCatchingRequestsManagementPage() {
   }, [keyword, statusFilter, mainTab]);
 
   const hasUncompletedMission = selectedItem?.missions?.some(m => m.status === 'MissionUncompleted') ?? false;
+  const hasComplaintTab = hasUncompletedMission || (selectedItem?.status === 'Cancelled' && !!selectedItem?.cancellationReason);
 
   return (
     <main className="h-[calc(100vh-81px)] overflow-y-auto bg-slate-50/50 p-6 lg:p-8">
@@ -347,18 +349,7 @@ export default function SnakeCatchingRequestsManagementPage() {
                   : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700'
               }`}
             >
-              Đơn khiếu nại
-            </button>
-            <button
-              onClick={() => setMainTab('low-rating')}
-              className={`inline-flex items-center gap-1.5 whitespace-nowrap border-b-2 py-3 px-1 text-sm font-medium transition-colors ${
-                mainTab === 'low-rating'
-                  ? 'border-amber-500 text-amber-600'
-                  : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700'
-              }`}
-            >
-              <ThumbsDown className="size-3.5" />
-              Đơn đánh giá thấp
+              Báo cáo cần xác minh
             </button>
           </nav>
         </div>
@@ -390,104 +381,144 @@ export default function SnakeCatchingRequestsManagementPage() {
           </div>
         </div>
 
-        <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="overflow-x-auto">
-            <table className="min-w-full text-left text-sm whitespace-nowrap">
-              <thead className="border-b border-slate-200 bg-slate-50/80 text-slate-600">
-                <tr>
-                  <th className="px-6 py-4 font-semibold">Mã đơn</th>
-                  <th className="px-6 py-4 font-semibold">Người gửi</th>
-                  <th className="px-6 py-4 font-semibold">Khu vực</th>
-                  <th className="px-6 py-4 font-semibold">Trạng thái</th>
-                  <th className="px-6 py-4 font-semibold">Ưu tiên</th>
-                  <th className="px-6 py-4 font-semibold">Thời điểm tạo</th>
-                  <th className="px-6 py-4 font-semibold text-right">Thao tác</th>
-                </tr>
-              </thead>
+        <section className={`rounded-2xl border border-slate-200 bg-white shadow-sm ${mainTab === 'complaints' ? 'bg-slate-50/30' : ''}`}>
+          {isLoading && (
+            <div className="flex flex-col items-center justify-center py-16 text-slate-500">
+              <Loader2 className="mb-3 size-6 animate-spin text-indigo-500" />
+              <span className="font-medium">Đang tải dữ liệu...</span>
+            </div>
+          )}
 
-              <tbody className="divide-y divide-slate-100">
-                {isLoading && (
-                  <tr>
-                    <td colSpan={7} className="px-6 py-16 text-center text-slate-500">
-                      <div className="inline-flex flex-col items-center gap-3">
-                        <Loader2 className="size-6 animate-spin text-indigo-500" />
-                        <span className="font-medium">Đang tải dữ liệu...</span>
-                      </div>
-                    </td>
-                  </tr>
-                )}
+          {!isLoading && listError && (
+            <div className="flex flex-col items-center justify-center py-16 text-rose-600">
+              <AlertCircle className="mb-2 size-8 text-rose-500" />
+              <span>{listError}</span>
+            </div>
+          )}
 
-                {!isLoading && listError && (
-                  <tr>
-                    <td colSpan={7} className="px-6 py-16 text-center text-rose-600">
-                      <div className="inline-flex flex-col items-center gap-2">
-                        <AlertCircle className="size-8 text-rose-500" />
-                        <span>{listError}</span>
-                      </div>
-                    </td>
-                  </tr>
-                )}
+          {!isLoading && !listError && filteredItems.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-16 text-slate-500">
+              <SearchX className="mb-3 size-8 text-slate-400" />
+              <span className="font-medium">Không tìm thấy yêu cầu phù hợp</span>
+            </div>
+          )}
 
-                {!isLoading && !listError && filteredItems.length === 0 && (
-                  <tr>
-                    <td colSpan={7} className="px-6 py-16 text-center text-slate-500">
-                      <div className="inline-flex flex-col items-center gap-3">
-                        <SearchX className="size-8 text-slate-400" />
-                        <span className="font-medium">Không tìm thấy yêu cầu phù hợp</span>
-                      </div>
-                    </td>
-                  </tr>
-                )}
+          {!isLoading && !listError && filteredItems.length > 0 && mainTab === 'complaints' && (
+            <div className="grid grid-cols-1 gap-4 p-6 md:grid-cols-2 lg:grid-cols-3">
+              {paginatedItems.map((item) => {
+                const uncompletedMissions = item.missions?.filter(m => m.status === 'MissionUncompleted') || [];
+                const reason = item.status === 'Cancelled' ? item.cancellationReason : uncompletedMissions[0]?.cancellationReason || uncompletedMissions[0]?.notes;
+                const label = item.status === 'Cancelled' ? 'Lý do huỷ' : 'Lý do';
 
-                {!isLoading && !listError && paginatedItems.map((item) => {
-                  const statusConf = getStatusConfig(item.status);
-                  return (
-                    <tr key={item.id} className="group transition-colors hover:bg-slate-50">
-                      <td className="px-6 py-4 font-bold tracking-wide text-indigo-700">
-                        {formatShortId(item.id)}
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-3">
-                          {renderAvatar(item.user?.account?.avatarUrl, item.user?.account?.fullName, 'size-8')}
-                          <span className="font-medium text-slate-900">{item.user?.account?.fullName ?? '-'}</span>
+                return (
+                  <div
+                    key={item.id}
+                    onClick={() => void openDetail(item)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        void openDetail(item);
+                      }
+                    }}
+                    role="button"
+                    tabIndex={0}
+                    className="group flex cursor-pointer flex-col overflow-hidden rounded-xl border border-rose-200 bg-white shadow-sm transition-all hover:border-rose-300 hover:shadow-md"
+                  >
+                    <div className="flex items-start justify-between border-b border-rose-100 bg-rose-50/50 p-4">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-rose-700">{formatShortId(item.id)}</span>
                         </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2 text-slate-600">
-                          <MapPin className="size-3.5 text-slate-400" />
-                          <span className="truncate max-w-[200px]" title={item.address ?? ''}>{item.address ?? '-'}</span>
+                        <p className="mt-1 text-xs text-slate-500">{formatDateTime(item.createdAt)}</p>
+                      </div>
+                      <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${item.status === 'Cancelled' ? 'bg-slate-200 text-slate-700' : 'bg-rose-200 text-rose-800'}`}>
+                        {item.status === 'Cancelled' ? <Ban className="size-3" /> : <AlertTriangle className="size-3" />}
+                        {item.status === 'Cancelled' ? 'Đã huỷ' : 'Nhiệm vụ không đạt kết quả'}
+                      </span>
+                    </div>
+                    <div className="flex flex-1 flex-col p-4">
+                      <div className="mb-4 flex items-center gap-3">
+                        {renderAvatar(item.user?.account?.avatarUrl, item.user?.account?.fullName, 'size-8')}
+                        <span className="truncate font-medium text-slate-700">{item.user?.account?.fullName || 'Khách'}</span>
+                      </div>
+                      <div className="mt-auto">
+                        <p className="mb-1 text-xs font-bold uppercase tracking-wider text-rose-600">{label}</p>
+                        <div className="line-clamp-3 rounded-lg border border-rose-50 bg-rose-50/30 p-3 text-sm text-slate-700">
+                          {reason || 'Không có lý do chi tiết'}
                         </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${statusConf.class}`}>
-                          {statusConf.icon}
-                          {statusConf.label}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-medium ${getPriorityClass(item.priority)}`}>
-                          {getPriorityLabel(item.priority)}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 text-slate-600">
-                        {formatDateTime(item.requestDate ?? null)}
-                      </td>
-                      <td className="px-6 py-4 text-right">
-                        <button
-                          type="button"
-                          onClick={() => void openDetail(item)}
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-200"
-                        >
-                          <Eye className="size-4" />
-                          Chi tiết
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {!isLoading && !listError && filteredItems.length > 0 && mainTab !== 'complaints' && (
+            <div className="overflow-x-auto">
+              <table className="min-w-full text-left text-sm whitespace-nowrap">
+                <thead className="border-b border-slate-200 bg-slate-50/80 text-slate-600">
+                  <tr>
+                    <th className="px-6 py-4 font-semibold">Mã đơn</th>
+                    <th className="px-6 py-4 font-semibold">Người gửi</th>
+                    <th className="px-6 py-4 font-semibold">Khu vực</th>
+                    <th className="px-6 py-4 font-semibold">Trạng thái</th>
+                    <th className="px-6 py-4 font-semibold">Ưu tiên</th>
+                    <th className="px-6 py-4 font-semibold">Thời điểm tạo</th>
+                    <th className="px-6 py-4 text-right font-semibold">Thao tác</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {paginatedItems.map((item) => {
+                    const statusConf = getStatusConfig(item.status);
+                    return (
+                      <tr key={item.id} className="group transition-colors hover:bg-slate-50">
+                        <td className="px-6 py-4 font-bold tracking-wide text-indigo-700">
+                          {formatShortId(item.id)}
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-3">
+                            {renderAvatar(item.user?.account?.avatarUrl, item.user?.account?.fullName, 'size-8')}
+                            <span className="font-medium text-slate-900">{item.user?.account?.fullName ?? '-'}</span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-2 text-slate-600">
+                            <MapPin className="size-3.5 text-slate-400" />
+                            <span className="max-w-[200px] truncate" title={item.address ?? ''}>{item.address ?? '-'}</span>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${statusConf.class}`}>
+                            {statusConf.icon}
+                            {statusConf.label}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-medium ${getPriorityClass(item.priority)}`}>
+                            {getPriorityLabel(item.priority)}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 text-slate-600">
+                          {formatDateTime(item.requestDate ?? null)}
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <button
+                            type="button"
+                            onClick={() => void openDetail(item)}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700"
+                          >
+                            <Eye className="size-4" />
+                            Chi tiết
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
 
           {/* Pagination */}
           {!isLoading && filteredItems.length > 0 && (
@@ -614,7 +645,7 @@ export default function SnakeCatchingRequestsManagementPage() {
                     { id: 'info', label: 'Thông tin chung', icon: FileText },
                     { id: 'rescuer', label: 'Cứu hộ viên', icon: User },
                     { id: 'missions', label: 'Nhiệm vụ', icon: TargetIcon },
-                    ...(hasUncompletedMission ? [{ id: 'complaints', label: 'Khiếu nại', icon: AlertTriangle }] : []),
+                    ...(hasComplaintTab ? [{ id: 'complaints', label: 'Vấn đề', icon: AlertTriangle }] : []),
                     ...(selectedItem.feedbacks && selectedItem.feedbacks.length > 0
                       ? [{ id: 'feedbacks', label: `Đánh giá (${selectedItem.feedbacks.length})`, icon: Star }]
                       : []),
@@ -944,15 +975,27 @@ export default function SnakeCatchingRequestsManagementPage() {
                         <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-rose-100">
                           <Ban className="size-8 text-rose-600" />
                         </div>
-                        <h4 className="mt-4 text-xl font-bold text-slate-900">Nhiệm vụ Không Hoàn Thành</h4>
-                        <p className="mt-2 text-slate-600 max-w-lg mx-auto mb-6">
-                          Cứu hộ viên đã báo cáo nhiệm vụ không thể hoàn thành. Vui lòng kiểm tra lại lý do hoặc liên hệ trực tiếp với người dân và cứu hộ viên để giải quyết sự cố.
+                        <h4 className="mt-4 text-xl font-bold text-slate-900">Thông tin Vấn đề / Khiếu nại</h4>
+                        <p className="mx-auto mb-6 mt-2 max-w-lg text-slate-600">
+                          Dưới đây là thông tin chi tiết về các lý do khiến nhiệm vụ không thể hoàn thành hoặc yêu cầu bị huỷ bỏ.
                         </p>
 
-                        <div className="mx-auto max-w-2xl text-left space-y-4">
+                        <div className="mx-auto max-w-2xl space-y-4 text-left">
+                          {selectedItem.status === 'Cancelled' && selectedItem.cancellationReason && (
+                            <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                              <p className="mb-2 font-semibold text-slate-700">Lý do huỷ yêu cầu:</p>
+                              <p className="rounded-lg border border-slate-100 bg-slate-50 p-3 text-sm text-slate-700">
+                                {selectedItem.cancellationReason}
+                              </p>
+                              <div className="mt-3 flex justify-end border-t border-slate-50 pt-3 text-xs text-slate-500">
+                                <span>Trạng thái: Đã huỷ</span>
+                              </div>
+                            </div>
+                          )}
+
                           {selectedItem.missions?.filter((m: SnakeCatchingMissionInfo) => m.status === 'MissionUncompleted').map((m: SnakeCatchingMissionInfo, idx: number) => (
                             <div key={idx} className="rounded-xl border border-rose-100 bg-white p-4 shadow-sm">
-                              <p className="mb-2 font-semibold text-rose-700">Lý do khiếu nại / huỷ nhiệm vụ:</p>
+                              <p className="mb-2 font-semibold text-rose-700">Lý do báo cáo / nhiệm vụ không hoàn thành:</p>
                               <p className="rounded-lg border border-rose-100 bg-rose-50 p-3 text-sm text-slate-700">
                                 {m.cancellationReason || m.notes || 'Không có lý do cụ thể được ghi nhận.'}
                               </p>
