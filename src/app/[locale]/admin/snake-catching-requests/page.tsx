@@ -2,7 +2,7 @@
 /* eslint-disable react/no-array-index-key */
 
 import type { CreateSnakeCatchingRequestResponse, SnakeCatchingMissionInfo } from '@/types/snakecatching-request.type';
-import { AlertCircle, AlertTriangle, Ban, Calendar, Camera, CheckCircle2, Clock, Eye, FileText, Filter, Info, Loader2, MapPin, Phone, Search, SearchX, ShieldAlert, ShieldCheck, Target as TargetIcon, User, X } from 'lucide-react';
+import { AlertCircle, AlertTriangle, Ban, Calendar, Camera, CheckCircle2, Clock, Eye, FileText, Filter, Info, Loader2, MapPin, MessageSquare, Phone, Search, SearchX, ShieldAlert, ShieldCheck, Star, Target as TargetIcon, ThumbsDown, User, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { api, ApiClientError } from '@/apis/client';
 import { snakeCatchingRequestApi } from '@/apis/snake-catching-request.api';
@@ -22,6 +22,21 @@ type SnakeCatchingRequestItem = CreateSnakeCatchingRequestResponse & {
     snakeSpeciesScientificName?: string | null;
   }> | null;
   media?: unknown[] | null;
+  feedbacks?: Array<{
+    id: string;
+    raterId: string;
+    targetUserId: string;
+    referenceId: string;
+    type: string;
+    rating: number;
+    comments: string | null;
+    createdAt: string;
+    updatedAt: string;
+    raterName: string | null;
+    targetUserName: string | null;
+    updatedAverageRating: number;
+    updatedRatingCount: number;
+  }> | null;
   assignedRescuer?: {
     isOnline?: boolean | null;
     isAvailable?: boolean | null;
@@ -190,11 +205,11 @@ export default function SnakeCatchingRequestsManagementPage() {
   const [selectedItem, setSelectedItem] = useState<SnakeCatchingRequestItem | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'info' | 'rescuer' | 'missions' | 'complaints'>('info');
+  const [activeTab, setActiveTab] = useState<'info' | 'rescuer' | 'missions' | 'complaints' | 'feedbacks'>('info');
 
   const [keyword, setKeyword] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
-  const [mainTab, setMainTab] = useState<'all' | 'complaints'>('all');
+  const [mainTab, setMainTab] = useState<'all' | 'complaints' | 'low-rating'>('all');
 
   const openDetail = async (item: SnakeCatchingRequestItem) => {
     setSelectedItem(item);
@@ -262,6 +277,8 @@ export default function SnakeCatchingRequestsManagementPage() {
     let result = items;
     if (mainTab === 'complaints') {
       result = result.filter(item => item.status === 'Completed' && item.missions?.some(m => m.status === 'MissionUncompleted'));
+    } else if (mainTab === 'low-rating') {
+      result = result.filter(item => item.feedbacks?.some(f => f.rating <= 3));
     }
     if (statusFilter !== 'All') {
       result = result.filter(item => item.status === statusFilter);
@@ -315,6 +332,17 @@ export default function SnakeCatchingRequestsManagementPage() {
               }`}
             >
               Đơn khiếu nại
+            </button>
+            <button
+              onClick={() => setMainTab('low-rating')}
+              className={`inline-flex items-center gap-1.5 whitespace-nowrap border-b-2 py-3 px-1 text-sm font-medium transition-colors ${
+                mainTab === 'low-rating'
+                  ? 'border-amber-500 text-amber-600'
+                  : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700'
+              }`}
+            >
+              <ThumbsDown className="size-3.5" />
+              Đơn đánh giá thấp
             </button>
           </nav>
         </div>
@@ -489,6 +517,9 @@ export default function SnakeCatchingRequestsManagementPage() {
                     { id: 'rescuer', label: 'Cứu hộ viên', icon: User },
                     { id: 'missions', label: 'Nhiệm vụ', icon: TargetIcon },
                     ...(hasUncompletedMission ? [{ id: 'complaints', label: 'Khiếu nại', icon: AlertTriangle }] : []),
+                    ...(selectedItem.feedbacks && selectedItem.feedbacks.length > 0
+                      ? [{ id: 'feedbacks', label: `Đánh giá (${selectedItem.feedbacks.length})`, icon: Star }]
+                      : []),
                   ].map((tab) => {
                     const isActive = activeTab === tab.id;
                     const Icon = tab.icon;
@@ -500,7 +531,9 @@ export default function SnakeCatchingRequestsManagementPage() {
                           isActive
                             ? tab.id === 'complaints'
                               ? 'border-rose-500 text-rose-600'
-                              : 'border-indigo-600 text-indigo-600'
+                              : tab.id === 'feedbacks'
+                                ? 'border-amber-500 text-amber-600'
+                                : 'border-indigo-600 text-indigo-600'
                             : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700'
                         }`}
                       >
@@ -857,6 +890,110 @@ export default function SnakeCatchingRequestsManagementPage() {
                             </div>
                           </div>
                         )}
+                      </div>
+                    )}
+
+                    {/* TAB: ĐÁNH GIÁ */}
+                    {activeTab === 'feedbacks' && (
+                      <div className="space-y-4">
+                        {selectedItem.feedbacks && selectedItem.feedbacks.length > 0
+                          ? (
+                              <>
+                                {/* Summary bar */}
+                                <div className="flex flex-wrap items-center gap-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                                  <div className="flex items-center gap-2">
+                                    <Star className="size-5 text-amber-400" />
+                                    <span className="text-2xl font-bold text-slate-900">
+                                      {(selectedItem.feedbacks.reduce((acc, f) => acc + f.rating, 0) / selectedItem.feedbacks.length).toFixed(1)}
+                                    </span>
+                                    <span className="text-sm text-slate-500">
+                                      / 5 •
+                                      {selectedItem.feedbacks.length}
+                                      {' '}
+                                      lượt đánh giá
+                                    </span>
+                                  </div>
+                                  {selectedItem.feedbacks.some(f => f.rating <= 3) && (
+                                    <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+                                      <ThumbsDown className="size-3.5" />
+                                      {selectedItem.feedbacks.filter(f => f.rating <= 3).length}
+                                      {' '}
+                                      đánh giá thấp
+                                    </span>
+                                  )}
+                                </div>
+
+                                {/* Feedback cards */}
+                                {selectedItem.feedbacks.map((feedback) => {
+                                  const isLow = feedback.rating <= 3;
+                                  return (
+                                    <div
+                                      key={feedback.id}
+                                      className={`overflow-hidden rounded-2xl border shadow-sm ${
+                                        isLow
+                                          ? 'border-amber-200 bg-amber-50/40'
+                                          : 'border-slate-200 bg-white'
+                                      }`}
+                                    >
+                                      <div className={`flex items-center justify-between px-5 py-3 ${
+                                        isLow ? 'bg-amber-100/60' : 'bg-slate-50'
+                                      }`}
+                                      >
+                                        <div className="flex items-center gap-2">
+                                          {isLow && <ThumbsDown className="size-4 text-amber-600" />}
+                                          <span className="text-sm font-semibold text-slate-800">
+                                            {feedback.raterName ?? 'Người dùng'}
+                                          </span>
+                                          <span className="text-xs text-slate-500">
+                                            →
+                                            {feedback.targetUserName ?? '-'}
+                                          </span>
+                                        </div>
+                                        {/* Star rating */}
+                                        <div className="flex items-center gap-1">
+                                          {Array.from({ length: 5 }).map((_, i) => (
+                                            <Star
+                                              key={i}
+                                              className={`size-4 ${
+                                                i < feedback.rating
+                                                  ? isLow ? 'fill-amber-500 text-amber-500' : 'fill-amber-400 text-amber-400'
+                                                  : 'text-slate-200'
+                                              }`}
+                                            />
+                                          ))}
+                                          <span className={`ml-1 text-sm font-bold ${
+                                            isLow ? 'text-amber-700' : 'text-slate-700'
+                                          }`}
+                                          >
+                                            {feedback.rating}
+                                            /5
+                                          </span>
+                                        </div>
+                                      </div>
+                                      <div className="px-5 py-4">
+                                        {feedback.comments
+                                          ? (
+                                              <div className="flex gap-3">
+                                                <MessageSquare className="mt-0.5 size-4 shrink-0 text-slate-400" />
+                                                <p className="text-sm leading-relaxed text-slate-700">{feedback.comments}</p>
+                                              </div>
+                                            )
+                                          : (
+                                              <p className="text-sm italic text-slate-400">Không có nhận xét.</p>
+                                            )}
+                                        <p className="mt-3 text-xs text-slate-400">{formatDateTime(feedback.createdAt)}</p>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </>
+                            )
+                          : (
+                              <div className="flex h-40 flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-slate-300 bg-white">
+                                <Star className="size-8 text-slate-300" />
+                                <p className="text-slate-500">Chưa có đánh giá nào.</p>
+                              </div>
+                            )}
                       </div>
                     )}
                   </div>
