@@ -20,6 +20,10 @@ const toQueryParams = (filters: TransactionListFilters) => {
     params.TransType = filters.transType;
   }
 
+  if (filters.referenceId) {
+    params.ReferenceId = filters.referenceId;
+  }
+
   return params;
 };
 

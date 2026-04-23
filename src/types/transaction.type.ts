@@ -23,6 +23,7 @@ export interface TransactionItem {
 export interface TransactionListFilters {
   userName?: string;
   transType?: TransactionFilterType;
+  referenceId?: string;
   pageNumber?: number;
   pageSize?: number;
 }

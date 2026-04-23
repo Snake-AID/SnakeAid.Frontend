@@ -175,16 +175,26 @@ const isImageMedia = (contentType: string | null | undefined) => {
   return String(contentType ?? '').toLowerCase().startsWith('image/');
 };
 
-const formatShortId = (id: string | null | undefined) => {
+const formatIdWithPrefix = (id: string | null | undefined, prefix: string) => {
   if (!id) {
     return '-';
   }
+  const cleanId = id.replace(/-/g, '');
+  return `${prefix}-${cleanId.slice(-6).toUpperCase()}`;
+};
 
-  if (id.length <= 13) {
-    return id;
+const formatReferenceId = (id: string | null | undefined, type: string) => {
+  if (!id) {
+    return '-';
   }
-
-  return `${id.slice(0, 8)}...${id.slice(-4)}`;
+  switch (type) {
+    case 'CommunityReport': return formatIdWithPrefix(id, 'REP');
+    case 'SnakebiteIncident': return formatIdWithPrefix(id, 'INC');
+    case 'RescueMission':
+    case 'SnakeCatchingMission': return formatIdWithPrefix(id, 'MIS');
+    case 'SnakeCatchingRequest': return formatIdWithPrefix(id, 'CAR');
+    default: return formatIdWithPrefix(id, 'REF');
+  }
 };
 
 const getExpertReviewState = (item: AIRecognitionAdminReportMediaListItemResponse) => {
@@ -511,8 +521,8 @@ export default function AdminAIRecognitionPage() {
                     key={item.recognitionResultId}
                     className="odd:bg-slate-50/50 hover:bg-sky-50"
                   >
-                    <td className="border-b border-slate-100 px-3 py-2 font-mono text-xs text-slate-700" title={item.recognitionResultId}>
-                      {formatShortId(item.recognitionResultId)}
+                    <td className="border-b border-slate-100 px-3 py-2 font-mono text-sm font-bold tracking-[0.1em] text-indigo-700" title={item.recognitionResultId}>
+                      {formatIdWithPrefix(item.recognitionResultId, 'AIR')}
                     </td>
                     <td className="border-b border-slate-100 px-3 py-2">{getReferenceTypeLabel(item.referenceType)}</td>
                     <td className="border-b border-slate-100 px-3 py-2">
@@ -664,8 +674,8 @@ export default function AdminAIRecognitionPage() {
                   </div>
                   <div className="mt-4 grid grid-cols-1 gap-3 lg:grid-cols-[1.6fr_1fr]">
                     <div className="rounded-lg bg-white/65 px-3 py-2">
-                      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-600">Id</p>
-                      <p className="mt-1 break-all font-mono text-sm font-semibold text-slate-700">{selectedItem.recognitionResultId}</p>
+                      <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-slate-600">Mã nhận diện</p>
+                      <p className="mt-1 font-mono text-2xl font-black tracking-[0.2em] text-slate-900">{formatIdWithPrefix(selectedItem.recognitionResultId, 'AIR')}</p>
                     </div>
                     <div className="grid grid-cols-1 gap-2 md:grid-cols-2 lg:grid-cols-1">
                       <p className="rounded-lg border border-emerald-200/60 bg-white/80 px-3 py-2 text-sm">
@@ -732,15 +742,15 @@ export default function AdminAIRecognitionPage() {
                           #
                           {selectedItem.aiModelId}
                         </p>
-                        <p className="rounded-lg border border-sky-100 bg-white px-3 py-2 text-sm break-all">
-                          <span className="font-semibold">Reference Id:</span>
+                        <p className="rounded-lg border border-sky-100 bg-white px-3 py-2 text-sm">
+                          <span className="font-semibold">Nguồn liên kết:</span>
                           {' '}
-                          {selectedItem.referenceId}
+                          <span className="font-bold text-indigo-700">{formatReferenceId(selectedItem.referenceId, selectedItem.referenceType)}</span>
                         </p>
-                        <p className="rounded-lg border border-sky-100 bg-white px-3 py-2 text-sm break-all">
-                          <span className="font-semibold">Report Media Id:</span>
+                        <p className="rounded-lg border border-sky-100 bg-white px-3 py-2 text-sm">
+                          <span className="font-semibold">Mã ảnh:</span>
                           {' '}
-                          {selectedItem.reportMediaId}
+                          <span className="font-bold text-indigo-700">{formatIdWithPrefix(selectedItem.reportMediaId, 'MED')}</span>
                         </p>
                         <p className="rounded-lg border border-sky-100 bg-white px-3 py-2 text-sm">
                           <span className="font-semibold">Loại tệp:</span>
