@@ -105,8 +105,8 @@ export function useOperatorRequests(): UseOperatorRequestsResult {
 
     const newRequest: OperatorRequestSummary = {
       id,
-      status: payload.status,
-      statusLabel: translateRequestStatus(payload.status),
+      status: 'Pending',
+      statusLabel: translateRequestStatus('Pending'),
       address: payload.address ?? null,
       lat: payload.lat,
       lng: payload.lng,
