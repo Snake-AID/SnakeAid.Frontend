@@ -5,8 +5,25 @@ import type { ExpertCertificateResponse } from '@/types/expert-certificate.type'
 import { Ban, CheckCircle, Eye, Loader2, Plus, SearchX, Trash2 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { adminExpertCertificateApi } from '@/apis/admin-expert-certificate.api';
-import { ApiClientError } from '@/apis/client';
+import { api, ApiClientError } from '@/apis/client';
 import { useToast } from '@/components/ToastProvider';
+
+interface ExpertProfile {
+  accountId: string;
+  name: string;
+  avatarUrl: string | null;
+  biography: string;
+  scheduledConsultationFee: number;
+  emergencyConsultationFee: number;
+  rating: number;
+  ratingCount: number;
+  isVerified: boolean;
+  isOnline: boolean;
+  totalConsultations: number;
+  averageResponseTimeMinutes: number | null;
+  successRate: number | null;
+  specializations: unknown[];
+}
 
 const DEFAULT_PAGINATION: PaginationMeta = {
   total_pages: 1,
@@ -37,6 +54,34 @@ const getValidationMessage = (error: unknown, fallback: string) => {
   return validationEntries.map(([field, messages]) => `${field}: ${(messages as string[]).join(', ')}`).join(' | ');
 };
 
+const getInitials = (name: string | null | undefined) => {
+  if (!name) {
+    return 'NA';
+  }
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) {
+    return 'NA';
+  }
+  return parts.slice(0, 2).map(part => part[0]?.toUpperCase() ?? '').join('');
+};
+
+const renderAvatar = (avatarUrl: string | null | undefined, fullName: string | null | undefined) => {
+  if (avatarUrl) {
+    return (
+      <img
+        src={avatarUrl}
+        alt={fullName ?? 'Avatar'}
+        className="size-12 rounded-full border border-slate-200 object-cover"
+      />
+    );
+  }
+  return (
+    <div className="inline-flex size-12 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-slate-100 text-xs font-bold text-slate-600">
+      {getInitials(fullName)}
+    </div>
+  );
+};
+
 const buildPageItems = (current: number, total: number): Array<number | '...'> => {
   if (total <= 1) {
     return [1];
@@ -57,6 +102,30 @@ const buildPageItems = (current: number, total: number): Array<number | '...'> =
   return result;
 };
 
+const ExpertNameCell = ({ expertId }: { expertId: string }) => {
+  const [name, setName] = useState<string>('...');
+
+  useEffect(() => {
+    let isMounted = true;
+    api.get<{ name: string }>(`/experts/${expertId}`)
+      .then((data) => {
+        if (isMounted) {
+          setName(data.name || 'Không rõ');
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setName('Lỗi tải');
+        }
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [expertId]);
+
+  return <span>{name}</span>;
+};
+
 export default function CertificatesTab() {
   const { showToast } = useToast();
 
@@ -65,12 +134,50 @@ export default function CertificatesTab() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [statusFilter, setStatusFilter] = useState<string>('Pending');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
   const [selectedCert, setSelectedCert] = useState<ExpertCertificateResponse | null>(null);
   const [detailModalOpen, setDetailModalOpen] = useState(false);
+
+  const [expertDetail, setExpertDetail] = useState<ExpertProfile | null>(null);
+  const [expertDetailLoading, setExpertDetailLoading] = useState(false);
+  const [expertDetailError, setExpertDetailError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    if (detailModalOpen && selectedCert?.expertId) {
+      setExpertDetailLoading(true);
+      setExpertDetailError(null);
+      setExpertDetail(null);
+
+      api.get<ExpertProfile>(`/experts/${selectedCert.expertId}`)
+        .then((data) => {
+          if (isMounted) {
+            setExpertDetail(data);
+          }
+        })
+        .catch(() => {
+          if (isMounted) {
+            setExpertDetailError('Không thể tải thông tin chuyên gia.');
+          }
+        })
+        .finally(() => {
+          if (isMounted) {
+            setExpertDetailLoading(false);
+          }
+        });
+    } else {
+      setExpertDetail(null);
+      setExpertDetailError(null);
+    }
+
+    return () => {
+      isMounted = false;
+    };
+  }, [detailModalOpen, selectedCert]);
 
   const [reviewDialog, setReviewDialog] = useState<{
     cert: ExpertCertificateResponse;
@@ -279,6 +386,7 @@ export default function CertificatesTab() {
             <thead>
               <tr className="text-xs uppercase tracking-wide text-slate-500">
                 <th className="border-b border-slate-200 px-3 py-2">Tên chứng chỉ</th>
+                <th className="border-b border-slate-200 px-3 py-2">Chuyên gia</th>
                 <th className="border-b border-slate-200 px-3 py-2">Tổ chức cấp</th>
                 <th className="border-b border-slate-200 px-3 py-2">Ngày cấp / Ngày hết hạn</th>
                 <th className="border-b border-slate-200 px-3 py-2">Trạng thái</th>
@@ -288,7 +396,7 @@ export default function CertificatesTab() {
             <tbody>
               {loading && (
                 <tr>
-                  <td colSpan={5} className="px-3 py-10 text-center text-slate-500">
+                  <td colSpan={6} className="px-3 py-10 text-center text-slate-500">
                     <span className="inline-flex items-center gap-2">
                       <Loader2 className="size-4 animate-spin" />
                       Đang tải...
@@ -298,7 +406,7 @@ export default function CertificatesTab() {
               )}
               {!loading && certs.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-3 py-10 text-center text-slate-500">
+                  <td colSpan={6} className="px-3 py-10 text-center text-slate-500">
                     <span className="inline-flex items-center gap-2">
                       <SearchX className="size-4" />
                       Không có dữ liệu
@@ -309,6 +417,9 @@ export default function CertificatesTab() {
               {!loading && certs.map(cert => (
                 <tr key={cert.id} className="odd:bg-slate-50/50">
                   <td className="border-b border-slate-100 px-3 py-2 font-medium text-slate-800">{cert.certificateName}</td>
+                  <td className="border-b border-slate-100 px-3 py-2">
+                    <ExpertNameCell expertId={cert.expertId} />
+                  </td>
                   <td className="border-b border-slate-100 px-3 py-2">{cert.issuingOrganization}</td>
                   <td className="border-b border-slate-100 px-3 py-2">
                     {formatDateTime(cert.issueDate)}
@@ -542,6 +653,81 @@ export default function CertificatesTab() {
                     <p className="text-xs text-rose-500 font-semibold mb-1">Lý do từ chối</p>
                     <p className="text-sm text-rose-700 bg-rose-50 p-2 rounded border border-rose-100">{selectedCert.rejectionReason}</p>
                   </div>
+                )}
+              </div>
+
+              <div className="mb-6 rounded-xl border border-cyan-200 bg-cyan-50/70 p-4 shadow-sm">
+                <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Thông tin chuyên gia</p>
+                {expertDetailLoading && (
+                  <div className="text-sm text-slate-600 flex items-center gap-2">
+                    <Loader2 className="size-4 animate-spin" />
+                    Đang tải...
+                  </div>
+                )}
+                {expertDetailError && (
+                  <div className="text-sm text-rose-600 bg-rose-50 p-2 rounded border border-rose-100">{expertDetailError}</div>
+                )}
+                {expertDetail && (
+                  <>
+                    <div className="mb-3 flex items-center gap-3 rounded-lg border border-cyan-100 bg-white px-3 py-2">
+                      {renderAvatar(expertDetail.avatarUrl, expertDetail.name)}
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-slate-900">{expertDetail.name || '-'}</p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2 text-sm text-slate-700">
+                      <p className="rounded-lg border border-cyan-100 bg-white px-3 py-2">
+                        <span className="font-semibold">Mã tài khoản:</span>
+                        {' '}
+                        {expertDetail.accountId || '-'}
+                      </p>
+                      <p className="rounded-lg border border-cyan-100 bg-white px-3 py-2">
+                        <span className="font-semibold">Trực tuyến:</span>
+                        {' '}
+                        {expertDetail.isOnline ? 'Có' : 'Không'}
+                      </p>
+                      <p className="rounded-lg border border-cyan-100 bg-white px-3 py-2">
+                        <span className="font-semibold">Đã xác thực:</span>
+                        {' '}
+                        {expertDetail.isVerified ? 'Có' : 'Không'}
+                      </p>
+                      <p className="rounded-lg border border-cyan-100 bg-white px-3 py-2">
+                        <span className="font-semibold">Đánh giá:</span>
+                        {' '}
+                        {expertDetail.rating || 0}
+                        {' '}
+                        (
+                        {expertDetail.ratingCount || 0}
+                        {' '}
+                        lượt)
+                      </p>
+                      <p className="rounded-lg border border-cyan-100 bg-white px-3 py-2">
+                        <span className="font-semibold">Phí tư vấn lịch trình:</span>
+                        {' '}
+                        {expertDetail.scheduledConsultationFee ? `${expertDetail.scheduledConsultationFee.toLocaleString('vi-VN')} đ` : 'Miễn phí'}
+                      </p>
+                      <p className="rounded-lg border border-cyan-100 bg-white px-3 py-2">
+                        <span className="font-semibold">Phí tư vấn khẩn cấp:</span>
+                        {' '}
+                        {expertDetail.emergencyConsultationFee ? `${expertDetail.emergencyConsultationFee.toLocaleString('vi-VN')} đ` : 'Miễn phí'}
+                      </p>
+                      <p className="rounded-lg border border-cyan-100 bg-white px-3 py-2">
+                        <span className="font-semibold">Tổng số ca tư vấn:</span>
+                        {' '}
+                        {expertDetail.totalConsultations}
+                      </p>
+                      <p className="rounded-lg border border-cyan-100 bg-white px-3 py-2">
+                        <span className="font-semibold">Tỉ lệ thành công:</span>
+                        {' '}
+                        {expertDetail.successRate ? `${expertDetail.successRate}%` : '-'}
+                      </p>
+                      <p className="rounded-lg border border-cyan-100 bg-white px-3 py-2 md:col-span-2">
+                        <span className="font-semibold">Tiểu sử:</span>
+                        {' '}
+                        {expertDetail.biography || '-'}
+                      </p>
+                    </div>
+                  </>
                 )}
               </div>
 
