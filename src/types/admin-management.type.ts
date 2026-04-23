@@ -92,6 +92,7 @@ export interface AdminExpertProfileResponse {
   emergencyConsultationFee: number | null;
   rating: number;
   ratingCount: number;
+  isVerified: boolean;
 }
 
 export interface AdminRescuerProfileResponse {
