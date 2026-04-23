@@ -109,6 +109,7 @@ const INCIDENT_STATUS_MAP: Record<string, { label: string; cls: string }> = {
   InProgress: { label: 'Đang xử lý', cls: 'bg-indigo-100 text-indigo-700' },
   Finished: { label: 'Hoàn thành', cls: 'bg-emerald-100 text-emerald-700' },
   Cancelled: { label: 'Đã hủy', cls: 'bg-slate-100 text-slate-600' },
+  Completed: { label: 'Đã hoàn thành', cls: 'bg-emerald-100 text-emerald-700' },
 };
 
 const CATCHING_STATUS_MAP: Record<string, { label: string; cls: string }> = {

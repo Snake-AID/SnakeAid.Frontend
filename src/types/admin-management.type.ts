@@ -92,6 +92,7 @@ export interface AdminExpertProfileResponse {
   emergencyConsultationFee: number | null;
   rating: number;
   ratingCount: number;
+  isVerified: boolean;
 }
 
 export interface AdminRescuerProfileResponse {
@@ -113,6 +114,16 @@ export interface AdminUserDetailResponse extends AdminUserSummaryResponse {
 
 export interface BanUserRequest {
   reason: string;
+}
+
+export type RescuerType = 'Emergency' | 'Catching' | 'Both';
+
+export interface AdminCreateRescuerRequest {
+  email: string;
+  password: string;
+  fullName: string;
+  phoneNumber?: string;
+  type: RescuerType;
 }
 
 export interface AdminUserListQuery {

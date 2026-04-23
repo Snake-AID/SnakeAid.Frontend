@@ -1,10 +1,12 @@
 'use client';
+/* eslint-disable react/no-array-index-key */
 
-import type { CreateSnakeCatchingRequestResponse } from '@/types/snakecatching-request.type';
-import { Eye, Loader2, SearchX, X } from 'lucide-react';
+import type { CreateSnakeCatchingRequestResponse, SnakeCatchingMissionInfo } from '@/types/snakecatching-request.type';
+import { AlertCircle, AlertTriangle, Ban, Calendar, Camera, CheckCircle2, Clock, Eye, FileText, Filter, Info, Loader2, MapPin, Phone, Search, SearchX, ShieldAlert, ShieldCheck, Target as TargetIcon, User, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { api, ApiClientError } from '@/apis/client';
 import { snakeCatchingRequestApi } from '@/apis/snake-catching-request.api';
+import AdminTransactionCard from '@/components/admin/AdminTransactionCard';
 import { useToast } from '@/components/ToastProvider';
 
 type SnakeCatchingRequestItem = CreateSnakeCatchingRequestResponse & {
@@ -13,7 +15,6 @@ type SnakeCatchingRequestItem = CreateSnakeCatchingRequestResponse & {
   preferredTime?: string | null;
   notes?: string | null;
   details?: Array<{
-    id?: string | null;
     snakeCatchingRequestId?: string | null;
     snakeSpeciesId?: number | null;
     quantity?: number | null;
@@ -22,7 +23,6 @@ type SnakeCatchingRequestItem = CreateSnakeCatchingRequestResponse & {
   }> | null;
   media?: unknown[] | null;
   assignedRescuer?: {
-    accountId?: string | null;
     isOnline?: boolean | null;
     isAvailable?: boolean | null;
     phoneNumber?: string | null;
@@ -35,7 +35,6 @@ type SnakeCatchingRequestItem = CreateSnakeCatchingRequestResponse & {
     totalMissions?: number | null;
     completedMissions?: number | null;
     account?: {
-      id?: string | null;
       email?: string | null;
       fullName?: string | null;
       avatarUrl?: string | null;
@@ -44,7 +43,6 @@ type SnakeCatchingRequestItem = CreateSnakeCatchingRequestResponse & {
     } | null;
   } | null;
   user?: {
-    accountId?: string | null;
     userName?: string | null;
     email?: string | null;
     rating?: number | null;
@@ -52,7 +50,6 @@ type SnakeCatchingRequestItem = CreateSnakeCatchingRequestResponse & {
     emergencyContacts?: string[] | null;
     hasUnderlyingDisease?: boolean | null;
     account?: {
-      id?: string | null;
       fullName?: string | null;
       email?: string | null;
       avatarUrl?: string | null;
@@ -67,61 +64,55 @@ const formatDateTime = (value: string | null | undefined) => {
   if (!value) {
     return '-';
   }
-
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) {
     return value;
   }
-
-  return date.toLocaleString('vi-VN', { hour12: false });
+  return new Intl.DateTimeFormat('vi-VN', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(date);
 };
 
 const formatShortId = (id: string | null | undefined) => {
   if (!id) {
     return '-';
   }
-
-  if (id.length <= 13) {
-    return id;
-  }
-
-  return `${id.slice(0, 8)}...${id.slice(-4)}`;
+  const cleanId = id.replace(/-/g, '');
+  return `CAR-${cleanId.slice(-6).toUpperCase()}`;
 };
 
-const getStatusClass = (status: string | null | undefined) => {
+const getStatusConfig = (status: string | null | undefined) => {
   switch (status) {
     case 'Pending':
-      return 'bg-amber-100 text-amber-700';
+      return { class: 'bg-amber-100 text-amber-700 border-amber-200', label: 'Đang chờ', icon: <Clock className="size-3.5" /> };
     case 'Confirmed':
-      return 'bg-blue-100 text-blue-700';
+      return { class: 'bg-blue-100 text-blue-700 border-blue-200', label: 'Đã xác nhận', icon: <CheckCircle2 className="size-3.5" /> };
     case 'Assigned':
     case 'Dispatched':
-      return 'bg-indigo-100 text-indigo-700';
+      return { class: 'bg-indigo-100 text-indigo-700 border-indigo-200', label: 'Đã phân công', icon: <ShieldCheck className="size-3.5" /> };
     case 'Completed':
-      return 'bg-emerald-100 text-emerald-700';
+      return { class: 'bg-emerald-100 text-emerald-700 border-emerald-200', label: 'Hoàn thành', icon: <CheckCircle2 className="size-3.5" /> };
     case 'Cancelled':
-      return 'bg-slate-200 text-slate-700';
+      return { class: 'bg-slate-200 text-slate-700 border-slate-300', label: 'Đã hủy', icon: <X className="size-3.5" /> };
     default:
-      return 'bg-slate-100 text-slate-700';
+      return { class: 'bg-slate-100 text-slate-700 border-slate-200', label: status ?? '-', icon: <AlertCircle className="size-3.5" /> };
   }
 };
 
-const getStatusLabel = (status: string | null | undefined) => {
+const getMissionStatusConfig = (status: string | null | undefined) => {
   switch (status) {
-    case 'Pending':
-      return 'Đang chờ';
-    case 'Confirmed':
-      return 'Đã xác nhận';
-    case 'Assigned':
-      return 'Đã phân công';
-    case 'Dispatched':
-      return 'Đã điều phối';
-    case 'Completed':
-      return 'Hoàn thành';
-    case 'Cancelled':
-      return 'Đã hủy';
-    default:
-      return status ?? '-';
+    case 'Preparing': return { class: 'bg-blue-50 text-blue-700', label: 'Đang chuẩn bị' };
+    case 'EnRoute': return { class: 'bg-indigo-50 text-indigo-700', label: 'Đang di chuyển' };
+    case 'Arrived': return { class: 'bg-teal-50 text-teal-700', label: 'Đã đến nơi' };
+    case 'MissionCompleted': return { class: 'bg-emerald-50 text-emerald-700', label: 'Hoàn thành' };
+    case 'MissionUncompleted': return { class: 'bg-rose-50 text-rose-700', label: 'Không hoàn thành' };
+    case 'MissionAborted': return { class: 'bg-orange-50 text-orange-700', label: 'Bị hủy ngang' };
+    case 'Cancelled': return { class: 'bg-slate-50 text-slate-700', label: 'Đã hủy' };
+    default: return { class: 'bg-slate-50 text-slate-700', label: status ?? '-' };
   }
 };
 
@@ -129,31 +120,25 @@ const getPriorityClass = (priority: string | null | undefined) => {
   switch (priority) {
     case 'Urgent':
     case 'High':
-      return 'bg-rose-100 text-rose-700';
+      return 'bg-rose-100 text-rose-700 border-rose-200';
     case 'Normal':
     case 'Medium':
-      return 'bg-sky-100 text-sky-700';
+      return 'bg-sky-100 text-sky-700 border-sky-200';
     case 'Low':
-      return 'bg-slate-200 text-slate-700';
+      return 'bg-slate-200 text-slate-700 border-slate-300';
     default:
-      return 'bg-slate-100 text-slate-700';
+      return 'bg-slate-100 text-slate-700 border-slate-200';
   }
 };
 
 const getPriorityLabel = (priority: string | null | undefined) => {
   switch (priority) {
-    case 'Urgent':
-      return 'Khẩn cấp';
-    case 'High':
-      return 'Cao';
-    case 'Normal':
-      return 'Bình thường';
-    case 'Medium':
-      return 'Trung bình';
-    case 'Low':
-      return 'Thấp';
-    default:
-      return priority ?? '-';
+    case 'Urgent': return 'Khẩn cấp';
+    case 'High': return 'Cao';
+    case 'Normal': return 'Bình thường';
+    case 'Medium': return 'Trung bình';
+    case 'Low': return 'Thấp';
+    default: return priority ?? '-';
   }
 };
 
@@ -161,47 +146,21 @@ const getApiErrorMessage = (error: unknown, fallback: string) => {
   if (!(error instanceof ApiClientError)) {
     return fallback;
   }
-
   const validationEntries = Object.entries(error.error?.validationErrors ?? {});
   if (validationEntries.length > 0) {
-    return validationEntries
-      .map(([field, messages]) => `${field}: ${messages.join(', ')}`)
-      .join(' | ');
+    return validationEntries.map(([field, messages]) => `${field}: ${messages.join(', ')}`).join(' | ');
   }
-
   return fallback;
 };
 
-const getInitials = (name: string | null | undefined) => {
-  if (!name) {
-    return 'NA';
-  }
-
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) {
-    return 'NA';
-  }
-
-  return parts
-    .slice(0, 2)
-    .map(part => part[0]?.toUpperCase() ?? '')
-    .join('');
-};
-
-const renderAvatar = (avatarUrl: string | null | undefined, fullName: string | null | undefined) => {
+const renderAvatar = (avatarUrl: string | null | undefined, fullName: string | null | undefined, size = 'size-12') => {
   if (avatarUrl) {
-    return (
-      <img
-        src={avatarUrl}
-        alt={fullName ?? 'Avatar'}
-        className="size-12 rounded-full border border-slate-200 object-cover"
-      />
-    );
+    return <img src={avatarUrl} alt={fullName ?? 'Avatar'} className={`${size} rounded-full border-2 border-white object-cover shadow-xs`} />;
   }
-
+  const initials = (fullName ?? 'NA').trim().split(/\s+/).filter(Boolean).slice(0, 2).map(p => p[0]?.toUpperCase()).join('');
   return (
-    <div className="inline-flex size-12 items-center justify-center rounded-full border border-slate-200 bg-slate-100 text-xs font-bold text-slate-600">
-      {getInitials(fullName)}
+    <div className={`inline-flex ${size} items-center justify-center rounded-full border-2 border-white bg-linear-to-br from-blue-100 to-indigo-100 text-sm font-bold text-indigo-700 shadow-xs`}>
+      {initials}
     </div>
   );
 };
@@ -210,21 +169,15 @@ const getImageUrlFromMedia = (mediaItem: unknown): string | null => {
   if (typeof mediaItem === 'string') {
     return mediaItem;
   }
-
   if (!mediaItem || typeof mediaItem !== 'object') {
     return null;
   }
-
   const record = mediaItem as Record<string, unknown>;
-  const possibleKeys = ['url', 'mediaUrl', 'imageUrl', 'avatarUrl', 'thumbnailUrl'];
-
-  for (const key of possibleKeys) {
-    const value = record[key];
-    if (typeof value === 'string' && value.length > 0) {
-      return value;
+  for (const key of ['url', 'mediaUrl', 'imageUrl', 'avatarUrl', 'thumbnailUrl']) {
+    if (typeof record[key] === 'string' && (record[key] as string).length > 0) {
+      return record[key] as string;
     }
   }
-
   return null;
 };
 
@@ -233,13 +186,19 @@ export default function SnakeCatchingRequestsManagementPage() {
   const [items, setItems] = useState<SnakeCatchingRequestItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [listError, setListError] = useState<string | null>(null);
+
   const [selectedItem, setSelectedItem] = useState<SnakeCatchingRequestItem | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'info' | 'rescuer' | 'missions' | 'complaints'>('info');
+
   const [keyword, setKeyword] = useState('');
+  const [statusFilter, setStatusFilter] = useState('All');
+  const [mainTab, setMainTab] = useState<'all' | 'complaints'>('all');
 
   const openDetail = async (item: SnakeCatchingRequestItem) => {
     setSelectedItem(item);
+    setActiveTab('info');
     setDetailLoading(true);
     setDetailError(null);
 
@@ -258,24 +217,32 @@ export default function SnakeCatchingRequestsManagementPage() {
 
   useEffect(() => {
     let cancelled = false;
-
     const load = async () => {
       setIsLoading(true);
       setListError(null);
-
       try {
         const data = await api.get<SnakeCatchingRequestItem[]>('/snakecatching/requests');
         if (cancelled) {
           return;
         }
-
-        setItems(Array.isArray(data) ? data : []);
+        const basicItems = Array.isArray(data) ? data : [];
+        const itemsWithDetails = await Promise.all(
+          basicItems.map(async (item) => {
+            try {
+              return await snakeCatchingRequestApi.getRequest(item.id) as SnakeCatchingRequestItem;
+            } catch {
+              return item;
+            }
+          }),
+        );
+        if (cancelled) {
+          return;
+        }
+        setItems(itemsWithDetails);
       } catch (error) {
         if (cancelled) {
           return;
         }
-
-        console.error('Failed to load snake catching requests', error);
         const message = getApiErrorMessage(error, 'Không thể tải danh sách yêu cầu bắt rắn.');
         setListError(message);
         showToast(message, { type: 'error' });
@@ -285,78 +252,122 @@ export default function SnakeCatchingRequestsManagementPage() {
         }
       }
     };
-
     void load();
-
     return () => {
       cancelled = true;
     };
   }, [showToast]);
 
   const filteredItems = useMemo(() => {
-    const normalized = keyword.trim().toLowerCase();
-    if (!normalized) {
-      return items;
+    let result = items;
+    if (mainTab === 'complaints') {
+      result = result.filter(item => item.status === 'Completed' && item.missions?.some(m => m.status === 'MissionUncompleted'));
     }
+    if (statusFilter !== 'All') {
+      result = result.filter(item => item.status === statusFilter);
+    }
+    const normalized = keyword.trim().toLowerCase();
+    if (normalized) {
+      result = result.filter((item) => {
+        const searchable = [
+          formatShortId(item.id),
+          item.user?.account?.fullName,
+          item.address,
+        ].filter(Boolean).join(' ').toLowerCase();
+        return searchable.includes(normalized);
+      });
+    }
+    return result;
+  }, [items, keyword, statusFilter, mainTab]);
 
-    return items.filter((item) => {
-      const requesterName = item.user?.account?.fullName ?? '';
-      const searchable = [
-        item.id,
-        requesterName,
-        item.address,
-        item.status,
-        item.priority,
-      ]
-        .filter(Boolean)
-        .join(' ')
-        .toLowerCase();
-
-      return searchable.includes(normalized);
-    });
-  }, [items, keyword]);
+  const hasUncompletedMission = selectedItem?.missions?.some(m => m.status === 'MissionUncompleted') ?? false;
 
   return (
-    <main className="h-[calc(100vh-81px)] overflow-y-auto bg-slate-50 p-6 lg:p-8">
-      <div className="mx-auto flex max-w-360 flex-col gap-6">
-        <header className="rounded-2xl border border-slate-200 bg-white px-6 py-5 shadow-sm">
-          <h2 className="text-3xl font-bold text-slate-900">Quản lý yêu cầu bắt rắn</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            Danh sách hiển thị các trường chính. Nhấn vào từng dòng để xem đầy đủ tất cả trường chi tiết.
-          </p>
-
-          <div className="mt-4 max-w-xl">
-            <input
-              value={keyword}
-              onChange={e => setKeyword(e.target.value)}
-              placeholder="Tìm theo mã đơn, người gửi, địa chỉ, trạng thái..."
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-600"
-            />
+    <main className="h-[calc(100vh-81px)] overflow-y-auto bg-slate-50/50 p-6 lg:p-8">
+      <div className="mx-auto flex max-w-7xl flex-col gap-8">
+        <header className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
+          <div>
+            <h2 className="text-3xl font-extrabold tracking-tight text-slate-900">Quản lý Yêu cầu Bắt rắn</h2>
+            <p className="mt-2 text-sm text-slate-500">
+              Quản lý và theo dõi tiến độ các yêu cầu bắt rắn từ người dân.
+            </p>
           </div>
         </header>
 
+        <div className="border-b border-slate-200">
+          <nav className="-mb-px flex gap-6" aria-label="Main Tabs">
+            <button
+              onClick={() => setMainTab('all')}
+              className={`whitespace-nowrap border-b-2 py-3 px-1 text-sm font-medium transition-colors ${
+                mainTab === 'all'
+                  ? 'border-indigo-500 text-indigo-600'
+                  : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700'
+              }`}
+            >
+              Tất cả yêu cầu
+            </button>
+            <button
+              onClick={() => setMainTab('complaints')}
+              className={`whitespace-nowrap border-b-2 py-3 px-1 text-sm font-medium transition-colors ${
+                mainTab === 'complaints'
+                  ? 'border-rose-500 text-rose-600'
+                  : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700'
+              }`}
+            >
+              Đơn khiếu nại
+            </button>
+          </nav>
+        </div>
+
+        <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+            <input
+              value={keyword}
+              onChange={e => setKeyword(e.target.value)}
+              placeholder="Tìm theo mã đơn, người gửi, địa chỉ..."
+              className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-4 text-sm outline-none transition-all focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-500/10"
+            />
+          </div>
+          <div className="relative w-full sm:w-64">
+            <Filter className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
+            <select
+              value={statusFilter}
+              onChange={e => setStatusFilter(e.target.value)}
+              className="w-full appearance-none rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-10 text-sm outline-none transition-all focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-500/10"
+            >
+              <option value="All">Tất cả trạng thái</option>
+              <option value="Pending">Đang chờ</option>
+              <option value="Confirmed">Đã xác nhận</option>
+              <option value="Assigned">Đã phân công</option>
+              <option value="Completed">Hoàn thành</option>
+              <option value="Cancelled">Đã hủy</option>
+            </select>
+          </div>
+        </div>
+
         <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
           <div className="overflow-x-auto">
-            <table className="min-w-full text-left text-sm">
-              <thead className="bg-slate-100 text-slate-700">
+            <table className="min-w-full text-left text-sm whitespace-nowrap">
+              <thead className="border-b border-slate-200 bg-slate-50/80 text-slate-600">
                 <tr>
-                  <th className="px-4 py-3 font-semibold">Mã đơn</th>
-                  <th className="px-4 py-3 font-semibold">Người gửi</th>
-                  <th className="px-4 py-3 font-semibold">Địa chỉ</th>
-                  <th className="px-4 py-3 font-semibold">Trạng thái</th>
-                  <th className="px-4 py-3 font-semibold">Ưu tiên</th>
-                  <th className="px-4 py-3 font-semibold">Thời điểm tạo</th>
-                  <th className="px-4 py-3 text-left font-semibold">Thao tác</th>
+                  <th className="px-6 py-4 font-semibold">Mã đơn</th>
+                  <th className="px-6 py-4 font-semibold">Người gửi</th>
+                  <th className="px-6 py-4 font-semibold">Khu vực</th>
+                  <th className="px-6 py-4 font-semibold">Trạng thái</th>
+                  <th className="px-6 py-4 font-semibold">Ưu tiên</th>
+                  <th className="px-6 py-4 font-semibold">Thời điểm tạo</th>
+                  <th className="px-6 py-4 font-semibold text-right">Thao tác</th>
                 </tr>
               </thead>
 
-              <tbody>
+              <tbody className="divide-y divide-slate-100">
                 {isLoading && (
                   <tr>
-                    <td colSpan={7} className="px-4 py-12 text-center text-slate-500">
-                      <div className="inline-flex items-center gap-2">
-                        <Loader2 className="size-4 animate-spin" />
-                        Đang tải dữ liệu...
+                    <td colSpan={7} className="px-6 py-16 text-center text-slate-500">
+                      <div className="inline-flex flex-col items-center gap-3">
+                        <Loader2 className="size-6 animate-spin text-indigo-500" />
+                        <span className="font-medium">Đang tải dữ liệu...</span>
                       </div>
                     </td>
                   </tr>
@@ -364,430 +375,492 @@ export default function SnakeCatchingRequestsManagementPage() {
 
                 {!isLoading && listError && (
                   <tr>
-                    <td colSpan={7} className="px-4 py-12 text-center text-rose-600">{listError}</td>
-                  </tr>
-                )}
-
-                {!isLoading && !listError && filteredItems.length === 0 && (
-                  <tr>
-                    <td colSpan={7} className="px-4 py-12 text-center text-slate-500">
-                      <div className="inline-flex items-center gap-2">
-                        <SearchX className="size-4" />
-                        Không tìm thấy yêu cầu phù hợp.
+                    <td colSpan={7} className="px-6 py-16 text-center text-rose-600">
+                      <div className="inline-flex flex-col items-center gap-2">
+                        <AlertCircle className="size-8 text-rose-500" />
+                        <span>{listError}</span>
                       </div>
                     </td>
                   </tr>
                 )}
 
-                {!isLoading && !listError && filteredItems.map(item => (
-                  <tr key={item.id} className="border-t border-slate-100 hover:bg-blue-50/40">
-                    <td className="px-4 py-3 font-medium text-slate-800">{formatShortId(item.id)}</td>
-                    <td className="px-4 py-3 text-slate-700">{item.user?.account?.fullName ?? '-'}</td>
-                    <td className="px-4 py-3 text-slate-700">{item.address ?? '-'}</td>
-                    <td className="px-4 py-3">
-                      <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${getStatusClass(item.status)}`}>
-                        {getStatusLabel(item.status)}
-                      </span>
-                    </td>
-                    <td className="px-4 py-3 text-slate-700">{getPriorityLabel(item.priority)}</td>
-                    <td className="px-4 py-3 text-slate-700">{formatDateTime(item.requestDate ?? null)}</td>
-                    <td className="px-4 py-3 text-left">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          void openDetail(item);
-                        }}
-                        className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
-                      >
-                        <Eye className="size-3.5" />
-                        Chi tiết
-                      </button>
+                {!isLoading && !listError && filteredItems.length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="px-6 py-16 text-center text-slate-500">
+                      <div className="inline-flex flex-col items-center gap-3">
+                        <SearchX className="size-8 text-slate-400" />
+                        <span className="font-medium">Không tìm thấy yêu cầu phù hợp</span>
+                      </div>
                     </td>
                   </tr>
-                ))}
+                )}
+
+                {!isLoading && !listError && filteredItems.map((item) => {
+                  const statusConf = getStatusConfig(item.status);
+                  return (
+                    <tr key={item.id} className="group transition-colors hover:bg-slate-50">
+                      <td className="px-6 py-4 font-bold tracking-wide text-indigo-700">
+                        {formatShortId(item.id)}
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          {renderAvatar(item.user?.account?.avatarUrl, item.user?.account?.fullName, 'size-8')}
+                          <span className="font-medium text-slate-900">{item.user?.account?.fullName ?? '-'}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2 text-slate-600">
+                          <MapPin className="size-3.5 text-slate-400" />
+                          <span className="truncate max-w-[200px]" title={item.address ?? ''}>{item.address ?? '-'}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${statusConf.class}`}>
+                          {statusConf.icon}
+                          {statusConf.label}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-medium ${getPriorityClass(item.priority)}`}>
+                          {getPriorityLabel(item.priority)}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-slate-600">
+                        {formatDateTime(item.requestDate ?? null)}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <button
+                          type="button"
+                          onClick={() => void openDetail(item)}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm transition-colors hover:bg-indigo-50 hover:text-indigo-700 hover:border-indigo-200"
+                        >
+                          <Eye className="size-4" />
+                          Chi tiết
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         </section>
 
         {selectedItem && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 p-4 backdrop-blur-[1px]">
-            <div className="w-full max-w-4xl rounded-2xl border border-slate-200 bg-slate-100 shadow-2xl">
-              <div className="flex items-center justify-between rounded-t-2xl border-b border-slate-200 bg-white px-5 py-4">
-                <h3 className="text-lg font-bold text-slate-900">Chi tiết yêu cầu bắt rắn</h3>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 p-4 backdrop-blur-sm transition-all">
+            <div className="flex w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl max-h-[90vh]">
+              {/* Modal Header */}
+              <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50/80 px-6 py-4">
+                <div className="flex items-center gap-4">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-100 text-indigo-700">
+                    <ShieldAlert className="size-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-bold text-slate-900">
+                      Chi tiết Đơn
+                      {' '}
+                      {formatShortId(selectedItem.id)}
+                    </h3>
+                    <div className="mt-1 flex items-center gap-3 text-xs">
+                      <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-medium ${getStatusConfig(selectedItem.status).class.replace('border', '')}`}>
+                        {getStatusConfig(selectedItem.status).label}
+                      </span>
+                      <span className="text-slate-500">{formatDateTime(selectedItem.createdAt)}</span>
+                    </div>
+                  </div>
+                </div>
                 <button
                   type="button"
                   onClick={() => {
                     setSelectedItem(null);
                     setDetailError(null);
                   }}
-                  className="inline-flex items-center gap-1 rounded-md border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-100"
-                  aria-label="Đóng"
+                  className="rounded-full p-2 text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition-colors"
                 >
-                  <X className="size-4" />
-                  Đóng
+                  <X className="size-5" />
                 </button>
               </div>
 
-              <div className="max-h-[75vh] space-y-5 overflow-y-auto p-5 text-sm text-slate-700">
+              {/* Modal Tabs */}
+              <div className="border-b border-slate-200 bg-white px-6">
+                <nav className="-mb-px flex gap-6" aria-label="Tabs">
+                  {[
+                    { id: 'info', label: 'Thông tin chung', icon: FileText },
+                    { id: 'rescuer', label: 'Cứu hộ viên', icon: User },
+                    { id: 'missions', label: 'Nhiệm vụ', icon: TargetIcon },
+                    ...(hasUncompletedMission ? [{ id: 'complaints', label: 'Khiếu nại', icon: AlertTriangle }] : []),
+                  ].map((tab) => {
+                    const isActive = activeTab === tab.id;
+                    const Icon = tab.icon;
+                    return (
+                      <button
+                        key={tab.id}
+                        onClick={() => setActiveTab(tab.id as typeof activeTab)}
+                        className={`inline-flex items-center gap-2 border-b-2 py-4 text-sm font-medium transition-colors ${
+                          isActive
+                            ? tab.id === 'complaints'
+                              ? 'border-rose-500 text-rose-600'
+                              : 'border-indigo-600 text-indigo-600'
+                            : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-700'
+                        }`}
+                      >
+                        <Icon className="size-4" />
+                        {tab.label}
+                      </button>
+                    );
+                  })}
+                </nav>
+              </div>
+
+              {/* Modal Content */}
+              <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50">
                 {detailLoading && (
-                  <div className="rounded-xl border border-slate-200 bg-white p-3 text-slate-600">
-                    <span className="inline-flex items-center gap-2">
-                      <Loader2 className="size-4 animate-spin" />
-                      Đang tải chi tiết từ endpoint...
-                    </span>
+                  <div className="flex h-40 flex-col items-center justify-center gap-3 text-slate-500">
+                    <Loader2 className="size-8 animate-spin text-indigo-500" />
+                    <p className="text-sm font-medium">Đang tải dữ liệu chi tiết...</p>
                   </div>
                 )}
 
                 {detailError && (
-                  <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-rose-700">
-                    {detailError}
+                  <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 text-rose-700 flex items-center gap-3">
+                    <AlertCircle className="size-5" />
+                    <p className="font-medium">{detailError}</p>
                   </div>
                 )}
 
-                <div className="rounded-2xl border border-emerald-200 bg-linear-to-r from-emerald-50 via-teal-50 to-cyan-50 p-5 shadow-sm">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${getStatusClass(selectedItem.status)}`}>
-                      {getStatusLabel(selectedItem.status)}
-                    </span>
-                    <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${getPriorityClass(selectedItem.priority)}`}>
-                      Ưu tiên:
-                      {' '}
-                      {getPriorityLabel(selectedItem.priority)}
-                    </span>
-                  </div>
-                  <p className="mt-4 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Mã yêu cầu</p>
-                  <p className="mt-1 font-mono text-2xl font-black tracking-[0.18em] text-slate-900">{formatShortId(selectedItem.id)}</p>
-                  <p className="mt-2 text-xs text-slate-500">
-                    Id đầy đủ:
-                    <span className="font-mono">{selectedItem.id ?? '-'}</span>
-                  </p>
-                </div>
+                {!detailLoading && !detailError && selectedItem && (
+                  <div className="duration-300">
 
-                <div className="rounded-xl border border-sky-200 bg-sky-50/70 p-4 shadow-sm">
-                  <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Thông tin yêu cầu</p>
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                    <p className="rounded-lg border border-sky-100 bg-white px-3 py-2">
-                      <span className="font-semibold">Người gửi:</span>
-                      {' '}
-                      {selectedItem.user?.account?.fullName ?? '-'}
-                    </p>
-                    <p className="rounded-lg border border-sky-100 bg-white px-3 py-2">
-                      <span className="font-semibold">Số điện thoại:</span>
-                      {' '}
-                      {selectedItem.user?.phoneNumber ?? '-'}
-                    </p>
-                    <p className="rounded-lg border border-sky-100 bg-white px-3 py-2">
-                      <span className="font-semibold">Thời điểm tạo:</span>
-                      {' '}
-                      {formatDateTime(selectedItem.requestDate ?? null)}
-                    </p>
-                    <p className="rounded-lg border border-sky-100 bg-white px-3 py-2">
-                      <span className="font-semibold">Thời điểm ưu tiên:</span>
-                      {' '}
-                      {formatDateTime(selectedItem.preferredTime ?? null)}
-                    </p>
-                    <p className="rounded-lg border border-sky-100 bg-white px-3 py-2 md:col-span-2">
-                      <span className="font-semibold">Địa chỉ:</span>
-                      {' '}
-                      {selectedItem.address ?? '-'}
-                    </p>
-                  </div>
-                </div>
+                    {/* TAB: THÔNG TIN CHUNG */}
+                    {activeTab === 'info' && (
+                      <div className="space-y-6">
+                        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
 
-                <div className="rounded-xl border border-violet-200 bg-violet-50/70 p-4 shadow-sm">
-                  <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Nội dung bổ sung</p>
-                  <div className="grid grid-cols-1 gap-3">
-                    <p className="rounded-lg border border-violet-100 bg-white px-3 py-2">
-                      <span className="font-semibold">Thông tin thêm:</span>
-                      {' '}
-                      {selectedItem.additionalDetails ?? '-'}
-                    </p>
-                    <p className="rounded-lg border border-violet-100 bg-white px-3 py-2">
-                      <span className="font-semibold">Ghi chú:</span>
-                      {' '}
-                      {selectedItem.notes ?? '-'}
-                    </p>
-                  </div>
-                </div>
+                          {/* Người báo cáo */}
+                          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                            <h4 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-slate-500">
+                              <User className="size-4 text-indigo-500" />
+                              Người Báo Cáo
+                            </h4>
+                            <div className="flex items-start gap-4">
+                              {renderAvatar(selectedItem.user?.account?.avatarUrl, selectedItem.user?.account?.fullName, 'size-14')}
+                              <div className="space-y-1">
+                                <p className="text-lg font-bold text-slate-900">{selectedItem.user?.account?.fullName ?? 'Khách'}</p>
+                                <div className="flex items-center gap-2 text-sm text-slate-600">
+                                  <Phone className="size-3.5" />
+                                  <span>{selectedItem.user?.phoneNumber ?? '-'}</span>
+                                </div>
+                                <div className="flex items-center gap-2 text-sm text-slate-600">
+                                  <FileText className="size-3.5" />
+                                  <span>{selectedItem.user?.email ?? selectedItem.user?.account?.email ?? '-'}</span>
+                                </div>
+                              </div>
+                            </div>
+                            {selectedItem.user?.emergencyContacts && selectedItem.user.emergencyContacts.length > 0 && (
+                              <div className="mt-4 rounded-xl bg-slate-50 p-3 text-sm">
+                                <span className="font-semibold text-slate-700">Liên hệ khẩn cấp: </span>
+                                <span className="text-slate-600">{selectedItem.user.emergencyContacts.join(', ')}</span>
+                              </div>
+                            )}
+                          </div>
 
-                <div className="rounded-xl border border-cyan-200 bg-cyan-50/70 p-4 shadow-sm">
-                  <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Thông tin người dùng</p>
-                  <div className="mb-3 flex items-center gap-3 rounded-lg border border-cyan-100 bg-white px-3 py-2">
-                    {renderAvatar(selectedItem.user?.account?.avatarUrl, selectedItem.user?.account?.fullName)}
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-slate-900">{selectedItem.user?.account?.fullName ?? '-'}</p>
-                      <p className="truncate text-xs text-slate-500">{selectedItem.user?.phoneNumber ?? '-'}</p>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                    <p className="rounded-lg border border-cyan-100 bg-white px-3 py-2">
-                      <span className="font-semibold">Mã người dùng:</span>
-                      {' '}
-                      {selectedItem.userId ?? '-'}
-                    </p>
-                    <p className="rounded-lg border border-cyan-100 bg-white px-3 py-2">
-                      <span className="font-semibold">Mã tài khoản:</span>
-                      {' '}
-                      {selectedItem.user?.accountId ?? selectedItem.user?.account?.id ?? '-'}
-                    </p>
-                    <p className="rounded-lg border border-cyan-100 bg-white px-3 py-2">
-                      <span className="font-semibold">Tên đăng nhập:</span>
-                      {' '}
-                      {selectedItem.user?.userName ?? '-'}
-                    </p>
-                    <p className="rounded-lg border border-cyan-100 bg-white px-3 py-2">
-                      <span className="font-semibold">Email:</span>
-                      {' '}
-                      {selectedItem.user?.email ?? selectedItem.user?.account?.email ?? '-'}
-                    </p>
-                    <p className="rounded-lg border border-cyan-100 bg-white px-3 py-2">
-                      <span className="font-semibold">Vai trò:</span>
-                      {' '}
-                      {selectedItem.user?.account?.role ?? '-'}
-                    </p>
-                    <p className="rounded-lg border border-cyan-100 bg-white px-3 py-2">
-                      <span className="font-semibold">Đang kích hoạt:</span>
-                      {' '}
-                      {selectedItem.user?.account?.isActive == null ? '-' : selectedItem.user.account.isActive ? 'Có' : 'Không'}
-                    </p>
-                    <p className="rounded-lg border border-cyan-100 bg-white px-3 py-2">
-                      <span className="font-semibold">Điểm đánh giá:</span>
-                      {' '}
-                      {selectedItem.user?.rating ?? '-'}
-                      {' '}
-                      (
-                      {selectedItem.user?.ratingCount ?? '-'}
-                      {' '}
-                      lượt)
-                    </p>
-                    <p className="rounded-lg border border-cyan-100 bg-white px-3 py-2">
-                      <span className="font-semibold">Bệnh nền:</span>
-                      {' '}
-                      {selectedItem.user?.hasUnderlyingDisease == null ? '-' : selectedItem.user.hasUnderlyingDisease ? 'Có' : 'Không'}
-                    </p>
-                    <p className="rounded-lg border border-cyan-100 bg-white px-3 py-2 md:col-span-2">
-                      <span className="font-semibold">Liên hệ khẩn cấp:</span>
-                      {' '}
-                      {selectedItem.user?.emergencyContacts?.length ? selectedItem.user.emergencyContacts.join(', ') : '-'}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-4 shadow-sm">
-                  <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Vị trí</p>
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                    <p className="rounded-lg border border-amber-100 bg-white px-3 py-2">
-                      <span className="font-semibold">Vĩ độ:</span>
-                      {' '}
-                      {selectedItem.locationCoordinates?.latitude ?? '-'}
-                    </p>
-                    <p className="rounded-lg border border-amber-100 bg-white px-3 py-2">
-                      <span className="font-semibold">Kinh độ:</span>
-                      {' '}
-                      {selectedItem.locationCoordinates?.longitude ?? '-'}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-indigo-200 bg-indigo-50/70 p-4 shadow-sm">
-                  <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Cứu hộ viên được phân công</p>
-                  {selectedItem.assignedRescuer
-                    ? (
-                        <>
-                          <div className="mb-3 flex items-center gap-3 rounded-lg border border-indigo-100 bg-white px-3 py-2">
-                            {renderAvatar(selectedItem.assignedRescuer.account?.avatarUrl, selectedItem.assignedRescuer.account?.fullName)}
-                            <div className="min-w-0">
-                              <p className="truncate text-sm font-semibold text-slate-900">{selectedItem.assignedRescuer.account?.fullName ?? '-'}</p>
-                              <p className="truncate text-xs text-slate-500">{selectedItem.assignedRescuer.phoneNumber ?? '-'}</p>
+                          {/* Thông tin sự cố */}
+                          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                            <h4 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-slate-500">
+                              <AlertCircle className="size-4 text-rose-500" />
+                              Chi tiết sự cố
+                            </h4>
+                            <div className="space-y-3">
+                              <div className="flex gap-3 text-sm">
+                                <MapPin className="mt-0.5 size-4 shrink-0 text-slate-400" />
+                                <div>
+                                  <p className="font-semibold text-slate-900">Địa chỉ</p>
+                                  <p className="text-slate-600">{selectedItem.address ?? '-'}</p>
+                                </div>
+                              </div>
+                              <div className="flex gap-3 text-sm">
+                                <Calendar className="mt-0.5 size-4 shrink-0 text-slate-400" />
+                                <div>
+                                  <p className="font-semibold text-slate-900">Thời gian yêu cầu</p>
+                                  <p className="text-slate-600">{formatDateTime(selectedItem.preferredTime ?? selectedItem.requestDate)}</p>
+                                </div>
+                              </div>
+                              <div className="flex gap-3 text-sm">
+                                <Info className="mt-0.5 size-4 shrink-0 text-slate-400" />
+                                <div>
+                                  <p className="font-semibold text-slate-900">Thông tin bổ sung</p>
+                                  <p className="text-slate-600">{selectedItem.additionalDetails || selectedItem.notes || 'Không có ghi chú thêm.'}</p>
+                                </div>
+                              </div>
                             </div>
                           </div>
-                          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                            <p className="rounded-lg border border-indigo-100 bg-white px-3 py-2">
-                              <span className="font-semibold">Mã tài khoản:</span>
-                              {' '}
-                              {selectedItem.assignedRescuer.accountId ?? '-'}
-                            </p>
-                            <p className="rounded-lg border border-indigo-100 bg-white px-3 py-2">
-                              <span className="font-semibold">Số điện thoại:</span>
-                              {' '}
-                              {selectedItem.assignedRescuer.phoneNumber ?? '-'}
-                            </p>
-                            <p className="rounded-lg border border-indigo-100 bg-white px-3 py-2">
-                              <span className="font-semibold">Trực tuyến:</span>
-                              {' '}
-                              {selectedItem.assignedRescuer.isOnline == null ? '-' : selectedItem.assignedRescuer.isOnline ? 'true' : 'false'}
-                            </p>
-                            <p className="rounded-lg border border-indigo-100 bg-white px-3 py-2">
-                              <span className="font-semibold">Sẵn sàng:</span>
-                              {' '}
-                              {selectedItem.assignedRescuer.isAvailable == null ? '-' : selectedItem.assignedRescuer.isAvailable ? 'true' : 'false'}
-                            </p>
-                            <p className="rounded-lg border border-indigo-100 bg-white px-3 py-2">
-                              <span className="font-semibold">Điểm đánh giá:</span>
-                              {' '}
-                              {selectedItem.assignedRescuer.rating ?? '-'}
-                            </p>
-                            <p className="rounded-lg border border-indigo-100 bg-white px-3 py-2">
-                              <span className="font-semibold">Số lượt đánh giá:</span>
-                              {' '}
-                              {selectedItem.assignedRescuer.ratingCount ?? '-'}
-                            </p>
-                            <p className="rounded-lg border border-indigo-100 bg-white px-3 py-2">
-                              <span className="font-semibold">Loại cứu hộ:</span>
-                              {' '}
-                              {selectedItem.assignedRescuer.type ?? '-'}
-                            </p>
-                            <p className="rounded-lg border border-indigo-100 bg-white px-3 py-2">
-                              <span className="font-semibold">Cập nhật vị trí gần nhất:</span>
-                              {' '}
-                              {formatDateTime(selectedItem.assignedRescuer.lastLocationUpdate)}
-                            </p>
-                            <p className="rounded-lg border border-indigo-100 bg-white px-3 py-2">
-                              <span className="font-semibold">Vĩ độ:</span>
-                              {' '}
-                              {selectedItem.assignedRescuer.latitude ?? '-'}
-                            </p>
-                            <p className="rounded-lg border border-indigo-100 bg-white px-3 py-2">
-                              <span className="font-semibold">Kinh độ:</span>
-                              {' '}
-                              {selectedItem.assignedRescuer.longitude ?? '-'}
-                            </p>
-                            <p className="rounded-lg border border-indigo-100 bg-white px-3 py-2">
-                              <span className="font-semibold">Tổng nhiệm vụ:</span>
-                              {' '}
-                              {selectedItem.assignedRescuer.totalMissions ?? '-'}
-                            </p>
-                            <p className="rounded-lg border border-indigo-100 bg-white px-3 py-2">
-                              <span className="font-semibold">Nhiệm vụ hoàn thành:</span>
-                              {' '}
-                              {selectedItem.assignedRescuer.completedMissions ?? '-'}
-                            </p>
-                            <p className="rounded-lg border border-indigo-100 bg-white px-3 py-2">
-                              <span className="font-semibold">Mã hồ sơ:</span>
-                              {' '}
-                              {selectedItem.assignedRescuer.account?.id ?? '-'}
-                            </p>
-                            <p className="rounded-lg border border-indigo-100 bg-white px-3 py-2">
-                              <span className="font-semibold">Email hồ sơ:</span>
-                              {' '}
-                              {selectedItem.assignedRescuer.account?.email ?? '-'}
-                            </p>
-                            <p className="rounded-lg border border-indigo-100 bg-white px-3 py-2">
-                              <span className="font-semibold">Họ tên:</span>
-                              {' '}
-                              {selectedItem.assignedRescuer.account?.fullName ?? '-'}
-                            </p>
-                            <p className="rounded-lg border border-indigo-100 bg-white px-3 py-2">
-                              <span className="font-semibold">Ảnh đại diện:</span>
-                              {' '}
-                              {selectedItem.assignedRescuer.account?.avatarUrl ? 'Đã hiển thị avatar ở trên' : '-'}
-                            </p>
-                            <p className="rounded-lg border border-indigo-100 bg-white px-3 py-2">
-                              <span className="font-semibold">Vai trò:</span>
-                              {' '}
-                              {selectedItem.assignedRescuer.account?.role ?? '-'}
-                            </p>
-                            <p className="rounded-lg border border-indigo-100 bg-white px-3 py-2">
-                              <span className="font-semibold">Kích hoạt:</span>
-                              {' '}
-                              {selectedItem.assignedRescuer.account?.isActive == null ? '-' : selectedItem.assignedRescuer.account.isActive ? 'true' : 'false'}
-                            </p>
-                          </div>
-                        </>
-                      )
-                    : (
-                        <p className="rounded-lg border border-indigo-100 bg-white px-3 py-2">null</p>
-                      )}
-                </div>
-
-                <div className="rounded-xl border border-fuchsia-200 bg-fuchsia-50/70 p-4 shadow-sm">
-                  <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Chi tiết loài rắn</p>
-                  {selectedItem.details && selectedItem.details.length > 0
-                    ? (
-                        <div className="space-y-3">
-                          {selectedItem.details.map((detail, index) => (
-                            <div key={detail.id ?? `${selectedItem.id}-detail-${index}`} className="grid grid-cols-1 gap-3 rounded-lg border border-fuchsia-100 bg-white p-3 md:grid-cols-2">
-                              <p>
-                                <span className="font-semibold">Mã chi tiết:</span>
-                                {' '}
-                                {detail.id ?? '-'}
-                              </p>
-                              <p>
-                                <span className="font-semibold">snakeCatchingRequestId:</span>
-                                {' '}
-                                {detail.snakeCatchingRequestId ?? '-'}
-                              </p>
-                              <p>
-                                <span className="font-semibold">Mã loài rắn (snakeSpeciesId):</span>
-                                {' '}
-                                {detail.snakeSpeciesId ?? '-'}
-                              </p>
-                              <p>
-                                <span className="font-semibold">Số lượng (quantity):</span>
-                                {' '}
-                                {detail.quantity ?? '-'}
-                              </p>
-                              <p>
-                                <span className="font-semibold">Tên loài rắn (snakeSpeciesName):</span>
-                                {' '}
-                                {detail.snakeSpeciesName ?? '-'}
-                              </p>
-                              <p>
-                                <span className="font-semibold">Tên khoa học (snakeSpeciesScientificName):</span>
-                                {' '}
-                                {detail.snakeSpeciesScientificName ?? '-'}
-                              </p>
-                            </div>
-                          ))}
                         </div>
-                      )
-                    : (
-                        <p className="rounded-lg border border-fuchsia-100 bg-white px-3 py-2">[]</p>
-                      )}
-                </div>
 
-                <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                  <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Hình ảnh đính kèm</p>
-                  <p className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">{selectedItem.media ? `${selectedItem.media.length} item(s)` : 'null'}</p>
-                  {selectedItem.media && selectedItem.media.length > 0 && (
-                    <div className="mt-3 space-y-2">
-                      {selectedItem.media.map((mediaItem) => {
-                        const imageUrl = getImageUrlFromMedia(mediaItem);
-                        const mediaKey = (() => {
-                          if (typeof mediaItem === 'string') {
-                            return mediaItem;
-                          }
-
-                          if (mediaItem && typeof mediaItem === 'object') {
-                            const record = mediaItem as Record<string, unknown>;
-                            const objectId = record.id;
-                            if (typeof objectId === 'string' && objectId.length > 0) {
-                              return objectId;
-                            }
-                          }
-
-                          return JSON.stringify(mediaItem);
-                        })();
-
-                        return (
-                          <div key={`${selectedItem.id}-media-${mediaKey}`} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
-                            {imageUrl
+                        {/* Rắn & Hình ảnh */}
+                        <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+                          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                            <h4 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-slate-500">
+                              <ShieldAlert className="size-4 text-amber-500" />
+                              Thông tin Rắn
+                            </h4>
+                            {selectedItem.details && selectedItem.details.length > 0
                               ? (
-                                  <div className="flex items-center gap-3">
-                                    <img src={imageUrl} alt="Media avatar" className="size-12 rounded-full border border-slate-200 object-cover" />
-                                    <p className="min-w-0 truncate text-xs text-slate-600">{imageUrl}</p>
+                                  <div className="space-y-3">
+                                    {selectedItem.details.map((detail, idx) => (
+                                      <div key={idx} className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 p-3">
+                                        <div>
+                                          <p className="font-bold text-slate-900">{detail.snakeSpeciesName ?? 'Chưa rõ loài'}</p>
+                                          {detail.snakeSpeciesScientificName && (
+                                            <p className="text-xs italic text-slate-500">{detail.snakeSpeciesScientificName}</p>
+                                          )}
+                                        </div>
+                                        <div className="flex h-8 min-w-8 items-center justify-center rounded-lg bg-white font-bold text-indigo-700 shadow-sm">
+                                          x
+                                          {detail.quantity ?? 1}
+                                        </div>
+                                      </div>
+                                    ))}
                                   </div>
                                 )
                               : (
-                                  <pre className="overflow-x-auto text-xs text-slate-700">{JSON.stringify(mediaItem, null, 2)}</pre>
+                                  <p className="text-sm italic text-slate-500">Chưa có thông tin định danh loài rắn.</p>
                                 )}
                           </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
+
+                          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+                            <h4 className="mb-4 flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-slate-500">
+                              <Camera className="size-4 text-emerald-500" />
+                              Hình ảnh đính kèm
+                            </h4>
+                            {selectedItem.media && selectedItem.media.length > 0
+                              ? (
+                                  <div className="grid grid-cols-3 gap-3">
+                                    {selectedItem.media.map((mediaItem, idx) => {
+                                      const url = getImageUrlFromMedia(mediaItem);
+                                      return url
+                                        ? (
+                                            <div key={idx} className="group relative aspect-square overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                                              <img src={url} alt="Media" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-110" />
+                                            </div>
+                                          )
+                                        : null;
+                                    })}
+                                  </div>
+                                )
+                              : (
+                                  <div className="flex h-32 flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 text-slate-400">
+                                    <Camera className="mb-2 size-6" />
+                                    <span className="text-sm">Không có hình ảnh</span>
+                                  </div>
+                                )}
+                          </div>
+                        </div>
+
+                        <AdminTransactionCard referenceId={selectedItem.id} />
+                      </div>
+                    )}
+
+                    {/* TAB: CỨU HỘ VIÊN */}
+                    {activeTab === 'rescuer' && (
+                      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+                        {selectedItem.assignedRescuer
+                          ? (
+                              <div className="flex flex-col gap-8 md:flex-row">
+                                <div className="flex flex-col items-center space-y-4 md:w-1/3">
+                                  {renderAvatar(selectedItem.assignedRescuer.account?.avatarUrl, selectedItem.assignedRescuer.account?.fullName, 'size-32 border-4')}
+                                  <div className="text-center">
+                                    <h4 className="text-xl font-bold text-slate-900">{selectedItem.assignedRescuer.account?.fullName ?? 'Cứu hộ viên'}</h4>
+                                    <div className="mt-2 flex items-center justify-center gap-2">
+                                      <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${selectedItem.assignedRescuer.isOnline ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>
+                                        <div className={`size-2 rounded-full ${selectedItem.assignedRescuer.isOnline ? 'bg-emerald-500' : 'bg-slate-400'}`}></div>
+                                        {selectedItem.assignedRescuer.isOnline ? 'Trực tuyến' : 'Ngoại tuyến'}
+                                      </span>
+                                      <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${selectedItem.assignedRescuer.isAvailable ? 'bg-blue-100 text-blue-700' : 'bg-rose-100 text-rose-700'}`}>
+                                        {selectedItem.assignedRescuer.isAvailable ? 'Sẵn sàng' : 'Đang bận'}
+                                      </span>
+                                    </div>
+                                  </div>
+                                </div>
+                                <div className="grid flex-1 grid-cols-1 gap-6 sm:grid-cols-2">
+                                  <div className="space-y-1">
+                                    <p className="text-sm font-medium text-slate-500">Số điện thoại</p>
+                                    <p className="font-semibold text-slate-900">{selectedItem.assignedRescuer.phoneNumber ?? '-'}</p>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <p className="text-sm font-medium text-slate-500">Email</p>
+                                    <p className="font-semibold text-slate-900">{selectedItem.assignedRescuer.account?.email ?? '-'}</p>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <p className="text-sm font-medium text-slate-500">Đánh giá</p>
+                                    <div className="flex items-center gap-1 font-semibold text-slate-900">
+                                      <span className="text-amber-500">★</span>
+                                      {selectedItem.assignedRescuer.rating ?? '0.0'}
+                                      <span className="text-sm font-normal text-slate-500">
+                                        (
+                                        {selectedItem.assignedRescuer.ratingCount ?? 0}
+                                        {' '}
+                                        lượt)
+                                      </span>
+                                    </div>
+                                  </div>
+                                  <div className="space-y-1">
+                                    <p className="text-sm font-medium text-slate-500">Kinh nghiệm</p>
+                                    <p className="font-semibold text-slate-900">
+                                      {selectedItem.assignedRescuer.completedMissions ?? 0}
+                                      {' '}
+                                      /
+                                      {selectedItem.assignedRescuer.totalMissions ?? 0}
+                                      {' '}
+                                      nhiệm vụ hoàn thành
+                                    </p>
+                                  </div>
+                                  <div className="space-y-1 sm:col-span-2">
+                                    <p className="text-sm font-medium text-slate-500">Cập nhật vị trí gần nhất</p>
+                                    <p className="font-semibold text-slate-900">{formatDateTime(selectedItem.assignedRescuer.lastLocationUpdate)}</p>
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          : (
+                              <div className="flex h-64 flex-col items-center justify-center text-slate-500">
+                                <User className="mb-4 size-12 text-slate-300" />
+                                <p className="text-lg font-medium text-slate-600">Chưa phân công cứu hộ viên</p>
+                                <p className="mt-1 text-sm">Yêu cầu này hiện đang chờ được tiếp nhận.</p>
+                              </div>
+                            )}
+                      </div>
+                    )}
+
+                    {/* TAB: NHIỆM VỤ */}
+                    {activeTab === 'missions' && (
+                      <div className="space-y-4">
+                        {selectedItem.missions && selectedItem.missions.length > 0
+                          ? (
+                              selectedItem.missions.map((mission: SnakeCatchingMissionInfo, idx: number) => {
+                                const stConfig = getMissionStatusConfig(mission.status);
+                                return (
+                                  <div key={mission.id || idx} className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                                    <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 bg-slate-50 p-4">
+                                      <div className="flex items-center gap-3">
+                                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 font-bold text-indigo-700">
+                                          {idx + 1}
+                                        </div>
+                                        <h5 className="font-bold text-slate-900">Lượt nhiệm vụ</h5>
+                                      </div>
+                                      <span className={`rounded-full px-3 py-1 text-xs font-bold ${stConfig.class}`}>
+                                        {stConfig.label}
+                                      </span>
+                                    </div>
+                                    <div className="p-5 grid grid-cols-1 md:grid-cols-3 gap-6">
+                                      <div className="space-y-4">
+                                        <div>
+                                          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Thời gian</p>
+                                          <ul className="mt-2 space-y-2 text-sm">
+                                            <li className="flex justify-between border-b border-slate-100 pb-1">
+                                              <span className="text-slate-600">Bắt đầu:</span>
+                                              <span className="font-medium text-slate-900">{formatDateTime(mission.startedAt)}</span>
+                                            </li>
+                                            <li className="flex justify-between border-b border-slate-100 pb-1">
+                                              <span className="text-slate-600">Đến nơi:</span>
+                                              <span className="font-medium text-slate-900">{formatDateTime(mission.arrivedAt)}</span>
+                                            </li>
+                                            <li className="flex justify-between pb-1">
+                                              <span className="text-slate-600">Kết thúc:</span>
+                                              <span className="font-medium text-slate-900">{formatDateTime(mission.completedAt)}</span>
+                                            </li>
+                                          </ul>
+                                        </div>
+                                      </div>
+                                      <div className="space-y-4">
+                                        <div>
+                                          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Chi phí</p>
+                                          <div className="mt-2 rounded-xl bg-slate-50 p-3">
+                                            <p className="text-sm text-slate-600">
+                                              Dự kiến:
+                                              <span className="font-semibold text-slate-900">{mission.estimatedCost ? `${mission.estimatedCost.toLocaleString()}đ` : '-'}</span>
+                                            </p>
+                                            <p className="mt-1 text-sm text-slate-600">
+                                              Thực tế:
+                                              <span className="font-semibold text-emerald-600">{mission.actualCost ? `${mission.actualCost.toLocaleString()}đ` : mission.price ? `${mission.price.toLocaleString()}đ` : '-'}</span>
+                                            </p>
+                                          </div>
+                                        </div>
+                                      </div>
+                                      <div className="space-y-4">
+                                        <div>
+                                          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Ghi chú</p>
+                                          <p className="mt-2 text-sm text-slate-700 bg-slate-50 p-3 rounded-xl">
+                                            {mission.notes || mission.cancellationReason || 'Không có ghi chú.'}
+                                          </p>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })
+                            )
+                          : (
+                              <div className="flex h-40 items-center justify-center rounded-2xl border border-dashed border-slate-300 bg-white">
+                                <p className="text-slate-500">Chưa có dữ liệu nhiệm vụ.</p>
+                              </div>
+                            )}
+                      </div>
+                    )}
+
+                    {/* TAB: KHIẾU NẠI */}
+                    {activeTab === 'complaints' && (
+                      <div className="rounded-2xl border border-rose-200 bg-rose-50/50 p-8 text-center">
+                        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-rose-100">
+                          <Ban className="size-8 text-rose-600" />
+                        </div>
+                        <h4 className="mt-4 text-xl font-bold text-slate-900">Nhiệm vụ Không Hoàn Thành</h4>
+                        <p className="mt-2 text-slate-600 max-w-lg mx-auto mb-6">
+                          Cứu hộ viên đã báo cáo nhiệm vụ không thể hoàn thành. Vui lòng kiểm tra lại lý do hoặc liên hệ trực tiếp với người dân và cứu hộ viên để giải quyết sự cố.
+                        </p>
+
+                        <div className="mx-auto max-w-2xl text-left space-y-4">
+                          {selectedItem.missions?.filter((m: SnakeCatchingMissionInfo) => m.status === 'MissionUncompleted').map((m: SnakeCatchingMissionInfo, idx: number) => (
+                            <div key={idx} className="rounded-xl border border-rose-100 bg-white p-4 shadow-sm">
+                              <p className="mb-2 font-semibold text-rose-700">Lý do khiếu nại / huỷ nhiệm vụ:</p>
+                              <p className="rounded-lg border border-rose-100 bg-rose-50 p-3 text-sm text-slate-700">
+                                {m.cancellationReason || m.notes || 'Không có lý do cụ thể được ghi nhận.'}
+                              </p>
+                              <div className="mt-3 flex justify-between border-t border-rose-50 pt-3 text-xs text-slate-500">
+                                <span>
+                                  Mã NV:
+                                  {m.id ? formatShortId(m.id) : '-'}
+                                </span>
+                                <span>
+                                  Cập nhật lúc:
+                                  {formatDateTime(m.completedAt)}
+                                </span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* ẢNH KHIẾU NẠI */}
+                        {selectedItem.media && selectedItem.media.some((m: any) => m.purpose === 'Evidence') && (
+                          <div className="mx-auto mt-6 max-w-2xl text-left">
+                            <h5 className="mb-3 font-semibold text-rose-700">Hình ảnh bằng chứng:</h5>
+                            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
+                              {selectedItem.media.filter((m: any) => m.purpose === 'Evidence').map((mediaItem: any, idx: number) => {
+                                const url = getImageUrlFromMedia(mediaItem);
+                                return url
+                                  ? (
+                                      <div key={idx} className="group relative aspect-square overflow-hidden rounded-xl border border-rose-100 bg-white shadow-sm">
+                                        <img src={url} alt="Evidence" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-110" />
+                                      </div>
+                                    )
+                                  : null;
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
           </div>
