@@ -1,5 +1,6 @@
 'use client';
 
+import type { LibraryMediaItem } from '@/types/library-media.type';
 import type {
   FirstAidLineItem,
   SnakeSpeciesSymptomByTime,
@@ -7,6 +8,8 @@ import type {
 } from '@/types/snake-species.type';
 import { Plus, Trash2, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { libraryMediaApi } from '@/apis/library-media.api';
+import LibraryMediaPickerModal from './LibraryMediaPickerModal';
 
 export type SnakeSpeciesFormMode = 'create' | 'update';
 
@@ -33,6 +36,7 @@ interface LineItemEditorProps {
   label: string;
   values: FirstAidLineItem[];
   onChange: (next: FirstAidLineItem[]) => void;
+  onUploadMedia: (file: File) => Promise<string>;
 }
 
 const primaryVenomOptions = ['Neurotoxic', 'Hemotoxic', 'Cytotoxic', 'Myotoxic', 'None'];
@@ -106,13 +110,89 @@ function TagListInput({ label, values, placeholder, onChange }: TagListInputProp
   );
 }
 
-function LineItemEditor({ label, values, onChange }: LineItemEditorProps) {
+function LineItemEditor({ label, values, onChange, onUploadMedia }: LineItemEditorProps) {
+  const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
+  const [lineItemUploadError, setLineItemUploadError] = useState<Record<number, string>>({});
+  const [lineItemPreviewUrl, setLineItemPreviewUrl] = useState<Record<number, string>>({});
+  const [pickerIndex, setPickerIndex] = useState<number | null>(null);
+  const previewUrlRef = useRef<Record<number, string>>({});
+
+  useEffect(() => {
+    previewUrlRef.current = lineItemPreviewUrl;
+  }, [lineItemPreviewUrl]);
+
+  useEffect(() => () => {
+    Object.values(previewUrlRef.current).forEach((preview) => {
+      URL.revokeObjectURL(preview);
+    });
+  }, []);
+
   const addItem = () => {
-    onChange([...values, { text: '', mediaUrl: null }]);
+    onChange([...values, { text: '', mediaUrl: null, mediaId: null }]);
   };
 
   const updateItem = (index: number, patch: Partial<FirstAidLineItem>) => {
     onChange(values.map((item, i) => (i === index ? { ...item, ...patch } : item)));
+  };
+
+  const handleLineItemFileSelected = async (index: number, file: File | null) => {
+    if (!file) {
+      return;
+    }
+
+    setLineItemUploadError(prev => ({ ...prev, [index]: '' }));
+    setUploadingIndex(index);
+
+    const nextPreview = URL.createObjectURL(file);
+    setLineItemPreviewUrl((prev) => {
+      const previous = prev[index];
+      if (previous) {
+        URL.revokeObjectURL(previous);
+      }
+
+      return {
+        ...prev,
+        [index]: nextPreview,
+      };
+    });
+
+    try {
+      const mediaId = await onUploadMedia(file);
+      let mediaUrl: string | null = null;
+
+      try {
+        const mediaDetail = await libraryMediaApi.getById(mediaId);
+        mediaUrl = mediaDetail.mediaUrl ?? null;
+      } catch {
+        mediaUrl = null;
+      }
+
+      updateItem(index, { mediaId, mediaUrl });
+    } catch (error) {
+      const message = error instanceof Error
+        ? (error.message || 'Upload ảnh cho bước sơ cứu thất bại.')
+        : 'Upload ảnh cho bước sơ cứu thất bại.';
+
+      setLineItemUploadError(prev => ({ ...prev, [index]: message }));
+    } finally {
+      setUploadingIndex(prev => (prev === index ? null : prev));
+    }
+  };
+
+  const handleSelectFromLibrary = (index: number, media: LibraryMediaItem) => {
+    setLineItemUploadError(prev => ({ ...prev, [index]: '' }));
+    setLineItemPreviewUrl((prev) => {
+      const previous = prev[index];
+      if (previous) {
+        URL.revokeObjectURL(previous);
+      }
+
+      const next = { ...prev };
+      delete next[index];
+      return next;
+    });
+    updateItem(index, { mediaId: media.id, mediaUrl: media.mediaUrl });
+    setPickerIndex(null);
   };
 
   return (
@@ -129,6 +209,7 @@ function LineItemEditor({ label, values, onChange }: LineItemEditorProps) {
             <div className="mb-2 flex items-center justify-between">
               <p className="text-xs font-semibold text-slate-500">
                 Mục
+                {' '}
                 {index + 1}
               </p>
               <button
@@ -147,9 +228,85 @@ function LineItemEditor({ label, values, onChange }: LineItemEditorProps) {
             />
             <input
               value={item.mediaUrl ?? ''}
-              onChange={e => updateItem(index, { mediaUrl: e.target.value || null })}
-              placeholder="URL media (tuỳ chọn)"
-              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-600"
+              readOnly
+              placeholder="URL media"
+              className="w-full cursor-not-allowed rounded-lg border border-slate-300 bg-slate-100 px-3 py-2 text-sm text-slate-600 outline-none"
+            />
+
+            <div className="mt-2 rounded-lg border border-slate-200 bg-white p-2.5">
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                <label className="inline-flex cursor-pointer items-center rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100">
+                  Chọn ảnh bước này
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={e => void handleLineItemFileSelected(index, e.target.files?.[0] ?? null)}
+                  />
+                </label>
+
+                <button
+                  type="button"
+                  onClick={() => setPickerIndex(index)}
+                  className="rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-slate-700 hover:bg-slate-100"
+                >
+                  Lấy từ thư viện
+                </button>
+
+                {item.mediaId && (
+                  <span className="rounded-full bg-emerald-100 px-2 py-1 text-[11px] font-semibold text-emerald-700">
+                    Đã gán ảnh
+                  </span>
+                )}
+
+                {(item.mediaId || item.mediaUrl || lineItemPreviewUrl[index]) && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLineItemUploadError(prev => ({ ...prev, [index]: '' }));
+                      setLineItemPreviewUrl((prev) => {
+                        const previous = prev[index];
+                        if (previous) {
+                          URL.revokeObjectURL(previous);
+                        }
+
+                        const next = { ...prev };
+                        delete next[index];
+                        return next;
+                      });
+                      updateItem(index, { mediaId: null, mediaUrl: null });
+                    }}
+                    className="rounded-lg border border-rose-200 bg-white px-2.5 py-1 text-[11px] font-semibold text-rose-700 hover:bg-rose-50"
+                  >
+                    Bỏ ảnh
+                  </button>
+                )}
+
+                {uploadingIndex === index && (
+                  <span className="text-[11px] font-semibold text-blue-600">Đang upload ảnh...</span>
+                )}
+              </div>
+
+              {(lineItemPreviewUrl[index] || item.mediaUrl) && (
+                <div className="overflow-hidden rounded-lg border border-slate-200 bg-slate-50">
+                  <p className="border-b border-slate-200 px-2 py-1 text-[11px] font-semibold text-slate-600">
+                    {lineItemPreviewUrl[index] ? 'Ảnh mới đã chọn' : 'Ảnh hiện tại của bước'}
+                  </p>
+                  <div className="h-28 w-full bg-contain bg-left bg-no-repeat" style={{ backgroundImage: `url('${lineItemPreviewUrl[index] ?? item.mediaUrl}')` }} />
+                </div>
+              )}
+
+              {lineItemUploadError[index] && (
+                <p className="mt-2 text-xs text-rose-600">{lineItemUploadError[index]}</p>
+              )}
+            </div>
+
+            <LibraryMediaPickerModal
+              isOpen={pickerIndex === index}
+              title="Chọn ảnh cho bước sơ cứu"
+              mediaType="Image"
+              onClose={() => setPickerIndex(null)}
+              onSelect={media => handleSelectFromLibrary(index, media)}
             />
           </div>
         ))}
@@ -175,23 +332,24 @@ export default function SnakeSpeciesUpsertModal({
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
   const [mediaUploadError, setMediaUploadError] = useState<string | null>(null);
   const [isUploadSuccess, setIsUploadSuccess] = useState(false);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(initialValue.imageUrl ?? null);
+  const [isSnakeMediaPickerOpen, setIsSnakeMediaPickerOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const isPrimaryVenomTypeNone = (draft.primaryVenomType ?? 'None') === 'None';
 
   useEffect(() => {
-    if (!selectedImageFile) {
-      setPreviewUrl(null);
-      return;
+    if (selectedImageFile) {
+      const nextPreviewUrl = URL.createObjectURL(selectedImageFile);
+      setPreviewUrl(nextPreviewUrl);
+
+      return () => {
+        URL.revokeObjectURL(nextPreviewUrl);
+      };
     }
 
-    const nextPreviewUrl = URL.createObjectURL(selectedImageFile);
-    setPreviewUrl(nextPreviewUrl);
-
-    return () => {
-      URL.revokeObjectURL(nextPreviewUrl);
-    };
-  }, [selectedImageFile]);
+    setPreviewUrl(draft.imageUrl ?? null);
+    return undefined;
+  }, [selectedImageFile, draft.imageUrl]);
 
   if (!isOpen) {
     return null;
@@ -221,8 +379,8 @@ export default function SnakeSpeciesUpsertModal({
     event.preventDefault();
     setSubmitError(null);
 
-    if (!draft.mediaId.trim()) {
-      setSubmitError('Vui lòng upload ảnh để lấy mediaId trước khi lưu loài rắn.');
+    if (!draft.mediaId.trim() && !(draft.imageUrl?.trim())) {
+      setSubmitError('Vui lòng upload ảnh hoặc giữ ảnh hiện tại trước khi lưu loài rắn.');
       return;
     }
 
@@ -248,7 +406,16 @@ export default function SnakeSpeciesUpsertModal({
 
     try {
       const mediaId = await onUploadMedia(file);
-      setDraft(prev => ({ ...prev, mediaId }));
+      let mediaUrl = draft.imageUrl ?? null;
+
+      try {
+        const mediaDetail = await libraryMediaApi.getById(mediaId);
+        mediaUrl = mediaDetail.mediaUrl ?? mediaUrl;
+      } catch {
+        mediaUrl = mediaUrl ?? null;
+      }
+
+      setDraft(prev => ({ ...prev, mediaId, imageUrl: mediaUrl }));
       setIsUploadSuccess(true);
     } catch (error) {
       if (error instanceof Error) {
@@ -314,7 +481,7 @@ export default function SnakeSpeciesUpsertModal({
               />
             </div>
             <div>
-              <p className="mb-2 text-xs font-semibold text-slate-700">Ảnh loài rắn (upload để lấy mediaId)</p>
+              <p className="mb-2 text-xs font-semibold text-slate-700">Ảnh loài rắn</p>
               <div className="flex flex-col gap-2">
                 <input
                   ref={fileInputRef}
@@ -332,8 +499,15 @@ export default function SnakeSpeciesUpsertModal({
                     Chọn ảnh
                   </button>
                   <div className="min-h-10 flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600">
-                    {selectedImageFile?.name ?? 'Chưa chọn ảnh'}
+                    {selectedImageFile?.name ?? (draft.imageUrl ? 'Ảnh hiện tại' : 'Chưa chọn ảnh')}
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsSnakeMediaPickerOpen(true)}
+                    className="rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100"
+                  >
+                    Lấy từ thư viện
+                  </button>
                   <button
                     type="button"
                     onClick={() => {
@@ -346,6 +520,20 @@ export default function SnakeSpeciesUpsertModal({
                   >
                     {isUploadingMedia ? 'Đang upload...' : 'Upload lại'}
                   </button>
+                  {(draft.mediaId || draft.imageUrl) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedImageFile(null);
+                        setIsUploadSuccess(false);
+                        setMediaUploadError(null);
+                        setDraft(prev => ({ ...prev, mediaId: '', imageUrl: null }));
+                      }}
+                      className="rounded-lg border border-rose-200 px-3 py-2 text-sm font-semibold text-rose-700 hover:bg-rose-50"
+                    >
+                      Bỏ ảnh
+                    </button>
+                  )}
                 </div>
                 <p className="text-xs text-slate-500">Ảnh sẽ tự động upload ngay sau khi bạn chọn file.</p>
                 {isUploadingMedia && (
@@ -356,7 +544,9 @@ export default function SnakeSpeciesUpsertModal({
                 )}
                 {previewUrl && (
                   <div className="overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
-                    <p className="border-b border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700">Preview ảnh</p>
+                    <p className="border-b border-slate-200 px-3 py-2 text-xs font-semibold text-slate-700">
+                      {selectedImageFile ? 'Preview ảnh mới' : 'Ảnh hiện tại'}
+                    </p>
                     <div
                       className="h-44 w-full bg-contain bg-center bg-no-repeat"
                       style={{ backgroundImage: `url('${previewUrl}')` }}
@@ -483,6 +673,7 @@ export default function SnakeSpeciesUpsertModal({
                   <div className="mb-2 flex items-center justify-between">
                     <p className="text-xs font-semibold text-slate-500">
                       Mốc
+                      {' '}
                       {index + 1}
                     </p>
                     <button type="button" onClick={() => removeSymptom(index)} className="text-rose-600 hover:text-rose-700">
@@ -533,12 +724,29 @@ export default function SnakeSpeciesUpsertModal({
                 <option value="Append">Append (Bổ sung)</option>
                 <option value="Replace">Replace (Thay thế)</option>
               </select>
+              <div className="mt-2 space-y-2 text-xs text-slate-500">
+                <p>
+                  Ghi đè áp dụng cho bộ sơ cứu của loại độc chính của loài rắn:
+                  <strong>{` ${venomOptionLabel[draft.primaryVenomType ?? 'None'] ?? draft.primaryVenomType ?? 'None'}`}</strong>
+                </p>
+                <ul className="list-disc pl-4">
+                  <li>
+                    <strong>Replace</strong>
+                    : thay thế hoàn toàn guideline hiện có.
+                  </li>
+                  <li>
+                    <strong>Append</strong>
+                    : bổ sung thêm vào guideline hiện có.
+                  </li>
+                </ul>
+              </div>
             </div>
 
             <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
               <LineItemEditor
                 label="Các bước sơ cứu"
                 values={draft.firstAidGuidelineOverride?.content.steps ?? []}
+                onUploadMedia={onUploadMedia}
                 onChange={next => setDraft(prev => ({
                   ...prev,
                   firstAidGuidelineOverride: {
@@ -561,6 +769,7 @@ export default function SnakeSpeciesUpsertModal({
               <LineItemEditor
                 label="Nên làm"
                 values={draft.firstAidGuidelineOverride?.content.dos ?? []}
+                onUploadMedia={onUploadMedia}
                 onChange={next => setDraft(prev => ({
                   ...prev,
                   firstAidGuidelineOverride: {
@@ -583,6 +792,7 @@ export default function SnakeSpeciesUpsertModal({
               <LineItemEditor
                 label="Không nên làm"
                 values={draft.firstAidGuidelineOverride?.content.donts ?? []}
+                onUploadMedia={onUploadMedia}
                 onChange={next => setDraft(prev => ({
                   ...prev,
                   firstAidGuidelineOverride: {
@@ -719,6 +929,24 @@ export default function SnakeSpeciesUpsertModal({
           </div>
         </form>
       </div>
+
+      <LibraryMediaPickerModal
+        isOpen={isSnakeMediaPickerOpen}
+        title="Chọn ảnh loài rắn từ thư viện"
+        mediaType="Image"
+        onClose={() => setIsSnakeMediaPickerOpen(false)}
+        onSelect={(media) => {
+          setSelectedImageFile(null);
+          setMediaUploadError(null);
+          setIsUploadSuccess(true);
+          setDraft(prev => ({
+            ...prev,
+            mediaId: media.id,
+            imageUrl: media.mediaUrl,
+          }));
+          setIsSnakeMediaPickerOpen(false);
+        }}
+      />
     </div>
   );
 }

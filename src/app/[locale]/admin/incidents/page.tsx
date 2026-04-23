@@ -11,6 +11,7 @@ import { Eye, Loader2, SearchX } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { ApiClientError } from '@/apis/client';
 import { incidentApi } from '@/apis/incident.api';
+import { useToast } from '@/components/ToastProvider';
 
 type IncidentTab = 'incidents' | 'missions';
 
@@ -55,6 +56,163 @@ const formatCurrency = (value: number | null | undefined) => {
   return `${value.toLocaleString('vi-VN')} VND`;
 };
 
+const NO_INFO_TEXT = 'Chưa có thông tin';
+
+const displayOrNoInfo = (value: string | number | null | undefined) => {
+  if (value === null || value === undefined) {
+    return NO_INFO_TEXT;
+  }
+
+  const normalized = String(value).trim();
+  return normalized.length > 0 ? normalized : NO_INFO_TEXT;
+};
+
+const formatDateTimeOrNoInfo = (value: string | null | undefined) => {
+  if (!value) {
+    return NO_INFO_TEXT;
+  }
+
+  return formatDateTime(value);
+};
+
+const formatCurrencyOrNoInfo = (value: number | null | undefined) => {
+  return formatCurrency(value) ?? NO_INFO_TEXT;
+};
+
+const getSeverityBadgeClass = (severity: number | null | undefined) => {
+  if (severity === null || severity === undefined) {
+    return 'bg-slate-100 text-slate-700';
+  }
+
+  if (severity >= 70) {
+    return 'bg-rose-600 text-white';
+  }
+
+  if (severity >= 40) {
+    return 'bg-amber-500 text-white';
+  }
+
+  return 'bg-emerald-600 text-white';
+};
+
+const getSeverityLabel = (severity: number | null | undefined) => {
+  if (severity === null || severity === undefined) {
+    return NO_INFO_TEXT;
+  }
+
+  if (severity >= 70) {
+    return 'Nghiêm trọng';
+  }
+
+  if (severity >= 40) {
+    return 'Trung bình';
+  }
+
+  return 'Nhẹ';
+};
+
+const getSnakeRiskClass = (riskLevel: number | null | undefined) => {
+  if (riskLevel === null || riskLevel === undefined) {
+    return 'bg-slate-100 text-slate-700';
+  }
+
+  if (riskLevel >= 8) {
+    return 'bg-rose-700 text-white';
+  }
+
+  if (riskLevel >= 6) {
+    return 'bg-orange-600 text-white';
+  }
+
+  if (riskLevel >= 4) {
+    return 'bg-amber-500 text-white';
+  }
+
+  return 'bg-emerald-600 text-white';
+};
+
+const getVenomTypeLabel = (value: string | null | undefined) => {
+  switch (value) {
+    case 'Neurotoxic':
+      return 'Độc thần kinh';
+    case 'Hemotoxic':
+      return 'Độc máu';
+    case 'Cytotoxic':
+      return 'Độc tế bào';
+    case 'Myotoxic':
+      return 'Độc cơ';
+    case 'None':
+      return 'Không có độc tố';
+    default:
+      return displayOrNoInfo(value);
+  }
+};
+
+const getDispatchStatusLabel = (value: string | number | null | undefined) => {
+  switch (String(value)) {
+    case 'Pending':
+      return 'Chờ phản hồi';
+    case 'Accepted':
+      return 'Đã chấp nhận';
+    case 'Declined':
+      return 'Đã từ chối';
+    case 'Cancelled':
+      return 'Đã hủy';
+    default:
+      return displayOrNoInfo(value == null ? null : String(value));
+  }
+};
+
+const getDispatchStatusBadgeClass = (value: string | number | null | undefined) => {
+  switch (String(value)) {
+    case 'Pending':
+      return 'bg-amber-100 text-amber-700';
+    case 'Accepted':
+      return 'bg-emerald-100 text-emerald-700';
+    case 'Declined':
+      return 'bg-rose-100 text-rose-700';
+    case 'Cancelled':
+      return 'bg-slate-200 text-slate-700';
+    default:
+      return 'bg-slate-100 text-slate-700';
+  }
+};
+
+const getInitialLetters = (name: string | null | undefined) => {
+  const normalized = (name ?? '').trim();
+  if (!normalized) {
+    return '?';
+  }
+
+  const parts = normalized.split(/\s+/).filter(Boolean);
+  const firstPart = parts[0] ?? '';
+  const lastPart = parts.at(-1) ?? '';
+
+  if (parts.length === 1) {
+    return firstPart.charAt(0).toUpperCase() || '?';
+  }
+
+  return `${firstPart.charAt(0)}${lastPart.charAt(0)}`.toUpperCase() || '?';
+};
+
+const renderAvatar = (avatarUrl: string | null | undefined, name: string | null | undefined) => {
+  if (avatarUrl?.trim()) {
+    return (
+      <img
+        src={avatarUrl}
+        alt={name ?? 'Avatar'}
+        className="size-12 rounded-full border border-slate-200 object-cover"
+      />
+    );
+  }
+
+  return (
+    <div className="inline-flex size-12 items-center justify-center rounded-full border border-slate-300 bg-slate-100 text-sm font-bold text-slate-700">
+      {getInitialLetters(name)}
+    </div>
+  );
+};
+
 const isImageAttachment = (contentType?: string | null, fileName?: string | null, mediaUrl?: string | null) => {
   if (contentType?.toLowerCase().startsWith('image/')) {
     return true;
@@ -77,9 +235,9 @@ const getMissionStatusLabel = (status: string) => {
     case 'MissionUncompleted':
       return 'Chưa hoàn thành';
     case 'MissionAborted':
-      return 'Đã hủy';
+      return 'Đã hủy bởi cứu hộ viên';
     case 'Cancelled':
-      return 'Đã hủy';
+      return 'Đã hủy bởi người dùng';
     default:
       return status;
   }
@@ -136,11 +294,11 @@ const MISSION_STATUS_OPTIONS = [
   { value: 'RescuerArrived', label: 'Đã đến nơi' },
   { value: 'MissionCompleted', label: 'Hoàn thành' },
   { value: 'MissionUncompleted', label: 'Chưa hoàn thành' },
-  { value: 'MissionAborted', label: 'Đã hủy' },
-  { value: 'Cancelled', label: 'Đã hủy' },
+  { value: 'MissionAborted', label: 'Đã hủy bởi cứu hộ viên' },
+  { value: 'Cancelled', label: 'Đã hủy bởi người dùng' },
 ] as const;
 
-const STATUS_BADGE_BASE_CLASS = 'inline-flex rounded-full px-2 py-0.5 text-xs font-semibold';
+const STATUS_BADGE_BASE_CLASS = 'inline-flex items-center justify-center rounded-full px-2.5 py-1 text-center text-xs leading-tight font-semibold';
 
 const getIncidentStatusBadgeClass = (stage: string) => {
   switch (stage) {
@@ -202,36 +360,20 @@ const formatShortId = (id: string | null | undefined) => {
   return `${id.slice(0, 8)}...${id.slice(-4)}`;
 };
 
-const getMissionStatusText = (incident: AdminIncidentSummaryResponse) => {
-  if (incident.activeMissionStatus) {
-    return getMissionStatusLabel(incident.activeMissionStatus);
+const formatIncidentId = (id: string | null | undefined) => {
+  if (!id) {
+    return '-';
   }
 
-  if (incident.assignedRescuerId) {
-    return 'Đã phân công';
-  }
-
-  if (incident.needsRedispatch) {
-    return 'Cần điều phối lại';
-  }
-
-  return 'Chưa có nhiệm vụ';
+  return `INC-${id.slice(-6).toUpperCase()}`;
 };
 
-const getIncidentMissionStatusBadgeClass = (incident: AdminIncidentSummaryResponse) => {
-  if (incident.activeMissionStatus) {
-    return getMissionStatusBadgeClass(incident.activeMissionStatus);
+const formatPersonDisplayName = (name: string | null | undefined, fallbackId: string | null | undefined) => {
+  if (name?.trim()) {
+    return name;
   }
 
-  if (incident.assignedRescuerId) {
-    return 'bg-blue-100 text-blue-700';
-  }
-
-  if (incident.needsRedispatch) {
-    return 'bg-amber-100 text-amber-700';
-  }
-
-  return 'bg-slate-100 text-slate-700';
+  return formatShortId(fallbackId);
 };
 
 const getApiErrorMessage = (error: unknown, fallback: string) => {
@@ -246,7 +388,7 @@ const getApiErrorMessage = (error: unknown, fallback: string) => {
       .join(' | ');
   }
 
-  return error.message || fallback;
+  return fallback;
 };
 
 const buildPageItems = (current: number, total: number): Array<number | '...'> => {
@@ -276,6 +418,7 @@ const buildPageItems = (current: number, total: number): Array<number | '...'> =
 };
 
 export default function IncidentsPage() {
+  const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<IncidentTab>('incidents');
 
   const [incidents, setIncidents] = useState<AdminIncidentSummaryResponse[]>([]);
@@ -340,8 +483,8 @@ export default function IncidentsPage() {
           return;
         }
 
-        setIncidents(response.items);
-        setIncidentsMeta(response.meta);
+        setIncidents(Array.isArray(response.items) ? response.items : []);
+        setIncidentsMeta(response.meta ?? DEFAULT_PAGINATION);
       } catch (error) {
         if (cancelled) {
           return;
@@ -349,7 +492,9 @@ export default function IncidentsPage() {
 
         console.error('Failed to load admin incidents', error);
         setIncidents([]);
-        setIncidentsError(getApiErrorMessage(error, 'Không thể tải danh sách sự cố.'));
+        const message = getApiErrorMessage(error, 'Không thể tải danh sách sự cố.');
+        setIncidentsError(message);
+        showToast(message, { type: 'error' });
       } finally {
         if (!cancelled) {
           setIncidentsLoading(false);
@@ -362,7 +507,7 @@ export default function IncidentsPage() {
     return () => {
       cancelled = true;
     };
-  }, [activeTab, incidentSince, incidentStatus, incidentUntil, incidentsPage, incidentsPageSize]);
+  }, [activeTab, incidentSince, incidentStatus, incidentUntil, incidentsPage, incidentsPageSize, showToast]);
 
   useEffect(() => {
     if (activeTab !== 'missions') {
@@ -388,8 +533,8 @@ export default function IncidentsPage() {
           return;
         }
 
-        setMissions(response.items);
-        setMissionsMeta(response.meta);
+        setMissions(Array.isArray(response.items) ? response.items : []);
+        setMissionsMeta(response.meta ?? DEFAULT_PAGINATION);
       } catch (error) {
         if (cancelled) {
           return;
@@ -397,7 +542,9 @@ export default function IncidentsPage() {
 
         console.error('Failed to load admin missions', error);
         setMissions([]);
-        setMissionsError(getApiErrorMessage(error, 'Không thể tải danh sách nhiệm vụ cứu hộ.'));
+        const message = getApiErrorMessage(error, 'Không thể tải danh sách nhiệm vụ cứu hộ.');
+        setMissionsError(message);
+        showToast(message, { type: 'error' });
       } finally {
         if (!cancelled) {
           setMissionsLoading(false);
@@ -410,7 +557,7 @@ export default function IncidentsPage() {
     return () => {
       cancelled = true;
     };
-  }, [activeTab, missionSince, missionStatus, missionUntil, missionsPage, missionsPageSize]);
+  }, [activeTab, missionSince, missionStatus, missionUntil, missionsPage, missionsPageSize, showToast]);
 
   const openIncidentDetail = async (incidentId: string) => {
     setDetailModal({ type: 'incident', id: incidentId });
@@ -424,7 +571,9 @@ export default function IncidentsPage() {
       setSelectedIncidentDetail(detail);
     } catch (error) {
       console.error('Failed to load incident detail', error);
-      setDetailError(getApiErrorMessage(error, 'Không thể tải chi tiết sự cố.'));
+      const message = getApiErrorMessage(error, 'Không thể tải chi tiết sự cố.');
+      setDetailError(message);
+      showToast(message, { type: 'error' });
     } finally {
       setDetailLoading(false);
     }
@@ -442,7 +591,9 @@ export default function IncidentsPage() {
       setSelectedMissionDetail(detail);
     } catch (error) {
       console.error('Failed to load mission detail', error);
-      setDetailError(getApiErrorMessage(error, 'Không thể tải chi tiết nhiệm vụ cứu hộ.'));
+      const message = getApiErrorMessage(error, 'Không thể tải chi tiết nhiệm vụ cứu hộ.');
+      setDetailError(message);
+      showToast(message, { type: 'error' });
     } finally {
       setDetailLoading(false);
     }
@@ -454,6 +605,10 @@ export default function IncidentsPage() {
     setSelectedIncidentDetail(null);
     setSelectedMissionDetail(null);
   };
+
+  const selectedIncidentMedia = selectedIncidentDetail?.incidentMedia ?? selectedIncidentDetail?.media ?? [];
+  const selectedIncidentMissionHistory = selectedIncidentDetail?.missionHistory ?? [];
+  const selectedIncidentRescueMissionMedia = selectedIncidentDetail?.rescueMissionMedia ?? [];
 
   return (
     <main className="h-[calc(100vh-81px)] overflow-y-auto bg-slate-50 p-6 lg:p-8">
@@ -556,20 +711,21 @@ export default function IncidentsPage() {
               <table className="min-w-full border-separate border-spacing-0 text-left text-sm">
                 <thead>
                   <tr className="text-xs uppercase tracking-wide text-slate-500">
-                    <th className="border-b border-slate-200 px-3 py-2">ID</th>
-                    <th className="border-b border-slate-200 px-3 py-2">Trạng thái</th>
+                    <th className="border-b border-slate-200 px-3 py-2">Mã sự cố</th>
+                    <th className="border-b border-slate-200 px-3 py-2 text-center">Trạng thái</th>
+                    <th className="border-b border-slate-200 px-3 py-2 text-center">Nhiệm vụ hiện tại</th>
+                    <th className="border-b border-slate-200 px-3 py-2 text-center">Cần điều phối lại</th>
                     <th className="border-b border-slate-200 px-3 py-2">Địa chỉ</th>
                     <th className="border-b border-slate-200 px-3 py-2">Tạo lúc</th>
-                    <th className="border-b border-slate-200 px-3 py-2">Trạng thái nhiệm vụ</th>
+                    <th className="border-b border-slate-200 px-3 py-2">Điều phối viên phụ trách</th>
                     <th className="border-b border-slate-200 px-3 py-2">Cứu hộ phụ trách</th>
-                    <th className="border-b border-slate-200 px-3 py-2">Điều phối</th>
                     <th className="border-b border-slate-200 px-3 py-2 whitespace-nowrap">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody>
                   {incidentsLoading && (
                     <tr>
-                      <td colSpan={8} className="px-3 py-10 text-center text-slate-500">
+                      <td colSpan={9} className="px-3 py-10 text-center text-slate-500">
                         <span className="inline-flex items-center gap-2">
                           <Loader2 className="size-4 animate-spin" />
                           Đang tải...
@@ -580,7 +736,7 @@ export default function IncidentsPage() {
 
                   {!incidentsLoading && incidents.length === 0 && (
                     <tr>
-                      <td colSpan={8} className="px-3 py-10 text-center text-slate-500">
+                      <td colSpan={9} className="px-3 py-10 text-center text-slate-500">
                         <span className="inline-flex items-center gap-2">
                           <SearchX className="size-4" />
                           Không có dữ liệu
@@ -591,24 +747,41 @@ export default function IncidentsPage() {
 
                   {!incidentsLoading && incidents.map(item => (
                     <tr key={item.id} className="odd:bg-slate-50/50">
-                      <td className="border-b border-slate-100 px-3 py-2 font-mono text-xs text-slate-700" title={item.id}>{formatShortId(item.id)}</td>
-                      <td className="border-b border-slate-100 px-3 py-2">
+                      <td className="border-b border-slate-100 px-3 py-2 font-mono text-sm font-semibold tracking-[0.2em] text-slate-900" title={formatIncidentId(item.id)}>{formatIncidentId(item.id)}</td>
+                      <td className="border-b border-slate-100 px-3 py-2 text-center">
                         <span className={`${STATUS_BADGE_BASE_CLASS} ${getIncidentStatusBadgeClass(String(item.status))}`}>
                           {translateIncidentStage(String(item.status))}
                         </span>
                       </td>
+                      <td className="border-b border-slate-100 px-3 py-2 text-center">
+                        {item.activeMissionStatus
+                          ? (
+                              <span className={`${STATUS_BADGE_BASE_CLASS} ${getMissionStatusBadgeClass(String(item.activeMissionStatus))}`}>
+                                {getMissionStatusLabel(String(item.activeMissionStatus))}
+                              </span>
+                            )
+                          : '-'}
+                      </td>
+                      <td className="border-b border-slate-100 px-3 py-2 text-center">
+                        {item.needsRedispatch
+                          ? <span className="rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700">Có</span>
+                          : <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-semibold text-emerald-700">Không</span>}
+                      </td>
                       <td className="border-b border-slate-100 px-3 py-2 max-w-[20rem] whitespace-normal wrap-break-word">{item.address || '-'}</td>
                       <td className="border-b border-slate-100 px-3 py-2">{formatDateTime(item.createdAt)}</td>
                       <td className="border-b border-slate-100 px-3 py-2">
-                        <span className={`${STATUS_BADGE_BASE_CLASS} ${getIncidentMissionStatusBadgeClass(item)}`}>
-                          {getMissionStatusText(item)}
-                        </span>
+                        <div className="space-y-1">
+                          <p className="font-medium text-slate-800">
+                            {formatPersonDisplayName(item.handlingOperatorName, item.handlingOperatorId)}
+                          </p>
+                        </div>
                       </td>
-                      <td className="border-b border-slate-100 px-3 py-2 font-mono text-xs" title={item.assignedRescuerId || undefined}>{formatShortId(item.assignedRescuerId)}</td>
                       <td className="border-b border-slate-100 px-3 py-2">
-                        <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${item.needsRedispatch ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                          {item.needsRedispatch ? 'Cần điều phối lại' : 'Đã điều phối'}
-                        </span>
+                        <div className="space-y-1">
+                          <p className="font-medium text-slate-800">
+                            {formatPersonDisplayName(item.assignedRescuerName, item.assignedRescuerId)}
+                          </p>
+                        </div>
                       </td>
                       <td className="border-b border-slate-100 px-3 py-2 whitespace-nowrap">
                         <button
@@ -756,18 +929,22 @@ export default function IncidentsPage() {
                 <thead>
                   <tr className="text-xs uppercase tracking-wide text-slate-500">
                     <th className="border-b border-slate-200 px-3 py-2">Mã nhiệm vụ</th>
-                    <th className="border-b border-slate-200 px-3 py-2">Trạng thái</th>
+                    <th className="border-b border-slate-200 px-3 py-2 text-center">Trạng thái</th>
+                    <th className="border-b border-slate-200 px-3 py-2 text-center">Trạng thái sự cố</th>
                     <th className="border-b border-slate-200 px-3 py-2">Người cứu hộ</th>
-                    <th className="border-b border-slate-200 px-3 py-2">Chi phí</th>
+                    <th className="border-b border-slate-200 px-3 py-2">Chi phí mission</th>
+                    <th className="border-b border-slate-200 px-3 py-2">Chi phí thực tế</th>
+                    <th className="border-b border-slate-200 px-3 py-2">Chi phí từ trung tâm</th>
                     <th className="border-b border-slate-200 px-3 py-2">Sự cố</th>
                     <th className="border-b border-slate-200 px-3 py-2">Tạo lúc</th>
+                    <th className="border-b border-slate-200 px-3 py-2">Cập nhật lúc</th>
                     <th className="border-b border-slate-200 px-3 py-2 whitespace-nowrap">Thao tác</th>
                   </tr>
                 </thead>
                 <tbody>
                   {missionsLoading && (
                     <tr>
-                      <td colSpan={7} className="px-3 py-10 text-center text-slate-500">
+                      <td colSpan={11} className="px-3 py-10 text-center text-slate-500">
                         <span className="inline-flex items-center gap-2">
                           <Loader2 className="size-4 animate-spin" />
                           Đang tải...
@@ -778,7 +955,7 @@ export default function IncidentsPage() {
 
                   {!missionsLoading && missions.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="px-3 py-10 text-center text-slate-500">
+                      <td colSpan={11} className="px-3 py-10 text-center text-slate-500">
                         <span className="inline-flex items-center gap-2">
                           <SearchX className="size-4" />
                           Không có dữ liệu
@@ -790,15 +967,23 @@ export default function IncidentsPage() {
                   {!missionsLoading && missions.map(item => (
                     <tr key={item.id} className="odd:bg-slate-50/50">
                       <td className="border-b border-slate-100 px-3 py-2 font-mono text-xs text-slate-700">{item.id}</td>
-                      <td className="border-b border-slate-100 px-3 py-2">
+                      <td className="border-b border-slate-100 px-3 py-2 text-center">
                         <span className={`${STATUS_BADGE_BASE_CLASS} ${getMissionStatusBadgeClass(item.status)}`}>
                           {getMissionStatusLabel(item.status)}
                         </span>
                       </td>
-                      <td className="border-b border-slate-100 px-3 py-2">{item.rescuerName}</td>
-                      <td className="border-b border-slate-100 px-3 py-2">{item.price.toLocaleString('vi-VN')}</td>
+                      <td className="border-b border-slate-100 px-3 py-2 text-center">
+                        <span className={`${STATUS_BADGE_BASE_CLASS} ${getIncidentStatusBadgeClass(String(item.incidentStatus))}`}>
+                          {translateIncidentStage(String(item.incidentStatus))}
+                        </span>
+                      </td>
+                      <td className="border-b border-slate-100 px-3 py-2">{item.rescuerName || '-'}</td>
+                      <td className="border-b border-slate-100 px-3 py-2">{formatCurrencyOrNoInfo(item.price)}</td>
+                      <td className="border-b border-slate-100 px-3 py-2">{formatCurrencyOrNoInfo(item.actualCost)}</td>
+                      <td className="border-b border-slate-100 px-3 py-2">{formatCurrencyOrNoInfo(item.costFromCenter)}</td>
                       <td className="border-b border-slate-100 px-3 py-2 max-w-[20rem] whitespace-normal wrap-break-word">{item.incidentAddress || '-'}</td>
                       <td className="border-b border-slate-100 px-3 py-2">{formatDateTime(item.createdAt)}</td>
+                      <td className="border-b border-slate-100 px-3 py-2">{formatDateTime(item.updatedAt)}</td>
                       <td className="border-b border-slate-100 px-3 py-2 whitespace-nowrap">
                         <button
                           type="button"
@@ -874,9 +1059,9 @@ export default function IncidentsPage() {
       </div>
 
       {detailModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4">
-          <div className="w-full max-w-4xl rounded-2xl bg-white shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 p-4 backdrop-blur-[1px]">
+          <div className="w-full max-w-4xl rounded-2xl border border-slate-200 bg-slate-100 shadow-2xl">
+            <div className="flex items-center justify-between rounded-t-2xl border-b border-slate-200 bg-white px-5 py-4">
               <h3 className="text-lg font-bold text-slate-900">
                 {detailModal.type === 'incident' && 'Chi tiết sự cố'}
                 {detailModal.type === 'mission' && 'Chi tiết nhiệm vụ cứu hộ'}
@@ -907,12 +1092,9 @@ export default function IncidentsPage() {
               )}
 
               {!detailLoading && !detailError && detailModal.type === 'incident' && selectedIncidentDetail && (
-                <div className="space-y-4">
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <div className="space-y-5">
+                  <div className="rounded-2xl border border-emerald-200 bg-linear-to-r from-emerald-50 via-teal-50 to-cyan-50 p-5 shadow-sm">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-xs font-semibold text-slate-600">
-                        Trạng thái:
-                      </span>
                       <span className={`${STATUS_BADGE_BASE_CLASS} ${getIncidentStatusBadgeClass(String(selectedIncidentDetail.status))}`}>
                         {translateIncidentStage(String(selectedIncidentDetail.status))}
                       </span>
@@ -937,25 +1119,39 @@ export default function IncidentsPage() {
                           {selectedIncidentDetail.failedAttemptsCount}
                         </span>
                       )}
+                      <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${getSeverityBadgeClass(selectedIncidentDetail.severityLevel)}`}>
+                        Mức độ:
+                        {' '}
+                        {getSeverityLabel(selectedIncidentDetail.severityLevel)}
+                      </span>
                     </div>
-                    <p className="mt-3 text-xs text-slate-500">
-                      Mã sự cố:
+                    <p className="mt-4 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">
+                      Mã sự cố
+                    </p>
+                    <p className="mt-1 font-mono text-2xl font-black tracking-[0.22em] text-slate-900">
+                      {formatIncidentId(selectedIncidentDetail.id)}
+                    </p>
+                    <p className="mt-2 text-xs text-slate-500">
+                      Id:
                       {' '}
                       <span className="font-mono">{selectedIncidentDetail.id}</span>
                     </p>
                   </div>
 
-                  <div className="rounded-lg border border-slate-200 p-3">
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Thông tin sự cố</p>
-                    <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                      {selectedIncidentDetail.address && (
-                        <p>
-                          <span className="font-semibold">Địa chỉ:</span>
-                          {' '}
-                          {selectedIncidentDetail.address}
-                        </p>
-                      )}
-                      <p>
+                  <div className="rounded-xl border border-sky-200 bg-sky-50/70 p-4 shadow-sm">
+                    <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Thông tin sự cố</p>
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                      <p className="rounded-lg border border-sky-100 bg-white px-3 py-2">
+                        <span className="font-semibold">Tạo lúc:</span>
+                        {' '}
+                        {formatDateTimeOrNoInfo(selectedIncidentDetail.createdAt)}
+                      </p>
+                      <p className="rounded-lg border border-sky-100 bg-white px-3 py-2">
+                        <span className="font-semibold">Địa chỉ:</span>
+                        {' '}
+                        {displayOrNoInfo(selectedIncidentDetail.address)}
+                      </p>
+                      <p className="rounded-lg border border-sky-100 bg-white px-3 py-2">
                         <span className="font-semibold">Tọa độ:</span>
                         {' '}
                         {selectedIncidentDetail.locationCoordinates.latitude}
@@ -963,50 +1159,65 @@ export default function IncidentsPage() {
                         {' '}
                         {selectedIncidentDetail.locationCoordinates.longitude}
                       </p>
-                      {selectedIncidentDetail.incidentOccurredAt && (
-                        <p>
-                          <span className="font-semibold">Xảy ra lúc:</span>
-                          {' '}
-                          {formatDateTime(selectedIncidentDetail.incidentOccurredAt)}
-                        </p>
-                      )}
-                      {selectedIncidentDetail.assignedAt && (
-                        <p>
-                          <span className="font-semibold">Phân công lúc:</span>
-                          {' '}
-                          {formatDateTime(selectedIncidentDetail.assignedAt)}
-                        </p>
-                      )}
-                      {selectedIncidentDetail.assignedRescuerId && (
-                        <p>
-                          <span className="font-semibold">Mã cứu hộ phụ trách:</span>
-                          {' '}
-                          <span className="font-mono text-xs">{selectedIncidentDetail.assignedRescuerId}</span>
-                        </p>
-                      )}
-                      {selectedIncidentDetail.severityLevel !== null && (
-                        <p>
-                          <span className="font-semibold">Mức độ nghiêm trọng:</span>
-                          {' '}
-                          {selectedIncidentDetail.severityLevel}
-                        </p>
-                      )}
-                      {selectedIncidentDetail.cancellationReason && (
-                        <p>
-                          <span className="font-semibold">Lý do hủy:</span>
-                          {' '}
-                          {selectedIncidentDetail.cancellationReason}
-                        </p>
-                      )}
+                      <p className="rounded-lg border border-sky-100 bg-white px-3 py-2">
+                        <span className="font-semibold">Xảy ra lúc:</span>
+                        {' '}
+                        {formatDateTimeOrNoInfo(selectedIncidentDetail.incidentOccurredAt)}
+                      </p>
+                      <p className="rounded-lg border border-sky-100 bg-white px-3 py-2">
+                        <span className="font-semibold">Xác nhận lúc:</span>
+                        {' '}
+                        {formatDateTimeOrNoInfo(selectedIncidentDetail.confirmedAt)}
+                      </p>
+                      <p className="rounded-lg border border-sky-100 bg-white px-3 py-2">
+                        <span className="font-semibold">Điều phối lúc:</span>
+                        {' '}
+                        {formatDateTimeOrNoInfo(selectedIncidentDetail.dispatchedAt)}
+                      </p>
+                      <p className="rounded-lg border border-sky-100 bg-white px-3 py-2">
+                        <span className="font-semibold">Phân công lúc:</span>
+                        {' '}
+                        {formatDateTimeOrNoInfo(selectedIncidentDetail.assignedAt)}
+                      </p>
+                      <p className="rounded-lg border border-sky-100 bg-white px-3 py-2">
+                        <span className="font-semibold">Operator xử lý:</span>
+                        {' '}
+                        {displayOrNoInfo(formatPersonDisplayName(selectedIncidentDetail.handlingOperatorName, selectedIncidentDetail.handlingOperatorId))}
+                      </p>
+                      <p className="rounded-lg border border-sky-100 bg-white px-3 py-2">
+                        <span className="font-semibold">Operator ID:</span>
+                        {' '}
+                        <span className="font-mono text-xs">{displayOrNoInfo(selectedIncidentDetail.handlingOperatorId)}</span>
+                      </p>
+                      <p className="rounded-lg border border-sky-100 bg-white px-3 py-2">
+                        <span className="font-semibold">Cứu hộ phụ trách:</span>
+                        {' '}
+                        {displayOrNoInfo(formatPersonDisplayName(selectedIncidentDetail.assignedRescuer?.account?.fullName ?? selectedIncidentDetail.assignedRescuer?.fullName ?? selectedIncidentDetail.assignedRescuerName, selectedIncidentDetail.assignedRescuerId))}
+                      </p>
+                      <p className="rounded-lg border border-sky-100 bg-white px-3 py-2">
+                        <span className="font-semibold">Rescuer ID:</span>
+                        {' '}
+                        <span className="font-mono text-xs">{displayOrNoInfo(selectedIncidentDetail.assignedRescuerId)}</span>
+                      </p>
+                      <p className="rounded-lg border border-sky-100 bg-white px-3 py-2">
+                        <span className="font-semibold">Mức độ nghiêm trọng:</span>
+                        {' '}
+                        {displayOrNoInfo(selectedIncidentDetail.severityLevel)}
+                      </p>
+                      <p className="rounded-lg border border-sky-100 bg-white px-3 py-2 md:col-span-2">
+                        <span className="font-semibold">Lý do hủy:</span>
+                        {' '}
+                        {displayOrNoInfo(selectedIncidentDetail.cancellationReason)}
+                      </p>
                     </div>
                   </div>
 
                   {selectedIncidentDetail.symptomsReport && selectedIncidentDetail.symptomsReport.length > 0 && (
-                    <div className="rounded-lg border border-slate-200 p-3">
-                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Triệu chứng ghi nhận</p>
+                    <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-4 shadow-sm">
+                      <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Triệu chứng ghi nhận</p>
                       <ul className="space-y-2">
                         {selectedIncidentDetail.symptomsReport.map(symptom => (
-                          <li key={symptom.symptomId} className="rounded-md bg-slate-50 p-2">
+                          <li key={symptom.symptomId} className="rounded-xl border border-amber-100 bg-white p-3">
                             <p className="font-semibold text-slate-800">{symptom.symptomName}</p>
                             {symptom.symptomDescription && <p className="text-xs text-slate-600">{symptom.symptomDescription}</p>}
                           </li>
@@ -1015,212 +1226,256 @@ export default function IncidentsPage() {
                     </div>
                   )}
 
-                  {selectedIncidentDetail.user && (
-                    <div className="rounded-lg border border-slate-200 p-3">
-                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Nạn nhân</p>
-                      <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                        {selectedIncidentDetail.user.account?.fullName && (
-                          <p>
-                            <span className="font-semibold">Họ tên:</span>
-                            {' '}
-                            {selectedIncidentDetail.user.account.fullName}
-                          </p>
-                        )}
-                        <p>
-                          <span className="font-semibold">Tên tài khoản:</span>
-                          {' '}
-                          {selectedIncidentDetail.user.userName}
+                  <div className="rounded-xl border border-violet-200 bg-violet-50/70 p-4 shadow-sm">
+                    <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Nạn nhân</p>
+                    <div className="mb-3 flex items-center gap-3 rounded-xl border border-violet-100 bg-white px-3 py-2">
+                      {renderAvatar(
+                        selectedIncidentDetail.user?.account?.avatarUrl,
+                        selectedIncidentDetail.user?.account?.fullName ?? selectedIncidentDetail.user?.fullName ?? selectedIncidentDetail.user?.userName,
+                      )}
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-slate-900">
+                          {displayOrNoInfo(selectedIncidentDetail.user?.account?.fullName ?? selectedIncidentDetail.user?.fullName ?? selectedIncidentDetail.user?.userName)}
                         </p>
-                        {selectedIncidentDetail.user.email && (
-                          <p>
-                            <span className="font-semibold">Email:</span>
-                            {' '}
-                            {selectedIncidentDetail.user.email}
-                          </p>
-                        )}
-                        {selectedIncidentDetail.user.phoneNumber && (
-                          <p>
-                            <span className="font-semibold">Số điện thoại:</span>
-                            {' '}
-                            {selectedIncidentDetail.user.phoneNumber}
-                          </p>
-                        )}
-                        <p>
-                          <span className="font-semibold">Bệnh nền:</span>
-                          {' '}
-                          {selectedIncidentDetail.user.hasUnderlyingDisease ? 'Có' : 'Không'}
+                        <p className="truncate text-xs text-slate-500">
+                          {displayOrNoInfo(selectedIncidentDetail.user?.phoneNumber)}
                         </p>
-                        {selectedIncidentDetail.user.emergencyContacts.length > 0 && (
-                          <p>
-                            <span className="font-semibold">Liên hệ khẩn cấp:</span>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                      <p className="rounded-lg border border-violet-100 bg-white px-3 py-2">
+                        <span className="font-semibold">Account ID:</span>
+                        {' '}
+                        <span className="font-mono text-xs">{displayOrNoInfo(selectedIncidentDetail.user?.accountId)}</span>
+                      </p>
+                      <p className="rounded-lg border border-violet-100 bg-white px-3 py-2">
+                        <span className="font-semibold">Họ tên:</span>
+                        {' '}
+                        {displayOrNoInfo(selectedIncidentDetail.user?.account?.fullName ?? selectedIncidentDetail.user?.fullName ?? selectedIncidentDetail.user?.userName)}
+                      </p>
+                      <p className="rounded-lg border border-violet-100 bg-white px-3 py-2">
+                        <span className="font-semibold">Tên tài khoản:</span>
+                        {' '}
+                        {displayOrNoInfo(selectedIncidentDetail.user?.userName)}
+                      </p>
+                      <p className="rounded-lg border border-violet-100 bg-white px-3 py-2">
+                        <span className="font-semibold">Email:</span>
+                        {' '}
+                        {displayOrNoInfo(selectedIncidentDetail.user?.email)}
+                      </p>
+                      <p className="rounded-lg border border-violet-100 bg-white px-3 py-2">
+                        <span className="font-semibold">Số điện thoại:</span>
+                        {' '}
+                        {displayOrNoInfo(selectedIncidentDetail.user?.phoneNumber)}
+                      </p>
+                      <p className="rounded-lg border border-violet-100 bg-white px-3 py-2">
+                        <span className="font-semibold">Điểm đánh giá:</span>
+                        {' '}
+                        {displayOrNoInfo(selectedIncidentDetail.user?.rating)}
+                        {' '}
+                        (
+                        {displayOrNoInfo(selectedIncidentDetail.user?.ratingCount)}
+                        {' '}
+                        lượt)
+                      </p>
+                      <p className="rounded-lg border border-violet-100 bg-white px-3 py-2">
+                        <span className="font-semibold">Role:</span>
+                        {' '}
+                        {displayOrNoInfo(selectedIncidentDetail.user?.account?.role == null ? null : String(selectedIncidentDetail.user.account.role))}
+                      </p>
+                      <p className="rounded-lg border border-violet-100 bg-white px-3 py-2">
+                        <span className="font-semibold">Bệnh nền:</span>
+                        {' '}
+                        {selectedIncidentDetail.user == null ? NO_INFO_TEXT : selectedIncidentDetail.user.hasUnderlyingDisease ? 'Có' : 'Không'}
+                      </p>
+                      <p className="rounded-lg border border-violet-100 bg-white px-3 py-2 md:col-span-2">
+                        <span className="font-semibold">Liên hệ khẩn cấp:</span>
+                        {' '}
+                        {selectedIncidentDetail.user?.emergencyContacts?.length
+                          ? selectedIncidentDetail.user.emergencyContacts.join(', ')
+                          : NO_INFO_TEXT}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-xl border border-cyan-200 bg-cyan-50/70 p-4 shadow-sm">
+                    <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Cứu hộ được phân công</p>
+                    <div className="mb-3 flex items-center gap-3 rounded-xl border border-cyan-100 bg-white px-3 py-2">
+                      {renderAvatar(
+                        selectedIncidentDetail.assignedRescuer?.account?.avatarUrl,
+                        selectedIncidentDetail.assignedRescuer?.account?.fullName ?? selectedIncidentDetail.assignedRescuer?.fullName,
+                      )}
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-slate-900">
+                          {displayOrNoInfo(selectedIncidentDetail.assignedRescuer?.account?.fullName ?? selectedIncidentDetail.assignedRescuer?.fullName)}
+                        </p>
+                        <p className="truncate text-xs text-slate-500">
+                          {displayOrNoInfo(selectedIncidentDetail.assignedRescuer?.phoneNumber)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                      <p className="rounded-lg border border-cyan-100 bg-white px-3 py-2">
+                        <span className="font-semibold">Account ID:</span>
+                        {' '}
+                        <span className="font-mono text-xs">{displayOrNoInfo(selectedIncidentDetail.assignedRescuer?.accountId)}</span>
+                      </p>
+                      <p className="rounded-lg border border-cyan-100 bg-white px-3 py-2">
+                        <span className="font-semibold">Họ tên:</span>
+                        {' '}
+                        {displayOrNoInfo(selectedIncidentDetail.assignedRescuer?.account?.fullName ?? selectedIncidentDetail.assignedRescuer?.fullName ?? selectedIncidentDetail.assignedRescuer?.accountId)}
+                      </p>
+                      <p className="rounded-lg border border-cyan-100 bg-white px-3 py-2">
+                        <span className="font-semibold">Số điện thoại:</span>
+                        {' '}
+                        {displayOrNoInfo(selectedIncidentDetail.assignedRescuer?.phoneNumber)}
+                      </p>
+                      <p className="rounded-lg border border-cyan-100 bg-white px-3 py-2">
+                        <span className="font-semibold">Loại cứu hộ:</span>
+                        {' '}
+                        {displayOrNoInfo(selectedIncidentDetail.assignedRescuer?.type == null ? null : String(selectedIncidentDetail.assignedRescuer.type))}
+                      </p>
+                      <p className="rounded-lg border border-cyan-100 bg-white px-3 py-2">
+                        <span className="font-semibold">Trực tuyến:</span>
+                        {' '}
+                        {selectedIncidentDetail.assignedRescuer == null ? NO_INFO_TEXT : selectedIncidentDetail.assignedRescuer.isOnline ? 'Có' : 'Không'}
+                      </p>
+                      <p className="rounded-lg border border-cyan-100 bg-white px-3 py-2">
+                        <span className="font-semibold">Sẵn sàng:</span>
+                        {' '}
+                        {selectedIncidentDetail.assignedRescuer == null ? NO_INFO_TEXT : selectedIncidentDetail.assignedRescuer.isAvailable ? 'Có' : 'Không'}
+                      </p>
+                      <p className="rounded-lg border border-cyan-100 bg-white px-3 py-2 md:col-span-2">
+                        <span className="font-semibold">Cập nhật vị trí gần nhất:</span>
+                        {' '}
+                        {formatDateTimeOrNoInfo(selectedIncidentDetail.assignedRescuer?.lastLocationUpdate)}
+                      </p>
+                      <p className="rounded-lg border border-cyan-100 bg-white px-3 py-2">
+                        <span className="font-semibold">Tọa độ rescuer:</span>
+                        {' '}
+                        {selectedIncidentDetail.assignedRescuer?.latitude != null && selectedIncidentDetail.assignedRescuer?.longitude != null
+                          ? `${selectedIncidentDetail.assignedRescuer.latitude}, ${selectedIncidentDetail.assignedRescuer.longitude}`
+                          : NO_INFO_TEXT}
+                      </p>
+                      <p className="rounded-lg border border-cyan-100 bg-white px-3 py-2">
+                        <span className="font-semibold">Tổng/H. thành:</span>
+                        {' '}
+                        {displayOrNoInfo(selectedIncidentDetail.assignedRescuer?.totalMissions)}
+                        /
+                        {displayOrNoInfo(selectedIncidentDetail.assignedRescuer?.completedMissions)}
+                      </p>
+                    </div>
+                  </div>
+
+                  {(selectedIncidentDetail.totalDispatchRequests !== undefined
+                    || selectedIncidentDetail.acceptedDispatchCount !== undefined
+                    || selectedIncidentDetail.declinedDispatchCount !== undefined
+                    || selectedIncidentDetail.cancelledDispatchCount !== undefined
+                    || selectedIncidentDetail.operatorNotes) && (
+                    <div className="rounded-xl border border-indigo-200 bg-indigo-50/70 p-4 shadow-sm">
+                      <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Điều phối</p>
+                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                        {selectedIncidentDetail.totalDispatchRequests !== undefined && (
+                          <p className="rounded-lg border border-indigo-100 bg-white px-3 py-2">
+                            <span className="font-semibold">Tổng yêu cầu:</span>
                             {' '}
-                            {selectedIncidentDetail.user.emergencyContacts.join(', ')}
+                            {selectedIncidentDetail.totalDispatchRequests}
                           </p>
                         )}
+                        {selectedIncidentDetail.acceptedDispatchCount !== undefined && (
+                          <p className="rounded-lg border border-indigo-100 bg-white px-3 py-2">
+                            <span className="font-semibold">Đã nhận:</span>
+                            {' '}
+                            {selectedIncidentDetail.acceptedDispatchCount}
+                          </p>
+                        )}
+                        {selectedIncidentDetail.declinedDispatchCount !== undefined && (
+                          <p className="rounded-lg border border-indigo-100 bg-white px-3 py-2">
+                            <span className="font-semibold">Từ chối:</span>
+                            {' '}
+                            {selectedIncidentDetail.declinedDispatchCount}
+                          </p>
+                        )}
+                        {selectedIncidentDetail.cancelledDispatchCount !== undefined && (
+                          <p className="rounded-lg border border-indigo-100 bg-white px-3 py-2">
+                            <span className="font-semibold">Đã hủy:</span>
+                            {' '}
+                            {selectedIncidentDetail.cancelledDispatchCount}
+                          </p>
+                        )}
+                        {selectedIncidentDetail.operatorNotes && (
+                          <p className="rounded-lg border border-indigo-100 bg-white px-3 py-2 md:col-span-2">
+                            <span className="font-semibold">Ghi chú operator:</span>
+                            {' '}
+                            {selectedIncidentDetail.operatorNotes}
+                          </p>
+                        )}
+                        <p className="rounded-lg border border-indigo-100 bg-white px-3 py-2 md:col-span-2">
+                          <span className="font-semibold">Operator:</span>
+                          {' '}
+                          {displayOrNoInfo(selectedIncidentDetail.handlingOperatorName)}
+                          {' '}
+                          (
+                          <span className="font-mono text-xs">{displayOrNoInfo(selectedIncidentDetail.handlingOperatorId)}</span>
+                          )
+                        </p>
                       </div>
                     </div>
                   )}
-
-                  {selectedIncidentDetail.assignedRescuer && (
-                    <div className="rounded-lg border border-slate-200 p-3">
-                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Cứu hộ được phân công</p>
-                      <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                        {selectedIncidentDetail.assignedRescuer.account?.fullName && (
-                          <p>
-                            <span className="font-semibold">Họ tên:</span>
-                            {' '}
-                            {selectedIncidentDetail.assignedRescuer.account.fullName}
-                          </p>
-                        )}
-                        {selectedIncidentDetail.assignedRescuer.phoneNumber && (
-                          <p>
-                            <span className="font-semibold">Số điện thoại:</span>
-                            {' '}
-                            {selectedIncidentDetail.assignedRescuer.phoneNumber}
-                          </p>
-                        )}
-                        <p>
-                          <span className="font-semibold">Loại cứu hộ:</span>
-                          {' '}
-                          {String(selectedIncidentDetail.assignedRescuer.type)}
-                        </p>
-                        <p>
-                          <span className="font-semibold">Trực tuyến:</span>
-                          {' '}
-                          {selectedIncidentDetail.assignedRescuer.isOnline ? 'Có' : 'Không'}
-                        </p>
-                        <p>
-                          <span className="font-semibold">Sẵn sàng:</span>
-                          {' '}
-                          {selectedIncidentDetail.assignedRescuer.isAvailable ? 'Có' : 'Không'}
-                        </p>
-                        {selectedIncidentDetail.assignedRescuer.lastLocationUpdate && (
-                          <p>
-                            <span className="font-semibold">Cập nhật vị trí gần nhất:</span>
-                            {' '}
-                            {formatDateTime(selectedIncidentDetail.assignedRescuer.lastLocationUpdate)}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {selectedIncidentDetail.activeMission && (
-                    <div className="rounded-lg border border-slate-200 p-3">
-                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Nhiệm vụ đang gắn với sự cố</p>
-                      <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                        <p>
-                          <span className="font-semibold">Mã nhiệm vụ:</span>
-                          {' '}
-                          <span className="font-mono text-xs">{selectedIncidentDetail.activeMission.id}</span>
-                        </p>
-                        <p>
-                          <span className="font-semibold">Trạng thái:</span>
-                          {' '}
-                          <span className={`${STATUS_BADGE_BASE_CLASS} ${getMissionStatusBadgeClass(String(selectedIncidentDetail.activeMission.status))}`}>
-                            {getMissionStatusLabel(String(selectedIncidentDetail.activeMission.status))}
-                          </span>
-                        </p>
-                        {formatCurrency(selectedIncidentDetail.activeMission.price) && (
-                          <p>
-                            <span className="font-semibold">Giá dự kiến:</span>
-                            {' '}
-                            {formatCurrency(selectedIncidentDetail.activeMission.price)}
-                          </p>
-                        )}
-                        {formatCurrency(selectedIncidentDetail.activeMission.actualCost) && (
-                          <p>
-                            <span className="font-semibold">Chi phí thực tế:</span>
-                            {' '}
-                            {formatCurrency(selectedIncidentDetail.activeMission.actualCost)}
-                          </p>
-                        )}
-                        {formatCurrency(selectedIncidentDetail.activeMission.costFromCenter) && (
-                          <p>
-                            <span className="font-semibold">Chi phí từ trung tâm:</span>
-                            {' '}
-                            {formatCurrency(selectedIncidentDetail.activeMission.costFromCenter)}
-                          </p>
-                        )}
-                        {selectedIncidentDetail.activeMission.distanceFromCenterKm !== null && selectedIncidentDetail.activeMission.distanceFromCenterKm !== undefined && (
-                          <p>
-                            <span className="font-semibold">Khoảng cách từ trung tâm:</span>
-                            {' '}
-                            {selectedIncidentDetail.activeMission.distanceFromCenterKm}
-                            {' '}
-                            km
-                          </p>
-                        )}
-                        {selectedIncidentDetail.activeMission.startedAt && (
-                          <p>
-                            <span className="font-semibold">Bắt đầu:</span>
-                            {' '}
-                            {formatDateTime(selectedIncidentDetail.activeMission.startedAt)}
-                          </p>
-                        )}
-                        {selectedIncidentDetail.activeMission.arrivedAt && (
-                          <p>
-                            <span className="font-semibold">Đến nơi:</span>
-                            {' '}
-                            {formatDateTime(selectedIncidentDetail.activeMission.arrivedAt)}
-                          </p>
-                        )}
-                        {selectedIncidentDetail.activeMission.completedAt && (
-                          <p>
-                            <span className="font-semibold">Hoàn tất:</span>
-                            {' '}
-                            {formatDateTime(selectedIncidentDetail.activeMission.completedAt)}
-                          </p>
-                        )}
-                        {selectedIncidentDetail.activeMission.notes && (
-                          <p>
-                            <span className="font-semibold">Ghi chú:</span>
-                            {' '}
-                            {selectedIncidentDetail.activeMission.notes}
-                          </p>
-                        )}
-                        {selectedIncidentDetail.activeMission.cancellationReason && (
-                          <p>
-                            <span className="font-semibold">Lý do hủy nhiệm vụ:</span>
-                            {' '}
-                            {selectedIncidentDetail.activeMission.cancellationReason}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
                   {selectedIncidentDetail.identifiedSnake && (
-                    <div className="rounded-lg border border-slate-200 p-3">
-                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Rắn được nhận diện</p>
+                    <div className="rounded-xl border border-rose-200 bg-rose-50/70 p-4 shadow-sm">
+                      <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Rắn được nhận diện</p>
                       <div className="grid grid-cols-1 gap-3 md:grid-cols-[120px_1fr]">
                         {selectedIncidentDetail.identifiedSnake.imageUrl && (
                           <img
                             src={selectedIncidentDetail.identifiedSnake.imageUrl}
                             alt={selectedIncidentDetail.identifiedSnake.commonName}
-                            className="h-28 w-28 rounded-lg border border-slate-200 object-cover"
+                            className="h-28 w-28 rounded-xl border border-slate-200 object-cover"
                           />
                         )}
-                        <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                          <p>
+                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                          <p className="rounded-lg border border-rose-100 bg-white px-3 py-2">
                             <span className="font-semibold">Tên thường gọi:</span>
                             {' '}
                             {selectedIncidentDetail.identifiedSnake.commonName}
                           </p>
-                          <p>
+                          <p className="rounded-lg border border-rose-100 bg-white px-3 py-2">
                             <span className="font-semibold">Tên khoa học:</span>
                             {' '}
                             {selectedIncidentDetail.identifiedSnake.scientificName}
                           </p>
-                          <p>
+                          <p className="rounded-lg border border-rose-100 bg-white px-3 py-2">
                             <span className="font-semibold">Loại độc:</span>
                             {' '}
-                            {selectedIncidentDetail.identifiedSnake.primaryVenomType || 'Không rõ'}
+                            {getVenomTypeLabel(selectedIncidentDetail.identifiedSnake.primaryVenomType)}
                           </p>
-                          <p>
+                          <p className="rounded-lg border border-rose-100 bg-white px-3 py-2">
                             <span className="font-semibold">Mức nguy cơ:</span>
                             {' '}
-                            {selectedIncidentDetail.identifiedSnake.riskLevel}
+                            <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${getSnakeRiskClass(selectedIncidentDetail.identifiedSnake.riskLevel)}`}>
+                              {selectedIncidentDetail.identifiedSnake.riskLevel}
+                              /10
+                            </span>
+                          </p>
+                          <p className="rounded-lg border border-rose-100 bg-white px-3 py-2 md:col-span-2">
+                            <span className="font-semibold">Slug:</span>
+                            {' '}
+                            {displayOrNoInfo(selectedIncidentDetail.identifiedSnake.slug)}
+                          </p>
+                          <p className="rounded-lg border border-rose-100 bg-white px-3 py-2 md:col-span-2">
+                            <span className="font-semibold">Tóm tắt nhận diện:</span>
+                            {' '}
+                            {displayOrNoInfo(selectedIncidentDetail.identifiedSnake.identificationSummary)}
+                          </p>
+                          <p className="rounded-lg border border-rose-100 bg-white px-3 py-2">
+                            <span className="font-semibold">Độc tính:</span>
+                            {' '}
+                            {selectedIncidentDetail.identifiedSnake.isVenomous ? 'Có độc' : 'Không độc'}
+                          </p>
+                          <p className="rounded-lg border border-rose-100 bg-white px-3 py-2">
+                            <span className="font-semibold">Đang hoạt động:</span>
+                            {' '}
+                            {selectedIncidentDetail.identifiedSnake.isActive ? 'Có' : 'Không'}
                           </p>
                         </div>
                       </div>
@@ -1228,17 +1483,17 @@ export default function IncidentsPage() {
                   )}
 
                   {selectedIncidentDetail.identificationContext && (
-                    <div className="rounded-lg border border-slate-200 p-3">
-                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Ngữ cảnh nhận diện</p>
-                      <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                        <p>
+                    <div className="rounded-xl border border-fuchsia-200 bg-fuchsia-50/70 p-4 shadow-sm">
+                      <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Ngữ cảnh nhận diện</p>
+                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                        <p className="rounded-lg border border-fuchsia-100 bg-white px-3 py-2">
                           <span className="font-semibold">Phương thức:</span>
                           {' '}
                           {selectedIncidentDetail.identificationContext.method}
                         </p>
                         {((selectedIncidentDetail.identificationContext.aIConfidence ?? selectedIncidentDetail.identificationContext.aiConfidence) !== null
                           && (selectedIncidentDetail.identificationContext.aIConfidence ?? selectedIncidentDetail.identificationContext.aiConfidence) !== undefined) && (
-                          <p>
+                          <p className="rounded-lg border border-fuchsia-100 bg-white px-3 py-2">
                             <span className="font-semibold">Độ tin cậy AI:</span>
                             {' '}
                             {(((selectedIncidentDetail.identificationContext.aIConfidence ?? selectedIncidentDetail.identificationContext.aiConfidence) as number) * 100).toFixed(2)}
@@ -1246,7 +1501,7 @@ export default function IncidentsPage() {
                           </p>
                         )}
                         {selectedIncidentDetail.identificationContext.identifiedAt && (
-                          <p>
+                          <p className="rounded-lg border border-fuchsia-100 bg-white px-3 py-2">
                             <span className="font-semibold">Thời điểm nhận diện:</span>
                             {' '}
                             {formatDateTime(selectedIncidentDetail.identificationContext.identifiedAt)}
@@ -1256,22 +1511,56 @@ export default function IncidentsPage() {
                     </div>
                   )}
 
-                  {selectedIncidentDetail.media.length > 0 && (
-                    <div className="rounded-lg border border-slate-200 p-3">
-                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Tệp đính kèm sự cố</p>
-                      <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                        {selectedIncidentDetail.media.map(media => (
+                  {selectedIncidentMedia.length > 0 && (
+                    <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-4 shadow-sm">
+                      <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Tệp đính kèm sự cố</p>
+                      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                        {selectedIncidentMedia.map(media => (
                           <a
                             key={media.id}
                             href={media.mediaUrl}
                             target="_blank"
                             rel="noreferrer"
-                            className="flex items-start gap-3 rounded-lg border border-slate-200 p-2 hover:bg-slate-50"
+                            className="overflow-hidden rounded-xl border border-emerald-100 bg-white transition hover:-translate-y-0.5 hover:shadow-md"
                           >
-                            <img src={media.mediaUrl} alt={media.id} className="h-16 w-16 rounded object-cover" />
-                            <div className="min-w-0">
-                              <p className="truncate text-xs font-semibold text-slate-800">{media.purpose}</p>
-                              <p className="truncate text-xs text-slate-500">{media.referenceType}</p>
+                            <div className="h-40 w-full bg-slate-100">
+                              <img src={media.mediaUrl} alt={media.fileName ?? media.id} className="h-full w-full object-cover" />
+                            </div>
+                            <div className="space-y-2 p-3">
+                              <p className="truncate text-sm font-semibold text-slate-900">
+                                {media.fileName ?? media.purpose}
+                              </p>
+                              <div className="flex flex-wrap gap-2 text-[11px] text-slate-500">
+                                <span className="rounded-full bg-white px-2 py-0.5">{media.purpose}</span>
+                                <span className="rounded-full bg-white px-2 py-0.5">{media.referenceType}</span>
+                                {media.contentType && <span className="rounded-full bg-white px-2 py-0.5">{media.contentType}</span>}
+                                {'isProcessed' in media && (
+                                  <span className={`rounded-full px-2 py-0.5 ${media.isProcessed ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                                    {media.isProcessed ? 'Đã xử lý AI' : 'Chưa xử lý AI'}
+                                  </span>
+                                )}
+                              </div>
+                              {'processedAt' in media && (
+                                <p className="text-[11px] text-slate-500">
+                                  Xử lý lúc:
+                                  {' '}
+                                  {formatDateTimeOrNoInfo(media.processedAt)}
+                                </p>
+                              )}
+                              {'sequenceOrder' in media && (
+                                <p className="text-[11px] text-slate-500">
+                                  Thứ tự:
+                                  {' '}
+                                  {displayOrNoInfo(media.sequenceOrder)}
+                                </p>
+                              )}
+                              {'detectedSpecies' in media && Array.isArray(media.detectedSpecies) && media.detectedSpecies.length > 0 && (
+                                <p className="text-[11px] text-slate-500">
+                                  Species AI:
+                                  {' '}
+                                  {media.detectedSpecies.map(species => species.commonName).join(', ')}
+                                </p>
+                              )}
                               <p className="text-[11px] text-slate-400">Mở tệp</p>
                             </div>
                           </a>
@@ -1280,12 +1569,102 @@ export default function IncidentsPage() {
                     </div>
                   )}
 
-                  {selectedIncidentDetail.rescueMissionMedia.length > 0 && (
-                    <div className="rounded-lg border border-slate-200 p-3">
-                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Tệp nhiệm vụ cứu hộ</p>
+                  {(selectedIncidentMissionHistory.length > 0 || selectedIncidentRescueMissionMedia.length > 0) && (
+                    <div className="rounded-xl border border-orange-200 bg-orange-50/70 p-4 shadow-sm">
+                      <p className="mb-3 text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Lịch sử nhiệm vụ cứu hộ</p>
                       <div className="space-y-3">
-                        {selectedIncidentDetail.rescueMissionMedia.map(group => (
-                          <div key={group.missionId} className="rounded-lg border border-slate-200 p-2">
+                        {selectedIncidentMissionHistory.map(mission => (
+                          <div key={mission.missionId} className="rounded-xl border border-orange-100 bg-white p-3">
+                            <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-slate-600">
+                              <span>
+                                Nhiệm vụ
+                                {' '}
+                                <span className="font-mono">{mission.missionId}</span>
+                              </span>
+                              <span className={`${STATUS_BADGE_BASE_CLASS} ${getMissionStatusBadgeClass(String(mission.status))}`}>
+                                {getMissionStatusLabel(String(mission.status))}
+                              </span>
+                              <span className="text-slate-500">
+                                {formatPersonDisplayName(mission.rescuerName, mission.rescuerId)}
+                              </span>
+                            </div>
+                            <div className="mb-3 grid grid-cols-1 gap-2 text-xs text-slate-600 md:grid-cols-2">
+                              <p>
+                                <span className="font-semibold">Rescuer phone:</span>
+                                {' '}
+                                {displayOrNoInfo(mission.rescuerPhone)}
+                              </p>
+                              <p>
+                                <span className="font-semibold">Tạo lúc:</span>
+                                {' '}
+                                {formatDateTimeOrNoInfo(mission.createdAt)}
+                              </p>
+                              <p>
+                                <span className="font-semibold">Bắt đầu:</span>
+                                {' '}
+                                {formatDateTimeOrNoInfo(mission.startedAt)}
+                              </p>
+                              <p>
+                                <span className="font-semibold">Đến nơi:</span>
+                                {' '}
+                                {formatDateTimeOrNoInfo(mission.arrivedAt)}
+                              </p>
+                              <p>
+                                <span className="font-semibold">Hoàn tất:</span>
+                                {' '}
+                                {formatDateTimeOrNoInfo(mission.completedAt)}
+                              </p>
+                              <p>
+                                <span className="font-semibold">Giá/Thực tế:</span>
+                                {' '}
+                                {formatCurrencyOrNoInfo(mission.price)}
+                                /
+                                {formatCurrencyOrNoInfo(mission.actualCost)}
+                              </p>
+                              <p className="md:col-span-2">
+                                <span className="font-semibold">Ghi chú:</span>
+                                {' '}
+                                {displayOrNoInfo(mission.notes)}
+                              </p>
+                              <p className="md:col-span-2">
+                                <span className="font-semibold">Lý do hủy:</span>
+                                {' '}
+                                {displayOrNoInfo(mission.cancellationReason)}
+                              </p>
+                            </div>
+                            <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+                              {(mission.media ?? []).map(file => (
+                                <a
+                                  key={file.id}
+                                  href={file.mediaUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="overflow-hidden rounded-lg border border-slate-200 bg-white transition hover:-translate-y-0.5 hover:shadow-sm"
+                                >
+                                  {isImageAttachment(file.contentType, file.fileName, file.mediaUrl) && (
+                                    <img
+                                      src={file.mediaUrl}
+                                      alt={file.fileName}
+                                      className="h-28 w-full object-cover"
+                                    />
+                                  )}
+                                  <div className="space-y-1 p-2">
+                                    <p className="truncate text-xs font-semibold text-slate-800">{file.fileName}</p>
+                                    <p className="truncate text-xs text-slate-500">{file.contentType}</p>
+                                    <p className="text-[11px] text-slate-400">
+                                      {file.fileSize?.toLocaleString('vi-VN') ?? 0}
+                                      {' '}
+                                      bytes
+                                    </p>
+                                  </div>
+                                </a>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+
+                        {selectedIncidentRescueMissionMedia.map(group => (
+                          <div key={group.missionId} className="rounded-xl border border-orange-100 bg-white p-3">
                             <p className="mb-2 text-xs text-slate-600">
                               Nhiệm vụ
                               {' '}
@@ -1298,28 +1677,30 @@ export default function IncidentsPage() {
                               </span>
                             </p>
                             <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
-                              {group.media.map(file => (
+                              {(group.media ?? []).map(file => (
                                 <a
                                   key={file.id}
                                   href={file.mediaUrl}
                                   target="_blank"
                                   rel="noreferrer"
-                                  className="rounded border border-slate-200 p-2 hover:bg-slate-50"
+                                  className="overflow-hidden rounded-lg border border-slate-200 bg-white transition hover:-translate-y-0.5 hover:shadow-sm"
                                 >
                                   {isImageAttachment(file.contentType, file.fileName, file.mediaUrl) && (
                                     <img
                                       src={file.mediaUrl}
                                       alt={file.fileName}
-                                      className="mb-2 h-28 w-full rounded object-cover"
+                                      className="h-28 w-full object-cover"
                                     />
                                   )}
-                                  <p className="truncate text-xs font-semibold text-slate-800">{file.fileName}</p>
-                                  <p className="truncate text-xs text-slate-500">{file.contentType}</p>
-                                  <p className="text-[11px] text-slate-400">
-                                    {file.fileSize.toLocaleString('vi-VN')}
-                                    {' '}
-                                    bytes
-                                  </p>
+                                  <div className="space-y-1 p-2">
+                                    <p className="truncate text-xs font-semibold text-slate-800">{file.fileName}</p>
+                                    <p className="truncate text-xs text-slate-500">{file.contentType}</p>
+                                    <p className="text-[11px] text-slate-400">
+                                      {file.fileSize?.toLocaleString('vi-VN') ?? 0}
+                                      {' '}
+                                      bytes
+                                    </p>
+                                  </div>
                                 </a>
                               ))}
                             </div>
@@ -1328,12 +1709,123 @@ export default function IncidentsPage() {
                       </div>
                     </div>
                   )}
+
+                  {selectedIncidentDetail.dispatchRequests && selectedIncidentDetail.dispatchRequests.length > 0 && (
+                    <div className="rounded-xl border border-indigo-200 bg-indigo-50/70 p-3">
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Lịch sử dispatch</p>
+                      <div className="space-y-2">
+                        {selectedIncidentDetail.dispatchRequests.map(request => (
+                          <div key={request.requestId} className="rounded-lg border border-indigo-100 bg-white p-3">
+                            <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600">
+                              <span className={`${STATUS_BADGE_BASE_CLASS} ${getDispatchStatusBadgeClass(request.status)}`}>
+                                {getDispatchStatusLabel(request.status)}
+                              </span>
+                              <span>
+                                Cứu hộ:
+                                {' '}
+                                {formatPersonDisplayName(request.rescuerName, request.rescuerId)}
+                              </span>
+                              <span>
+                                SĐT:
+                                {' '}
+                                {displayOrNoInfo(request.rescuerPhone)}
+                              </span>
+                              {request.operatorName && (
+                                <span>
+                                  Operator:
+                                  {' '}
+                                  {request.operatorName}
+                                </span>
+                              )}
+                              {request.operatorId && (
+                                <span>
+                                  Operator ID:
+                                  {' '}
+                                  <span className="font-mono">{request.operatorId}</span>
+                                </span>
+                              )}
+                              <span>
+                                Request ID:
+                                {' '}
+                                <span className="font-mono">{request.requestId}</span>
+                              </span>
+                            </div>
+                            <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2">
+                              <p>
+                                <span className="font-semibold">Gửi lúc:</span>
+                                {' '}
+                                {formatDateTime(request.dispatchedAt)}
+                              </p>
+                              <p>
+                                <span className="font-semibold">Phản hồi lúc:</span>
+                                {' '}
+                                {formatDateTime(request.responseAt)}
+                              </p>
+                              {request.declineReason && (
+                                <p className="md:col-span-2">
+                                  <span className="font-semibold">Lý do từ chối:</span>
+                                  {' '}
+                                  {request.declineReason}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="rounded-xl border border-teal-200 bg-teal-50/70 p-3">
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Thanh toán</p>
+                    <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                      <p>
+                        <span className="font-semibold">Mã đơn:</span>
+                        {' '}
+                        {displayOrNoInfo(selectedIncidentDetail.paymentSummary?.payOsOrderCode)}
+                      </p>
+                      <p>
+                        <span className="font-semibold">Trạng thái:</span>
+                        {' '}
+                        {displayOrNoInfo(selectedIncidentDetail.paymentSummary?.paymentState == null ? null : String(selectedIncidentDetail.paymentSummary.paymentState))}
+                      </p>
+                      <p>
+                        <span className="font-semibold">Đã thanh toán:</span>
+                        {' '}
+                        {displayOrNoInfo(selectedIncidentDetail.paymentSummary?.paidAmount != null ? `${selectedIncidentDetail.paymentSummary.paidAmount.toLocaleString('vi-VN')} VND` : null)}
+                      </p>
+                      <p>
+                        <span className="font-semibold">Thanh toán lúc:</span>
+                        {' '}
+                        {formatDateTimeOrNoInfo(selectedIncidentDetail.paymentSummary?.paidAt)}
+                      </p>
+                      <p>
+                        <span className="font-semibold">Phương thức:</span>
+                        {' '}
+                        {displayOrNoInfo(selectedIncidentDetail.paymentSummary?.paymentMethod)}
+                      </p>
+                      <p>
+                        <span className="font-semibold">Mã giao dịch:</span>
+                        {' '}
+                        {displayOrNoInfo(selectedIncidentDetail.paymentSummary?.paymentExternalTransactionId)}
+                      </p>
+                      <p>
+                        <span className="font-semibold">Đã hoàn:</span>
+                        {' '}
+                        {displayOrNoInfo(selectedIncidentDetail.paymentSummary?.totalRefundedAmount != null ? `${selectedIncidentDetail.paymentSummary.totalRefundedAmount.toLocaleString('vi-VN')} VND` : null)}
+                      </p>
+                      <p>
+                        <span className="font-semibold">Hoàn gần nhất:</span>
+                        {' '}
+                        {formatDateTimeOrNoInfo(selectedIncidentDetail.paymentSummary?.latestRefundedAt)}
+                      </p>
+                    </div>
+                  </div>
                 </div>
               )}
 
               {!detailLoading && !detailError && detailModal.type === 'mission' && selectedMissionDetail && (
-                <div className="space-y-4">
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <div className="space-y-5">
+                  <div className="rounded-xl border border-blue-200 bg-linear-to-r from-blue-50 via-sky-50 to-cyan-50 p-4 shadow-sm">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className={`${STATUS_BADGE_BASE_CLASS} ${getMissionStatusBadgeClass(String(selectedMissionDetail.status))}`}>
                         Trạng thái:
@@ -1362,7 +1854,7 @@ export default function IncidentsPage() {
                     </p>
                   </div>
 
-                  <div className="rounded-lg border border-slate-200 p-3">
+                  <div className="rounded-xl border border-sky-200 bg-sky-50/70 p-3 shadow-sm">
                     <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Thông tin nhiệm vụ</p>
                     <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
                       <p>
@@ -1371,269 +1863,254 @@ export default function IncidentsPage() {
                         <span className="font-mono text-xs">{selectedMissionDetail.incidentId}</span>
                       </p>
                       <p>
-                        <span className="font-semibold">Mã người cứu hộ:</span>
+                        <span className="font-semibold">Cứu hộ:</span>
                         {' '}
-                        <span className="font-mono text-xs">{selectedMissionDetail.rescuerId}</span>
+                        <span className="font-medium text-slate-800">
+                          {selectedMissionDetail.rescuer.account?.fullName ?? selectedMissionDetail.rescuer.fullName ?? formatShortId(selectedMissionDetail.rescuerId)}
+                        </span>
+                        <span className="ml-2 font-mono text-xs text-slate-400">
+                          {formatShortId(selectedMissionDetail.rescuerId)}
+                        </span>
                       </p>
                       <p>
                         <span className="font-semibold">Tạo lúc:</span>
                         {' '}
                         {formatDateTime(selectedMissionDetail.createdAt)}
                       </p>
-                      {selectedMissionDetail.updatedAt && (
-                        <p>
-                          <span className="font-semibold">Cập nhật lúc:</span>
-                          {' '}
-                          {formatDateTime(selectedMissionDetail.updatedAt)}
-                        </p>
-                      )}
-                      {selectedMissionDetail.startedAt && (
-                        <p>
-                          <span className="font-semibold">Bắt đầu:</span>
-                          {' '}
-                          {formatDateTime(selectedMissionDetail.startedAt)}
-                        </p>
-                      )}
-                      {selectedMissionDetail.arrivedAt && (
-                        <p>
-                          <span className="font-semibold">Đến nơi:</span>
-                          {' '}
-                          {formatDateTime(selectedMissionDetail.arrivedAt)}
-                        </p>
-                      )}
-                      {selectedMissionDetail.completedAt && (
-                        <p>
-                          <span className="font-semibold">Hoàn tất:</span>
-                          {' '}
-                          {formatDateTime(selectedMissionDetail.completedAt)}
-                        </p>
-                      )}
-                      {selectedMissionDetail.distanceFromCenterKm !== null && (
-                        <p>
-                          <span className="font-semibold">Khoảng cách từ trung tâm:</span>
-                          {' '}
-                          {selectedMissionDetail.distanceFromCenterKm}
-                          {' '}
-                          km
-                        </p>
-                      )}
-                      {selectedMissionDetail.distanceKm !== null && (
-                        <p>
-                          <span className="font-semibold">Khoảng cách di chuyển:</span>
-                          {' '}
-                          {selectedMissionDetail.distanceKm}
-                          {' '}
-                          km
-                        </p>
-                      )}
-                      {formatCurrency(selectedMissionDetail.costFromCenter) && (
-                        <p>
-                          <span className="font-semibold">Chi phí từ trung tâm:</span>
-                          {' '}
-                          {formatCurrency(selectedMissionDetail.costFromCenter)}
-                        </p>
-                      )}
-                      {selectedMissionDetail.notes && (
-                        <p>
-                          <span className="font-semibold">Ghi chú:</span>
-                          {' '}
-                          {selectedMissionDetail.notes}
-                        </p>
-                      )}
-                      {selectedMissionDetail.cancellationReason && (
-                        <p>
-                          <span className="font-semibold">Lý do hủy:</span>
-                          {' '}
-                          {selectedMissionDetail.cancellationReason}
-                        </p>
-                      )}
+                      <p>
+                        <span className="font-semibold">Cập nhật lúc:</span>
+                        {' '}
+                        {formatDateTimeOrNoInfo(selectedMissionDetail.updatedAt)}
+                      </p>
+                      <p>
+                        <span className="font-semibold">Bắt đầu:</span>
+                        {' '}
+                        {formatDateTimeOrNoInfo(selectedMissionDetail.startedAt)}
+                      </p>
+                      <p>
+                        <span className="font-semibold">Đến nơi:</span>
+                        {' '}
+                        {formatDateTimeOrNoInfo(selectedMissionDetail.arrivedAt)}
+                      </p>
+                      <p>
+                        <span className="font-semibold">Hoàn tất:</span>
+                        {' '}
+                        {formatDateTimeOrNoInfo(selectedMissionDetail.completedAt)}
+                      </p>
+                      <p>
+                        <span className="font-semibold">Khoảng cách từ trung tâm:</span>
+                        {' '}
+                        {displayOrNoInfo(selectedMissionDetail.distanceFromCenterKm)}
+                        {selectedMissionDetail.distanceFromCenterKm != null ? ' km' : ''}
+                      </p>
+                      <p>
+                        <span className="font-semibold">Khoảng cách di chuyển:</span>
+                        {' '}
+                        {displayOrNoInfo(selectedMissionDetail.distanceKm)}
+                        {selectedMissionDetail.distanceKm != null ? ' km' : ''}
+                      </p>
+                      <p>
+                        <span className="font-semibold">Chi phí từ trung tâm:</span>
+                        {' '}
+                        {formatCurrencyOrNoInfo(selectedMissionDetail.costFromCenter)}
+                      </p>
+                      <p>
+                        <span className="font-semibold">Ghi chú:</span>
+                        {' '}
+                        {displayOrNoInfo(selectedMissionDetail.notes)}
+                      </p>
+                      <p>
+                        <span className="font-semibold">Lý do hủy:</span>
+                        {' '}
+                        {displayOrNoInfo(selectedMissionDetail.cancellationReason)}
+                      </p>
                     </div>
                   </div>
 
-                  {selectedMissionDetail.rescuer && (
-                    <div className="rounded-lg border border-slate-200 p-3">
-                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Thông tin cứu hộ</p>
-                      <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                        {selectedMissionDetail.rescuer.account.fullName && (
-                          <p>
-                            <span className="font-semibold">Họ tên:</span>
-                            {' '}
-                            {selectedMissionDetail.rescuer.account.fullName}
-                          </p>
-                        )}
-                        {selectedMissionDetail.rescuer.phoneNumber && (
-                          <p>
-                            <span className="font-semibold">Số điện thoại:</span>
-                            {' '}
-                            {selectedMissionDetail.rescuer.phoneNumber}
-                          </p>
-                        )}
-                        {selectedMissionDetail.rescuer.account.email && (
-                          <p>
-                            <span className="font-semibold">Email:</span>
-                            {' '}
-                            {selectedMissionDetail.rescuer.account.email}
-                          </p>
-                        )}
-                        <p>
-                          <span className="font-semibold">Loại cứu hộ:</span>
-                          {' '}
-                          {String(selectedMissionDetail.rescuer.type)}
+                  <div className="rounded-xl border border-cyan-200 bg-cyan-50/70 p-3 shadow-sm">
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Thông tin cứu hộ</p>
+                    <div className="mb-3 flex items-center gap-3 rounded-xl border border-cyan-100 bg-white px-3 py-2">
+                      {renderAvatar(
+                        selectedMissionDetail.rescuer?.account?.avatarUrl,
+                        selectedMissionDetail.rescuer?.account?.fullName ?? selectedMissionDetail.rescuer?.fullName,
+                      )}
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-slate-900">
+                          {displayOrNoInfo(selectedMissionDetail.rescuer?.account?.fullName ?? selectedMissionDetail.rescuer?.fullName)}
                         </p>
-                        <p>
-                          <span className="font-semibold">Trực tuyến:</span>
-                          {' '}
-                          {selectedMissionDetail.rescuer.isOnline ? 'Có' : 'Không'}
+                        <p className="truncate text-xs text-slate-500">
+                          {displayOrNoInfo(selectedMissionDetail.rescuer?.phoneNumber)}
                         </p>
-                        <p>
-                          <span className="font-semibold">Sẵn sàng:</span>
-                          {' '}
-                          {selectedMissionDetail.rescuer.isAvailable ? 'Có' : 'Không'}
-                        </p>
-                        {selectedMissionDetail.rescuer.lastLocationUpdate && (
-                          <p>
-                            <span className="font-semibold">Cập nhật vị trí gần nhất:</span>
-                            {' '}
-                            {formatDateTime(selectedMissionDetail.rescuer.lastLocationUpdate)}
-                          </p>
-                        )}
                       </div>
                     </div>
-                  )}
+                    <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                      <p>
+                        <span className="font-semibold">Họ tên:</span>
+                        {' '}
+                        {displayOrNoInfo(selectedMissionDetail.rescuer?.account?.fullName ?? selectedMissionDetail.rescuer?.fullName ?? selectedMissionDetail.rescuer?.accountId ?? selectedMissionDetail.rescuer?.id)}
+                      </p>
+                      <p>
+                        <span className="font-semibold">Số điện thoại:</span>
+                        {' '}
+                        {displayOrNoInfo(selectedMissionDetail.rescuer?.phoneNumber)}
+                      </p>
+                      <p>
+                        <span className="font-semibold">Email:</span>
+                        {' '}
+                        {displayOrNoInfo(selectedMissionDetail.rescuer?.account?.email)}
+                      </p>
+                      <p>
+                        <span className="font-semibold">Loại cứu hộ:</span>
+                        {' '}
+                        {displayOrNoInfo(selectedMissionDetail.rescuer?.type == null ? null : String(selectedMissionDetail.rescuer.type))}
+                      </p>
+                      <p>
+                        <span className="font-semibold">Trực tuyến:</span>
+                        {' '}
+                        {selectedMissionDetail.rescuer == null ? NO_INFO_TEXT : selectedMissionDetail.rescuer.isOnline ? 'Có' : 'Không'}
+                      </p>
+                      <p>
+                        <span className="font-semibold">Sẵn sàng:</span>
+                        {' '}
+                        {selectedMissionDetail.rescuer == null ? NO_INFO_TEXT : selectedMissionDetail.rescuer.isAvailable ? 'Có' : 'Không'}
+                      </p>
+                      <p>
+                        <span className="font-semibold">Cập nhật vị trí gần nhất:</span>
+                        {' '}
+                        {formatDateTimeOrNoInfo(selectedMissionDetail.rescuer?.lastLocationUpdate)}
+                      </p>
+                    </div>
+                  </div>
 
-                  {selectedMissionDetail.user && (
-                    <div className="rounded-lg border border-slate-200 p-3">
-                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Thông tin nạn nhân</p>
-                      <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                        {selectedMissionDetail.user.account.fullName && (
-                          <p>
-                            <span className="font-semibold">Họ tên:</span>
-                            {' '}
-                            {selectedMissionDetail.user.account.fullName}
-                          </p>
-                        )}
-                        <p>
-                          <span className="font-semibold">Tên tài khoản:</span>
-                          {' '}
-                          {selectedMissionDetail.user.userName}
+                  <div className="rounded-xl border border-violet-200 bg-violet-50/70 p-3 shadow-sm">
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Thông tin nạn nhân</p>
+                    <div className="mb-3 flex items-center gap-3 rounded-xl border border-violet-100 bg-white px-3 py-2">
+                      {renderAvatar(
+                        selectedMissionDetail.user?.account?.avatarUrl,
+                        selectedMissionDetail.user?.account?.fullName ?? selectedMissionDetail.user?.fullName ?? selectedMissionDetail.user?.userName,
+                      )}
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-slate-900">
+                          {displayOrNoInfo(selectedMissionDetail.user?.account?.fullName ?? selectedMissionDetail.user?.fullName ?? selectedMissionDetail.user?.userName)}
                         </p>
-                        {selectedMissionDetail.user.email && (
-                          <p>
-                            <span className="font-semibold">Email:</span>
-                            {' '}
-                            {selectedMissionDetail.user.email}
-                          </p>
-                        )}
-                        {selectedMissionDetail.user.phoneNumber && (
-                          <p>
-                            <span className="font-semibold">Số điện thoại:</span>
-                            {' '}
-                            {selectedMissionDetail.user.phoneNumber}
-                          </p>
-                        )}
-                        <p>
-                          <span className="font-semibold">Bệnh nền:</span>
-                          {' '}
-                          {selectedMissionDetail.user.hasUnderlyingDisease ? 'Có' : 'Không'}
+                        <p className="truncate text-xs text-slate-500">
+                          {displayOrNoInfo(selectedMissionDetail.user?.phoneNumber)}
                         </p>
-                        {selectedMissionDetail.user.emergencyContacts.length > 0 && (
-                          <p>
-                            <span className="font-semibold">Liên hệ khẩn cấp:</span>
-                            {' '}
-                            {selectedMissionDetail.user.emergencyContacts.join(', ')}
-                          </p>
-                        )}
                       </div>
                     </div>
-                  )}
+                    <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                      <p>
+                        <span className="font-semibold">Họ tên:</span>
+                        {' '}
+                        {displayOrNoInfo(selectedMissionDetail.user?.account?.fullName ?? selectedMissionDetail.user?.fullName ?? selectedMissionDetail.user?.userName)}
+                      </p>
+                      <p>
+                        <span className="font-semibold">Tên tài khoản:</span>
+                        {' '}
+                        {displayOrNoInfo(selectedMissionDetail.user?.userName)}
+                      </p>
+                      <p>
+                        <span className="font-semibold">Email:</span>
+                        {' '}
+                        {displayOrNoInfo(selectedMissionDetail.user?.email)}
+                      </p>
+                      <p>
+                        <span className="font-semibold">Số điện thoại:</span>
+                        {' '}
+                        {displayOrNoInfo(selectedMissionDetail.user?.phoneNumber)}
+                      </p>
+                      <p>
+                        <span className="font-semibold">Bệnh nền:</span>
+                        {' '}
+                        {selectedMissionDetail.user == null ? NO_INFO_TEXT : selectedMissionDetail.user.hasUnderlyingDisease ? 'Có' : 'Không'}
+                      </p>
+                      <p>
+                        <span className="font-semibold">Liên hệ khẩn cấp:</span>
+                        {' '}
+                        {selectedMissionDetail.user?.emergencyContacts?.length ? selectedMissionDetail.user.emergencyContacts.join(', ') : NO_INFO_TEXT}
+                      </p>
+                    </div>
+                  </div>
 
-                  {selectedMissionDetail.incident && (
-                    <div className="rounded-lg border border-slate-200 p-3">
-                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Sự cố liên quan</p>
-                      <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
-                        <p>
-                          <span className="font-semibold">Mã sự cố:</span>
-                          {' '}
-                          <span className="font-mono text-xs">{selectedMissionDetail.incident.id}</span>
-                        </p>
-                        <p>
-                          <span className="font-semibold">Trạng thái:</span>
-                          {' '}
-                          <span className={`${STATUS_BADGE_BASE_CLASS} ${getIncidentStatusBadgeClass(String(selectedMissionDetail.incident.status))}`}>
-                            {translateIncidentStage(String(selectedMissionDetail.incident.status))}
-                          </span>
-                        </p>
-                        {selectedMissionDetail.incident.address && (
-                          <p>
-                            <span className="font-semibold">Địa chỉ:</span>
-                            {' '}
-                            {selectedMissionDetail.incident.address}
-                          </p>
-                        )}
-                        <p>
-                          <span className="font-semibold">Tọa độ:</span>
-                          {' '}
-                          {selectedMissionDetail.incident.locationCoordinates.latitude}
-                          ,
-                          {' '}
-                          {selectedMissionDetail.incident.locationCoordinates.longitude}
-                        </p>
-                        {selectedMissionDetail.incident.incidentOccurredAt && (
-                          <p>
-                            <span className="font-semibold">Xảy ra lúc:</span>
-                            {' '}
-                            {formatDateTime(selectedMissionDetail.incident.incidentOccurredAt)}
-                          </p>
-                        )}
-                        {selectedMissionDetail.incident.assignedAt && (
-                          <p>
-                            <span className="font-semibold">Phân công lúc:</span>
-                            {' '}
-                            {formatDateTime(selectedMissionDetail.incident.assignedAt)}
-                          </p>
-                        )}
-                        {selectedMissionDetail.incident.severityLevel !== null && (
-                          <p>
-                            <span className="font-semibold">Mức độ nghiêm trọng:</span>
-                            {' '}
-                            {selectedMissionDetail.incident.severityLevel}
-                          </p>
-                        )}
-                      </div>
+                  <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3 shadow-sm">
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Sự cố liên quan</p>
+                    <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                      <p>
+                        <span className="font-semibold">Mã sự cố:</span>
+                        {' '}
+                        <span className="font-mono text-xs">{selectedMissionDetail.incident.id}</span>
+                      </p>
+                      <p>
+                        <span className="font-semibold">Trạng thái:</span>
+                        {' '}
+                        <span className={`${STATUS_BADGE_BASE_CLASS} ${getIncidentStatusBadgeClass(String(selectedMissionDetail.incident.status))}`}>
+                          {translateIncidentStage(String(selectedMissionDetail.incident.status))}
+                        </span>
+                      </p>
+                      <p>
+                        <span className="font-semibold">Địa chỉ:</span>
+                        {' '}
+                        {displayOrNoInfo(selectedMissionDetail.incident?.address)}
+                      </p>
+                      <p>
+                        <span className="font-semibold">Tọa độ:</span>
+                        {' '}
+                        {selectedMissionDetail.incident.locationCoordinates.latitude}
+                        ,
+                        {' '}
+                        {selectedMissionDetail.incident.locationCoordinates.longitude}
+                      </p>
+                      <p>
+                        <span className="font-semibold">Xảy ra lúc:</span>
+                        {' '}
+                        {formatDateTimeOrNoInfo(selectedMissionDetail.incident?.incidentOccurredAt)}
+                      </p>
+                      <p>
+                        <span className="font-semibold">Phân công lúc:</span>
+                        {' '}
+                        {formatDateTimeOrNoInfo(selectedMissionDetail.incident?.assignedAt)}
+                      </p>
+                      <p>
+                        <span className="font-semibold">Mức độ nghiêm trọng:</span>
+                        {' '}
+                        {displayOrNoInfo(selectedMissionDetail.incident?.severityLevel)}
+                      </p>
                     </div>
-                  )}
+                  </div>
 
-                  {selectedMissionDetail.missionMedia.length > 0 && (
-                    <div className="rounded-lg border border-slate-200 p-3">
-                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Tệp nhiệm vụ</p>
-                      <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
-                        {selectedMissionDetail.missionMedia.map(file => (
-                          <a
-                            key={file.id}
-                            href={file.mediaUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="rounded border border-slate-200 p-2 hover:bg-slate-50"
-                          >
-                            {isImageAttachment(file.contentType, file.fileName, file.mediaUrl) && (
-                              <img
-                                src={file.mediaUrl}
-                                alt={file.fileName}
-                                className="mb-2 h-28 w-full rounded object-cover"
-                              />
-                            )}
-                            <p className="truncate text-xs font-semibold text-slate-800">{file.fileName}</p>
-                            <p className="truncate text-xs text-slate-500">{file.contentType}</p>
-                            <p className="text-[11px] text-slate-400">
-                              {file.fileSize.toLocaleString('vi-VN')}
-                              {' '}
-                              bytes
-                            </p>
-                          </a>
-                        ))}
-                      </div>
-                    </div>
-                  )}
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3 shadow-sm">
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Tệp nhiệm vụ</p>
+                    {selectedMissionDetail.missionMedia.length === 0
+                      ? <p className="text-sm text-slate-500">Chưa có thông tin</p>
+                      : (
+                          <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+                            {selectedMissionDetail.missionMedia.map(file => (
+                              <a
+                                key={file.id}
+                                href={file.mediaUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="rounded border border-emerald-100 bg-white p-2 hover:bg-emerald-50/40"
+                              >
+                                {isImageAttachment(file.contentType, file.fileName, file.mediaUrl) && (
+                                  <img
+                                    src={file.mediaUrl}
+                                    alt={file.fileName}
+                                    className="mb-2 h-28 w-full rounded object-cover"
+                                  />
+                                )}
+                                <p className="truncate text-xs font-semibold text-slate-800">{file.fileName}</p>
+                                <p className="truncate text-xs text-slate-500">{file.contentType}</p>
+                                <p className="text-[11px] text-slate-400">
+                                  {file.fileSize.toLocaleString('vi-VN')}
+                                  {' '}
+                                  bytes
+                                </p>
+                              </a>
+                            ))}
+                          </div>
+                        )}
+                  </div>
                 </div>
               )}
             </div>

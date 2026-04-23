@@ -31,6 +31,10 @@ export interface SnakeAIDetectMediaResponse {
   processedAt: string | null;
   sequenceOrder: number | null;
   detectedSpecies: SnakeSpeciesResponse[];
+  fileName?: string;
+  contentType?: string;
+  fileSize?: number;
+  requiresAIProcessing?: boolean;
 }
 
 export interface BriefMemberProfileResponse {

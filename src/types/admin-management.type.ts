@@ -7,6 +7,58 @@ import type {
   SnakeSpeciesResponse,
 } from './snakebite-incident.type';
 
+export interface AdminAccountReferenceResponse {
+  id?: string;
+  fullName?: string | null;
+  avatarUrl?: string | null;
+  email?: string | null;
+  role?: string | number;
+  isActive?: boolean;
+}
+
+export interface AdminIncidentParticipantResponse {
+  accountId?: string;
+  id?: string;
+  userName?: string;
+  fullName?: string | null;
+  email?: string | null;
+  phoneNumber?: string | null;
+  rating?: number;
+  ratingCount?: number;
+  emergencyContacts?: string[];
+  hasUnderlyingDisease?: boolean;
+  account?: AdminAccountReferenceResponse;
+}
+
+export interface AdminRescuerParticipantResponse {
+  accountId?: string;
+  id?: string;
+  isOnline?: boolean;
+  isAvailable?: boolean;
+  phoneNumber?: string | null;
+  rating?: number;
+  ratingCount?: number;
+  type?: string | number;
+  lastLocationUpdate?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  totalMissions?: number;
+  completedMissions?: number;
+  fullName?: string | null;
+  account?: AdminAccountReferenceResponse;
+}
+
+export interface AdminOperatorParticipantResponse {
+  accountId?: string;
+  id?: string;
+  userName?: string;
+  fullName?: string | null;
+  email?: string | null;
+  phoneNumber?: string | null;
+  avatarUrl?: string | null;
+  account?: AdminAccountReferenceResponse;
+}
+
 export type AdminRoleFilter = 'User' | 'Admin' | 'Expert' | 'Rescuer' | 'Operator';
 
 export interface AdminUserSummaryResponse {
@@ -78,9 +130,11 @@ export interface AdminIncidentSummaryResponse {
   createdAt: string;
   address: string | null;
   assignedRescuerId: string | null;
+  assignedRescuerName?: string | null;
   activeMissionStatus: string | null;
   needsRedispatch: boolean;
   handlingOperatorId: string | null;
+  handlingOperatorName?: string | null;
 }
 
 export interface ReportMediaResponse {
@@ -100,8 +154,50 @@ export interface RescueMissionMediaGroupResponse {
   media: ReportMediaResponse[];
 }
 
+export interface AdminIncidentDispatchRequestResponse {
+  requestId: string;
+  rescuerId: string;
+  rescuerName?: string | null;
+  rescuerPhone?: string | null;
+  operatorId?: string | null;
+  operatorName?: string | null;
+  status: string | number;
+  dispatchedAt: string;
+  responseAt: string | null;
+  declineReason: string | null;
+}
+
+export interface AdminIncidentMissionHistoryResponse {
+  missionId: string;
+  rescuerId: string;
+  rescuerName?: string | null;
+  rescuerPhone?: string | null;
+  status: string | number;
+  price: number;
+  actualCost: number | null;
+  createdAt: string;
+  startedAt: string | null;
+  arrivedAt: string | null;
+  completedAt: string | null;
+  notes: string | null;
+  cancellationReason: string | null;
+  media: ReportMediaResponse[];
+}
+
+export interface AdminIncidentPaymentSummaryResponse {
+  payOsOrderCode: number | string | null;
+  paymentState: string | number | null;
+  paidAmount: number | null;
+  paidAt: string | null;
+  paymentMethod: string | null;
+  paymentExternalTransactionId: string | null;
+  totalRefundedAmount: number | null;
+  latestRefundedAt: string | null;
+}
+
 export interface AdminDetailSnakebiteIncidentResponse {
   id: string;
+  createdAt?: string | null;
   locationCoordinates: GeoPointResponse;
   address: string | null;
   status: SnakebiteIncidentStatus | number;
@@ -110,50 +206,22 @@ export interface AdminDetailSnakebiteIncidentResponse {
   incidentOccurredAt: string | null;
   assignedAt: string | null;
   assignedRescuerId?: string | null;
+  assignedRescuerName?: string | null;
+  handlingOperatorId?: string | null;
+  handlingOperatorName?: string | null;
+  operatorNotes?: string | null;
+  confirmedAt?: string | null;
+  dispatchedAt?: string | null;
   cancellationReason?: string | null;
   identifiedSnake: SnakeSpeciesResponse | null;
   // Some backend payloads return aiConfidence instead of aIConfidence.
   identificationContext: (SnakeIdentificationContext & { aiConfidence?: number | null }) | null;
-  user?: {
-    accountId: string;
-    userName: string;
-    email: string;
-    phoneNumber: string | null;
-    rating: number;
-    ratingCount: number;
-    emergencyContacts: string[];
-    hasUnderlyingDisease: boolean;
-    account?: {
-      id?: string;
-      email?: string | null;
-      fullName?: string | null;
-      avatarUrl?: string | null;
-      role?: string | number;
-      isActive?: boolean;
-    };
-  };
-  assignedRescuer?: {
-    accountId: string;
-    isOnline: boolean;
-    isAvailable: boolean;
-    phoneNumber: string | null;
-    rating: number;
-    ratingCount: number;
-    type: string | number;
-    lastLocationUpdate: string | null;
-    latitude: number | null;
-    longitude: number | null;
-    totalMissions: number;
-    completedMissions: number;
-    account?: {
-      id?: string;
-      email?: string | null;
-      fullName?: string | null;
-      avatarUrl?: string | null;
-      role?: string | number;
-      isActive?: boolean;
-    };
-  } | null;
+  totalDispatchRequests?: number;
+  acceptedDispatchCount?: number;
+  declinedDispatchCount?: number;
+  cancelledDispatchCount?: number;
+  user?: AdminIncidentParticipantResponse | null;
+  assignedRescuer?: AdminRescuerParticipantResponse | null;
   activeMission?: {
     id: string;
     incidentId: string;
@@ -171,7 +239,11 @@ export interface AdminDetailSnakebiteIncidentResponse {
   } | null;
   totalRescueAttempts?: number;
   failedAttemptsCount?: number;
+  incidentMedia?: SnakeAIDetectMediaResponse[];
   media: SnakeAIDetectMediaResponse[];
+  missionHistory?: AdminIncidentMissionHistoryResponse[];
+  dispatchRequests?: AdminIncidentDispatchRequestResponse[];
+  paymentSummary?: AdminIncidentPaymentSummaryResponse | null;
   rescueMissionMedia: RescueMissionMediaGroupResponse[];
 }
 
@@ -182,7 +254,7 @@ export interface AdminMissionSummaryResponse {
   status: string;
   price: number;
   actualCost: number | null;
-  costFromCenter: number;
+  costFromCenter: number | null;
   createdAt: string;
   updatedAt: string | null;
   startedAt: string | null;
@@ -190,7 +262,7 @@ export interface AdminMissionSummaryResponse {
   completedAt: string | null;
   incidentStatus: string;
   incidentAddress: string | null;
-  rescuerName: string;
+  rescuerName: string | null;
 }
 
 export interface AdminMissionDetailResponse {
@@ -225,7 +297,9 @@ export interface AdminMissionDetailResponse {
     media: SnakeAIDetectMediaResponse[];
   };
   rescuer: {
-    accountId: string;
+    accountId?: string;
+    id?: string;
+    fullName?: string | null;
     isOnline: boolean;
     isAvailable: boolean;
     phoneNumber: string | null;
@@ -237,25 +311,27 @@ export interface AdminMissionDetailResponse {
     longitude: number | null;
     totalMissions: number;
     completedMissions: number;
-    account: {
-      fullName: string;
-      avatarUrl: string | null;
-      email: string | null;
+    account?: {
+      fullName?: string | null;
+      avatarUrl?: string | null;
+      email?: string | null;
     };
   };
   user: {
-    accountId: string;
-    userName: string;
+    accountId?: string;
+    id?: string;
+    userName?: string;
+    fullName?: string | null;
     email: string | null;
     phoneNumber: string | null;
     rating: number;
     ratingCount: number;
     emergencyContacts: string[];
     hasUnderlyingDisease: boolean;
-    account: {
-      fullName: string;
-      avatarUrl: string | null;
-      email: string | null;
+    account?: {
+      fullName?: string | null;
+      avatarUrl?: string | null;
+      email?: string | null;
     };
   };
 }

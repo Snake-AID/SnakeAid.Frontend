@@ -1,5 +1,6 @@
 // Types for Snake Catching Request APIs & SignalR payloads
 
+import type { BriefRescuerProfileResponse } from './operator.type';
 import type { GeoPointResponse } from './snakebite-incident.type';
 
 export enum SnakeCatchingRequestStatus {
@@ -11,6 +12,64 @@ export enum SnakeCatchingRequestStatus {
   Cancelled = 'Cancelled',
 }
 
+export interface SnakeCatchingRequestMediaItem {
+  mediaUrl?: string | null;
+  fileName?: string | null;
+  contentType?: string | null;
+  fileSize?: number | null;
+  referenceType?: string | null;
+  purpose?: string | null;
+  requiresAIProcessing?: boolean | null;
+}
+
+export interface SnakeCatchingRequestDetailItem {
+  id?: string | null;
+  snakeCatchingRequestId?: string | null;
+  snakeSpeciesId?: number | null;
+  snakeSpeciesName?: string | null;
+  snakeSpeciesScientificName?: string | null;
+  quantity?: number | null;
+}
+
+export interface SnakeCatchingRequestUserProfile {
+  userName?: string | null;
+  email?: string | null;
+  phoneNumber?: string | null;
+  account?: {
+    fullName?: string | null;
+    avatarUrl?: string | null;
+  } | null;
+}
+
+export interface SnakeCatchingMissionEnvironmentInfo {
+  name?: string | null;
+  description?: string | null;
+  price?: number | null;
+  currency?: string | null;
+}
+
+export interface SnakeCatchingMissionDetailInfo {
+  snakeSpeciesName?: string | null;
+  quantity?: number | null;
+  price?: number | null;
+}
+
+export interface SnakeCatchingMissionInfo {
+  id?: string | null;
+  status?: string | null;
+  price?: number | null;
+  startedAt?: string | null;
+  arrivedAt?: string | null;
+  completedAt?: string | null;
+  notes?: string | null;
+  cancellationReason?: string | null;
+  estimatedCost?: number | null;
+  actualCost?: number | null;
+  catchingEnvironment?: SnakeCatchingMissionEnvironmentInfo | null;
+  missionDetails?: SnakeCatchingMissionDetailInfo[];
+  media?: SnakeCatchingRequestMediaItem[];
+}
+
 export interface CreateSnakeCatchingRequestResponse {
   id: string;
   userId: string;
@@ -20,6 +79,8 @@ export interface CreateSnakeCatchingRequestResponse {
   additionalDetails?: string | null;
   estimatedPrice?: number | null;
   distanceKm?: number | null;
+  requestDate?: string | null;
+  preferredTime?: string | null;
   createdAt?: string | null;
   handlingOperatorId?: string | null;
   confirmedAt?: string | null;
@@ -27,14 +88,15 @@ export interface CreateSnakeCatchingRequestResponse {
   isPrePaid?: boolean | null;
   assignedAt?: string | null;
   assignedRescuerId?: string | null;
-  assignedRescuer?: unknown;
+  assignedRescuer?: BriefRescuerProfileResponse | null;
   dispatchedAt?: string | null;
   cancellationReason?: string | null;
   lat?: number | null;
   lng?: number | null;
-  details?: string | null;
-  media?: unknown[];
-  missions?: unknown[];
+  details?: SnakeCatchingRequestDetailItem[];
+  media?: SnakeCatchingRequestMediaItem[];
+  missions?: SnakeCatchingMissionInfo[];
+  user?: SnakeCatchingRequestUserProfile | null;
   // allow extension by backend
   [key: string]: unknown;
 }
@@ -84,6 +146,26 @@ export interface SnakeCatchingRequestCancelledPayload {
   userId: string;
   status: SnakeCatchingRequestStatus;
   cancellationReason?: string | null;
+}
+
+export interface SnakeCatchingMissionAbortedPayload {
+  requestId: string;
+  missionId: string;
+  rescuerId: string;
+  operatorUserId?: string | null;
+  rescuerName?: string | null;
+  reason?: string | null;
+  updatedAt: string;
+}
+
+export interface SnakeCatchingMissionCompletedPayload {
+  requestId: string;
+  missionId: string;
+  memberUserId: string;
+  rescuerUserId: string;
+  rescuerName?: string | null;
+  actualCost?: number | null;
+  completedAt: string;
 }
 
 export interface AssignSnakeCatchingRequestPayload {

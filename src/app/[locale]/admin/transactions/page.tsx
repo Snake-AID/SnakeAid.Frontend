@@ -4,6 +4,7 @@ import type { PaginationMeta } from '@/types/api-response';
 import type { TransactionFilterType, TransactionItem } from '@/types/transaction.type';
 import { CircleDollarSign, Loader2, SearchX, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
+import { ApiClientError } from '@/apis/client';
 import { transactionApi } from '@/apis/transaction.api';
 import AdminWithdrawalsPanel from '@/components/admin/AdminWithdrawalsPanel';
 import { useToast } from '@/components/ToastProvider';
@@ -23,8 +24,10 @@ const TRANSACTION_TYPE_LABEL_MAP: Record<string, string> = {
   RescuerReward: 'Thưởng cứu hộ',
   WalletTopup: 'Nạp ví',
   WalletWithdraw: 'Rút ví',
+  WithdrawalInitiated: 'Khởi tạo yêu cầu rút tiền',
+  WithdrawalRefund: 'Hoàn tiền yêu cầu rút',
   PlatformFee: 'Phí nền tảng',
-  AdminAdjustment: 'Điều chỉnh admin',
+  AdminAdjustment: 'Điều chỉnh admin (legacy)',
   CatchingPayment: 'Thanh toán bắt rắn',
   CatcherPayout: 'Chi trả người bắt rắn',
   CatchingDeposit: 'Đặt cọc bắt rắn',
@@ -78,6 +81,21 @@ const getTransactionTypeLabel = (value: string) => {
 
 const getPaymentMethodLabel = (value: string) => {
   return PAYMENT_METHOD_LABEL_MAP[value] ?? value;
+};
+
+const getApiErrorMessage = (error: unknown, fallback: string) => {
+  if (!(error instanceof ApiClientError)) {
+    return fallback;
+  }
+
+  const validationEntries = Object.entries(error.error?.validationErrors ?? {});
+  if (validationEntries.length > 0) {
+    return validationEntries
+      .map(([field, messages]) => `${field}: ${messages.join(', ')}`)
+      .join(' | ');
+  }
+
+  return fallback;
 };
 
 export default function TransactionsPage() {
@@ -141,7 +159,9 @@ export default function TransactionsPage() {
           current_page: pageNumber,
           page_size: pageSize,
         }));
-        setListError('Không thể tải danh sách giao dịch. Vui lòng thử lại.');
+        const message = getApiErrorMessage(error, 'Không thể tải danh sách giao dịch. Vui lòng thử lại.');
+        setListError(message);
+        showToast(message, { type: 'error' });
       } finally {
         if (!cancelled) {
           setIsLoading(false);
@@ -154,7 +174,7 @@ export default function TransactionsPage() {
     return () => {
       cancelled = true;
     };
-  }, [pageNumber, pageSize, trimmedUserName, transTypeFilter]);
+  }, [pageNumber, pageSize, showToast, trimmedUserName, transTypeFilter]);
 
   const openDetail = async (id: string) => {
     setIsDetailLoading(true);
@@ -166,8 +186,9 @@ export default function TransactionsPage() {
       setSelectedTransaction(detail);
     } catch (error) {
       console.error('Failed to load transaction detail', error);
-      setDetailError('Không thể tải chi tiết giao dịch.');
-      showToast('Không thể tải chi tiết giao dịch.', { type: 'error' });
+      const message = getApiErrorMessage(error, 'Không thể tải chi tiết giao dịch.');
+      setDetailError(message);
+      showToast(message, { type: 'error' });
     } finally {
       setIsDetailLoading(false);
     }
@@ -186,7 +207,7 @@ export default function TransactionsPage() {
     <main className="h-[calc(100vh-81px)] overflow-y-auto bg-slate-50 p-6 lg:p-8">
       <div className="mx-auto flex max-w-360 flex-col gap-6">
         <header className="rounded-2xl border border-slate-200 bg-white px-6 py-5 shadow-sm">
-          <h2 className="text-3xl font-bold text-slate-900">Quản lý dòng tiền</h2>
+          <h2 className="text-3xl font-bold text-slate-900">Quản lý giao dịch</h2>
           <p className="mt-1 text-sm text-slate-500">
             Theo dõi lịch sử giao dịch và xử lý duyệt rút tiền ngay trong cùng một màn hình.
           </p>
@@ -197,7 +218,7 @@ export default function TransactionsPage() {
               onClick={() => setActiveTab('transactions')}
               className={`rounded-lg px-3 py-2 text-sm font-semibold ${activeTab === 'transactions' ? 'bg-white text-blue-700 shadow-sm' : 'text-slate-600 hover:text-slate-800'}`}
             >
-              Dòng tiền hệ thống
+              Giao dịch hệ thống
             </button>
             <button
               type="button"

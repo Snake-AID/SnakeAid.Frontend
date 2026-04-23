@@ -60,10 +60,21 @@ export default function OperatorInfoPanels({
 }: OperatorInfoPanelsProps) {
   // Note: EnRoute is a RescueMissionStatus, not SnakebiteIncidentStatus
   // Incidents only have: Pending, Verified, Assigned, Finished, Completed, FalseAlarm, Cancelled, NoRescuerFound, Disputed
-  const queueCount = incidents.filter(item => item.stage === 'Pending' || item.stage === 'Verified').length;
-  const contactingCount = incidents.filter(item => item.stage === 'Contacting' || item.stage === 'Pending').length;
-  const assignedCount = incidents.filter(item => item.stage === 'Assigned').length;
-  const disputeCount = incidents.filter(item => item.needsRedispatch).length;
+  // `Verified` (incident) and `Confirmed` (request) both mean the case is accepted but not yet dispatched to a rescuer.
+  const incidentQueueCount = incidents.filter(item => item.stage === 'Pending').length;
+  const incidentPendingDispatchCount = incidents.filter(item => item.stage === 'Verified').length;
+  const incidentAssignedCount = incidents.filter(item => item.stage === 'Assigned').length;
+  const incidentDisputeCount = incidents.filter(item => item.needsRedispatch).length;
+
+  const requestQueueCount = requests.filter(r => r.status === 'Pending').length;
+  const requestPendingDispatchCount = requests.filter(r => r.status === 'Confirmed').length;
+  const requestAssignedCount = requests.filter(r => r.status === 'Assigned').length;
+  const requestDisputeCount = requests.filter(r => r.needsRedispatch).length;
+
+  const queueCount = incidentQueueCount + requestQueueCount;
+  const pendingDispatchCount = incidentPendingDispatchCount + requestPendingDispatchCount;
+  const assignedCount = incidentAssignedCount + requestAssignedCount;
+  const disputeCount = incidentDisputeCount + requestDisputeCount;
 
   const [activeTab, setActiveTab] = useState<'incidents' | 'requests'>('incidents');
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -124,8 +135,8 @@ export default function OperatorInfoPanels({
               <p className="text-xl font-bold text-amber-900">{queueCount}</p>
             </div>
             <div className="rounded-2xl bg-blue-50 p-3">
-              <p className="text-blue-700">Đang liên hệ</p>
-              <p className="text-xl font-bold text-blue-900">{contactingCount}</p>
+              <p className="text-blue-700">Chờ điều phối</p>
+              <p className="text-xl font-bold text-blue-900">{pendingDispatchCount}</p>
             </div>
             <div className="rounded-xl bg-emerald-50 p-3">
               <p className="text-emerald-700">Đang thực thi</p>
