@@ -145,6 +145,7 @@ export default function OperatorDashboardPage() {
     confirmRequest,
     assignRequest,
     cancelRequest,
+    abortMission,
     isLoading: isRequestsLoading,
     hasError: hasRequestsError,
     abortedRequest,
@@ -228,7 +229,7 @@ export default function OperatorDashboardPage() {
       return;
     }
 
-    const requestCode = `CAR-${normalizedPayload.requestId.slice(-6).toUpperCase()}`;
+    const requestCode = `CAR-${normalizedPayload.requestId.slice(-5).toUpperCase()}`;
     const reasonText = normalizedPayload.reason ? `: ${normalizedPayload.reason}` : '';
 
     setFocusedIncidentId(null);
@@ -253,7 +254,7 @@ export default function OperatorDashboardPage() {
       return;
     }
 
-    const requestCode = `CAR-${normalizedPayload.requestId.slice(-6).toUpperCase()}`;
+    const requestCode = `CAR-${normalizedPayload.requestId.slice(-5).toUpperCase()}`;
 
     setFocusedIncidentId(null);
     setFocusedRequestId(normalizedPayload.requestId);
@@ -444,14 +445,25 @@ export default function OperatorDashboardPage() {
     }
   };
 
-  const handleCancelRequest = async (requestId: string) => {
+  const handleCancelRequest = async (requestId: string, reason: string) => {
     try {
-      await cancelRequest(requestId, 'Cancelled by operator');
+      await cancelRequest(requestId, reason);
       showToast('Yêu cầu đã được hủy.', { type: 'success' });
       await refreshRequests();
     } catch (err) {
       console.error('Failed to cancel request', err);
       showToast('Không thể hủy yêu cầu. Vui lòng thử lại.', { type: 'error' });
+    }
+  };
+
+  const handleAbortMission = async (missionId: string, reason: string) => {
+    try {
+      await abortMission(missionId, reason);
+      showToast('Nhiệm vụ đã được hủy và yêu cầu được trả về Confirmed để điều phối lại.', { type: 'warning' });
+      await refreshRequests();
+    } catch (err) {
+      console.error('Failed to abort mission', err);
+      showToast('Không thể hủy đơn nhiệm vụ. Vui lòng thử lại.', { type: 'error' });
     }
   };
 
@@ -618,6 +630,7 @@ export default function OperatorDashboardPage() {
         onConfirm={handleConfirmRequest}
         onAssign={handleAssignRequest}
         onCancel={handleCancelRequest}
+        onAbort={handleAbortMission}
         onRefresh={refreshRequests}
       />
 

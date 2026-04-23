@@ -21,7 +21,7 @@ export interface IncidentDetailModalProps {
 }
 
 const getShortIncidentId = (id: string) => {
-  const suffix = id.slice(-6).toUpperCase();
+  const suffix = id.slice(-5).toUpperCase();
   return `INC-${suffix}`;
 };
 
