@@ -7,10 +7,11 @@ import type {
   RecognitionStatus,
 } from '@/types/ai-recognition.type';
 import type { PaginationMeta } from '@/types/api-response';
-import { Loader2, SearchX, X } from 'lucide-react';
+import { Download, Loader2, SearchX, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { aiRecognitionApi } from '@/apis/ai-recognition.api';
 import { ApiClientError } from '@/apis/client';
+import DatasetExportModal from '@/components/admin/DatasetExportModal';
 import { useToast } from '@/components/ToastProvider';
 
 const DEFAULT_PAGINATION: PaginationMeta = {
@@ -236,6 +237,7 @@ export default function AdminAIRecognitionPage() {
   const [selectedItem, setSelectedItem] = useState<AIRecognitionAdminReportMediaListItemResponse | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
+  const [isDatasetModalOpen, setIsDatasetModalOpen] = useState(false);
 
   const [status, setStatus] = useState<RecognitionStatus | ''>('');
   const [referenceType, setReferenceType] = useState<MediaReferenceType | ''>('');
@@ -357,10 +359,21 @@ export default function AdminAIRecognitionPage() {
     <main className="h-[calc(100vh-81px)] overflow-y-auto bg-slate-50 p-6 lg:p-8">
       <div className="mx-auto flex max-w-360 flex-col gap-6">
         <header className="rounded-2xl border border-slate-200 bg-white px-6 py-5 shadow-sm">
-          <h2 className="text-3xl font-bold text-slate-900">Tổng hợp nhận diện ảnh báo cáo rắn</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            Tổng hợp dữ liệu nhận diện AI từ nhiều nguồn để admin kiểm tra và đối soát nhanh.
-          </p>
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+              <h2 className="text-3xl font-bold text-slate-900">Tổng hợp nhận diện ảnh báo cáo rắn</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Tổng hợp dữ liệu nhận diện AI từ nhiều nguồn để admin kiểm tra và đối soát nhanh.
+              </p>
+            </div>
+            <button
+              onClick={() => setIsDatasetModalOpen(true)}
+              className="inline-flex items-center gap-2 rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-all hover:bg-indigo-700 hover:shadow"
+            >
+              <Download className="size-4" />
+              Tải xuống Dataset
+            </button>
+          </div>
 
           <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-4 lg:grid-cols-9">
             <div className="lg:col-span-2">
@@ -836,6 +849,8 @@ export default function AdminAIRecognitionPage() {
           </div>
         </div>
       )}
+
+      {isDatasetModalOpen && <DatasetExportModal onClose={() => setIsDatasetModalOpen(false)} />}
     </main>
   );
 }
