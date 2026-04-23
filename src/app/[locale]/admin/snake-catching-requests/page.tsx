@@ -113,6 +113,8 @@ const getStatusConfig = (status: string | null | undefined) => {
       return { class: 'bg-emerald-100 text-emerald-700 border-emerald-200', label: 'Hoàn thành', icon: <CheckCircle2 className="size-3.5" /> };
     case 'Cancelled':
       return { class: 'bg-slate-200 text-slate-700 border-slate-300', label: 'Đã hủy', icon: <X className="size-3.5" /> };
+    case 'Finished':
+      return { class: 'bg-emerald-100 text-emerald-700 border-emerald-200', label: 'Đã kết thúc', icon: <CheckCircle2 className="size-3.5" /> };
     default:
       return { class: 'bg-slate-100 text-slate-700 border-slate-200', label: status ?? '-', icon: <AlertCircle className="size-3.5" /> };
   }
@@ -210,6 +212,8 @@ export default function SnakeCatchingRequestsManagementPage() {
   const [keyword, setKeyword] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [mainTab, setMainTab] = useState<'all' | 'complaints' | 'low-rating'>('all');
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 10;
 
   const openDetail = async (item: SnakeCatchingRequestItem) => {
     setSelectedItem(item);
@@ -296,6 +300,18 @@ export default function SnakeCatchingRequestsManagementPage() {
     }
     return result;
   }, [items, keyword, statusFilter, mainTab]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredItems.length / PAGE_SIZE));
+  const safePage = Math.min(currentPage, totalPages);
+  const paginatedItems = useMemo(
+    () => filteredItems.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
+    [filteredItems, safePage],
+  );
+
+  // Reset to page 1 whenever filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [keyword, statusFilter, mainTab]);
 
   const hasUncompletedMission = selectedItem?.missions?.some(m => m.status === 'MissionUncompleted') ?? false;
 
@@ -423,7 +439,7 @@ export default function SnakeCatchingRequestsManagementPage() {
                   </tr>
                 )}
 
-                {!isLoading && !listError && filteredItems.map((item) => {
+                {!isLoading && !listError && paginatedItems.map((item) => {
                   const statusConf = getStatusConfig(item.status);
                   return (
                     <tr key={item.id} className="group transition-colors hover:bg-slate-50">
@@ -472,6 +488,88 @@ export default function SnakeCatchingRequestsManagementPage() {
               </tbody>
             </table>
           </div>
+
+          {/* Pagination */}
+          {!isLoading && filteredItems.length > 0 && (
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-6 py-4 text-sm text-slate-600">
+              <p>
+                Trang
+                {' '}
+                <span className="font-semibold text-slate-900">{safePage}</span>
+                {' / '}
+                <span className="font-semibold text-slate-900">{totalPages}</span>
+                {' • Tổng '}
+                <span className="font-semibold text-slate-900">{filteredItems.length}</span>
+                {' yêu cầu'}
+              </p>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage(1)}
+                  disabled={safePage === 1}
+                  className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-100 disabled:opacity-40"
+                >
+                  «
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={safePage === 1}
+                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-100 disabled:opacity-40"
+                >
+                  Trước
+                </button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter(p => p === 1 || p === totalPages || Math.abs(p - safePage) <= 1)
+                  .reduce<Array<number | '...'>>((
+                    acc,
+                    p,
+                    idx,
+                    arr,
+                  ) => {
+                    if (idx > 0 && p - (arr[idx - 1] as number) > 1) {
+                      acc.push('...');
+                    }
+                    acc.push(p);
+                    return acc;
+                  }, [])
+                  .map((p, idx) =>
+                    p === '...'
+                      ? <span key={`ellipsis-${idx}`} className="px-1 text-slate-400">...</span>
+                      : (
+                          <button
+                            key={p}
+                            type="button"
+                            onClick={() => setCurrentPage(p as number)}
+                            className={`min-w-[32px] rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-colors ${
+                              p === safePage
+                                ? 'border-indigo-600 bg-indigo-600 text-white'
+                                : 'border-slate-200 text-slate-700 hover:bg-slate-100'
+                            }`}
+                          >
+                            {p}
+                          </button>
+                        ),
+                  )}
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={safePage === totalPages}
+                  className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-100 disabled:opacity-40"
+                >
+                  Sau
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage(totalPages)}
+                  disabled={safePage === totalPages}
+                  className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-700 transition-colors hover:bg-slate-100 disabled:opacity-40"
+                >
+                  »
+                </button>
+              </div>
+            </div>
+          )}
         </section>
 
         {selectedItem && (
