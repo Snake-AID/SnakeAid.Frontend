@@ -6,8 +6,10 @@ import type {
   SnakeCatchingRequestDetailItem,
   SnakeCatchingRequestMediaItem,
 } from '@/types/snakecatching-request.type';
-import { AlertCircle, CheckCircle, MapPin, RotateCcw, Send, User, X } from 'lucide-react';
+import type { TransactionItem } from '@/types/transaction.type';
+import { AlertCircle, CheckCircle, CircleDollarSign, Loader2, MapPin, Receipt, RotateCcw, Send, User, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { transactionApi } from '@/apis/transaction.api';
 import { SnakeCatchingRequestStatus } from '@/types/snakecatching-request.type';
 import CatchingMissionAbortModal from './CatchingMissionAbortModal';
 import CatchingRequestCancelModal from './CatchingRequestCancelModal';
@@ -101,6 +103,35 @@ const getRequestDetailKey = (detail: SnakeCatchingRequestDetailItem) => {
   ].join('-');
 };
 
+const TRANSACTION_TYPE_LABEL_MAP: Record<string, string> = {
+  ConsultationPayment: 'Thanh toán tư vấn',
+  ExpertPayout: 'Chi trả chuyên gia',
+  ConsultationRefund: 'Hoàn tiền tư vấn',
+  MissionDonation: 'Quyên góp nhiệm vụ',
+  RescuerReward: 'Thưởng cứu hộ',
+  WalletTopup: 'Nạp ví',
+  WalletWithdraw: 'Rút ví',
+  WithdrawalInitiated: 'Khởi tạo yêu cầu rút tiền',
+  WithdrawalRefund: 'Hoàn tiền yêu cầu rút',
+  PlatformFee: 'Phí nền tảng',
+  AdminAdjustment: 'Điều chỉnh admin',
+  CatchingPayment: 'Thanh toán bắt rắn',
+  CatcherPayout: 'Chi trả người bắt rắn',
+  CatchingDeposit: 'Đặt cọc bắt rắn',
+  CatchingRefund: 'Hoàn tiền bắt rắn',
+  SnakebiteIncidentPayment: 'Thanh toán sự cố rắn cắn',
+  SnakebiteIncidentDeposit: 'Đặt cọc sự cố rắn cắn',
+  SnakebiteIncidentRefund: 'Hoàn tiền sự cố rắn cắn',
+};
+
+const PAYMENT_METHOD_LABEL_MAP: Record<string, string> = {
+  Internal: 'SnakeAidPay',
+  PayOS: 'PayOS',
+  Cash: 'Tiền mặt',
+  BankTransfer: 'Chuyển khoản',
+  Wallet: 'SnakeAidPay',
+};
+
 const getMissionKey = (mission: SnakeCatchingMissionInfo) => {
   return [
     mission.status ?? '',
@@ -143,6 +174,9 @@ export default function CatchingRequestDetailModal({
   const [isAbortModalOpen, setIsAbortModalOpen] = useState(false);
   const [abortMissionId, setAbortMissionId] = useState<string | null>(null);
   const [isActionLoading, setIsActionLoading] = useState(false);
+  const [transactions, setTransactions] = useState<TransactionItem[]>([]);
+  const [isTransactionsLoading, setIsTransactionsLoading] = useState(false);
+  const [transactionError, setTransactionError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isOpen) {
@@ -158,6 +192,45 @@ export default function CatchingRequestDetailModal({
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [isOpen, onClose]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchTransactions = async () => {
+      if (!isOpen || !requestId) {
+        return;
+      }
+
+      setIsTransactionsLoading(true);
+      setTransactionError(null);
+
+      try {
+        const response = await transactionApi.getPaged({
+          referenceId: requestId,
+          pageSize: 20,
+        });
+
+        if (!cancelled) {
+          setTransactions(response.items);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          console.error('Failed to load related transactions', err);
+          setTransactionError('Không thể tải lịch sử giao dịch.');
+        }
+      } finally {
+        if (!cancelled) {
+          setIsTransactionsLoading(false);
+        }
+      }
+    };
+
+    void fetchTransactions();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, requestId]);
 
   if (!isOpen) {
     return null;
@@ -454,6 +527,71 @@ export default function CatchingRequestDetailModal({
     );
   };
 
+  const renderTransactions = () => {
+    return (
+      <div className="rounded-xl border border-blue-200 bg-blue-50/70 p-4 shadow-sm">
+        <p className="mb-3 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-blue-700">
+          <CircleDollarSign className="size-4" />
+          Thanh toán & Giao dịch
+        </p>
+
+        {isTransactionsLoading && (
+          <div className="flex items-center justify-center p-4 text-sm text-slate-500">
+            <Loader2 className="mr-2 size-4 animate-spin text-blue-500" />
+            Đang tải giao dịch...
+          </div>
+        )}
+
+        {!isTransactionsLoading && transactionError && (
+          <div className="flex items-center gap-2 rounded-lg bg-rose-50 p-3 text-sm text-rose-700">
+            <AlertCircle className="size-4" />
+            {transactionError}
+          </div>
+        )}
+
+        {!isTransactionsLoading && !transactionError && transactions.length === 0 && (
+          <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-slate-300 bg-white/60 p-6 text-sm text-slate-500">
+            <Receipt className="mb-2 size-8 text-slate-300" />
+            Chưa có giao dịch nào cho yêu cầu này
+          </div>
+        )}
+
+        {!isTransactionsLoading && !transactionError && transactions.length > 0 && (
+          <div className="space-y-2">
+            {transactions.map(item => (
+              <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-white bg-white p-3 shadow-xs">
+                <div className="flex items-center gap-3">
+                  <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-slate-50">
+                    <CircleDollarSign className="size-5 text-slate-500" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-slate-900">{formatVndCurrency(item.amount)}</p>
+                    <p className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                      <span className="rounded-md bg-blue-100 px-2 py-0.5 font-semibold text-blue-700">
+                        {TRANSACTION_TYPE_LABEL_MAP[item.transactionType] || item.transactionType}
+                      </span>
+                      <span>
+                        •
+                        {formatDateTime(item.createdAt)}
+                      </span>
+                      <span className="font-mono">{PAYMENT_METHOD_LABEL_MAP[item.paymentMethod] || item.paymentMethod}</span>
+                    </p>
+                  </div>
+                </div>
+                <div className="text-right flex flex-col items-end">
+                  <p className="text-xs font-medium text-slate-700">{item.fullName || item.userName}</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5 break-all max-w-[160px] truncate" title={item.externalTransactionId ?? ''}>
+                    {item.externalTransactionId ? `Mã: ${item.externalTransactionId}` : 'Nội bộ'}
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const rescuer = request?.assignedRescuer ?? null;
   const rescuerName = rescuer?.account?.fullName ?? rescuer?.account?.email ?? 'Chưa có thông tin';
   const rescuerPhone = rescuer?.phoneNumber ?? 'Không có SĐT';
@@ -680,6 +818,8 @@ export default function CatchingRequestDetailModal({
                           <div className="mt-2">{renderMissions()}</div>
                         </div>
 
+                        {renderTransactions()}
+
                         {request.cancellationReason && (
                           <div className="rounded-xl border border-rose-200 bg-rose-50 p-4">
                             <div className="flex items-center gap-2">
@@ -726,6 +866,15 @@ export default function CatchingRequestDetailModal({
                                 >
                                   <Send className="size-4" />
                                   Điều phối đội cứu hộ
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={handleCancelClick}
+                                  disabled={isActionLoading || !onCancel}
+                                  className="w-full inline-flex items-center justify-center gap-2 rounded-full border border-amber-600 bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  <RotateCcw className="size-4" />
+                                  Hủy yêu cầu
                                 </button>
                               </>
                             )}
