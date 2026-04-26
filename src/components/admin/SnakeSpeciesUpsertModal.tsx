@@ -7,7 +7,7 @@ import type {
   SnakeSpeciesUpsertPayload,
 } from '@/types/snake-species.type';
 import { Plus, Trash2, X } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { libraryMediaApi } from '@/apis/library-media.api';
 import LibraryMediaPickerModal from './LibraryMediaPickerModal';
 
@@ -17,7 +17,7 @@ interface SnakeSpeciesUpsertModalProps {
   isOpen: boolean;
   mode: SnakeSpeciesFormMode;
   initialValue: SnakeSpeciesUpsertPayload;
-  venomTypeOptions: Array<{ id: number; label: string }>;
+  venomTypeOptions: Array<{ id: number; label: string; value: string }>;
   antivenomOptions: Array<{ id: number; label: string }>;
   isSubmitting: boolean;
   onClose: () => void;
@@ -38,16 +38,6 @@ interface LineItemEditorProps {
   onChange: (next: FirstAidLineItem[]) => void;
   onUploadMedia: (file: File) => Promise<string>;
 }
-
-const primaryVenomOptions = ['Neurotoxic', 'Hemotoxic', 'Cytotoxic', 'Myotoxic', 'None'];
-
-const venomOptionLabel: Record<string, string> = {
-  Neurotoxic: 'Neurotoxic (Độc thần kinh)',
-  Hemotoxic: 'Hemotoxic (Độc máu)',
-  Cytotoxic: 'Cytotoxic (Độc tế bào)',
-  Myotoxic: 'Myotoxic (Độc cơ)',
-  None: 'None (Không độc)',
-};
 
 function TagListInput({ label, values, placeholder, onChange }: TagListInputProps) {
   const [draft, setDraft] = useState('');
@@ -205,7 +195,7 @@ function LineItemEditor({ label, values, onChange, onUploadMedia }: LineItemEdit
       </div>
       <div className="space-y-2">
         {values.map((item, index) => (
-          <div key={`line-item-${index}`} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <div key={`line-item-${item.mediaId ?? item.mediaUrl ?? index}`} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
             <div className="mb-2 flex items-center justify-between">
               <p className="text-xs font-semibold text-slate-500">
                 Mục
@@ -332,24 +322,30 @@ export default function SnakeSpeciesUpsertModal({
   const [isUploadingMedia, setIsUploadingMedia] = useState(false);
   const [mediaUploadError, setMediaUploadError] = useState<string | null>(null);
   const [isUploadSuccess, setIsUploadSuccess] = useState(false);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(initialValue.imageUrl ?? null);
   const [isSnakeMediaPickerOpen, setIsSnakeMediaPickerOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const isPrimaryVenomTypeNone = (draft.primaryVenomType ?? 'None') === 'None';
+  const selectedPrimaryVenomTypeOption = venomTypeOptions.find(option => option.id === draft.primaryVenomTypeId);
+  const primaryVenomTypeLabel = selectedPrimaryVenomTypeOption?.label ?? (draft.primaryVenomType === 'None' ? 'None (Không độc)' : draft.primaryVenomType ?? 'None');
 
-  useEffect(() => {
+  const previewUrl = useMemo(() => {
     if (selectedImageFile) {
-      const nextPreviewUrl = URL.createObjectURL(selectedImageFile);
-      setPreviewUrl(nextPreviewUrl);
-
-      return () => {
-        URL.revokeObjectURL(nextPreviewUrl);
-      };
+      return URL.createObjectURL(selectedImageFile);
     }
 
-    setPreviewUrl(draft.imageUrl ?? null);
-    return undefined;
+    return draft.imageUrl ?? null;
   }, [selectedImageFile, draft.imageUrl]);
+
+  useEffect(() => {
+    if (!selectedImageFile) {
+      return undefined;
+    }
+
+    return () => {
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [selectedImageFile, previewUrl]);
 
   if (!isOpen) {
     return null;
@@ -559,26 +555,6 @@ export default function SnakeSpeciesUpsertModal({
               </div>
             </div>
             <div>
-              <p className="mb-2 text-xs font-semibold text-slate-700">Loại độc tố chính</p>
-              <select
-                value={draft.primaryVenomType ?? 'None'}
-                onChange={(e) => {
-                  const nextPrimaryVenomType = e.target.value;
-                  setDraft(prev => ({
-                    ...prev,
-                    primaryVenomType: nextPrimaryVenomType,
-                    venomIds: nextPrimaryVenomType === 'None' ? [] : prev.venomIds,
-                    antivenomIds: nextPrimaryVenomType === 'None' ? [] : prev.antivenomIds,
-                  }));
-                }}
-                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-teal-600"
-              >
-                {primaryVenomOptions.map(option => (
-                  <option key={option} value={option}>{venomOptionLabel[option] ?? option}</option>
-                ))}
-              </select>
-            </div>
-            <div>
               <p className="mb-2 text-xs font-semibold text-slate-700">Mức rủi ro (1-10)</p>
               <input
                 type="number"
@@ -615,7 +591,14 @@ export default function SnakeSpeciesUpsertModal({
                 <input
                   type="checkbox"
                   checked={draft.isVenomous}
-                  onChange={e => setDraft(prev => ({ ...prev, isVenomous: e.target.checked }))}
+                  onChange={e => setDraft(prev => ({
+                    ...prev,
+                    isVenomous: e.target.checked,
+                    primaryVenomType: e.target.checked ? prev.primaryVenomType ?? 'None' : 'None',
+                    primaryVenomTypeId: e.target.checked ? prev.primaryVenomTypeId : null,
+                    venomIds: e.target.checked ? prev.venomIds : [],
+                    antivenomIds: e.target.checked ? prev.antivenomIds : [],
+                  }))}
                 />
                 Có độc
               </label>
@@ -669,7 +652,7 @@ export default function SnakeSpeciesUpsertModal({
             </div>
             <div className="space-y-3">
               {draft.symptomsByTime.map((symptom, index) => (
-                <div key={`symptom-${index}`} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <div key={`symptom-${symptom.timeRange || index}`} className="rounded-lg border border-slate-200 bg-slate-50 p-3">
                   <div className="mb-2 flex items-center justify-between">
                     <p className="text-xs font-semibold text-slate-500">
                       Mốc
@@ -727,7 +710,7 @@ export default function SnakeSpeciesUpsertModal({
               <div className="mt-2 space-y-2 text-xs text-slate-500">
                 <p>
                   Ghi đè áp dụng cho bộ sơ cứu của loại độc chính của loài rắn:
-                  <strong>{` ${venomOptionLabel[draft.primaryVenomType ?? 'None'] ?? draft.primaryVenomType ?? 'None'}`}</strong>
+                  <strong>{` ${primaryVenomTypeLabel}`}</strong>
                 </p>
                 <ul className="list-disc pl-4">
                   <li>
@@ -844,7 +827,7 @@ export default function SnakeSpeciesUpsertModal({
                 values={draft.alternativeNames}
                 onChange={next => setDraft(prev => ({ ...prev, alternativeNames: next }))}
               />
-              {!isPrimaryVenomTypeNone && (
+              {draft.isVenomous && (
                 <div className="mt-4">
                   <p className="mb-2 text-xs font-semibold text-slate-700">Loại độc liên kết</p>
                   <div className="space-y-2 rounded-xl border border-slate-300 bg-white p-3">
@@ -862,10 +845,23 @@ export default function SnakeSpeciesUpsertModal({
                               checked={draft.venomIds.includes(option.id)}
                               onChange={(e) => {
                                 setDraft((prev) => {
-                                  const next = e.target.checked
+                                  const nextVenomIds = e.target.checked
                                     ? [...prev.venomIds, option.id]
                                     : prev.venomIds.filter(id => id !== option.id);
-                                  return { ...prev, venomIds: next };
+                                  const nextPrimaryVenomTypeId = e.target.checked
+                                    ? prev.primaryVenomTypeId ?? option.id
+                                    : prev.primaryVenomTypeId === option.id
+                                      ? nextVenomIds[0] ?? null
+                                      : prev.primaryVenomTypeId;
+                                  const nextPrimaryVenomType = nextPrimaryVenomTypeId == null
+                                    ? 'None'
+                                    : venomTypeOptions.find(v => v.id === nextPrimaryVenomTypeId)?.value ?? prev.primaryVenomType;
+                                  return {
+                                    ...prev,
+                                    venomIds: nextVenomIds,
+                                    primaryVenomTypeId: nextPrimaryVenomTypeId,
+                                    primaryVenomType: nextPrimaryVenomType,
+                                  };
                                 });
                               }}
                               className="mt-1"
@@ -874,10 +870,44 @@ export default function SnakeSpeciesUpsertModal({
                           </label>
                         ))}
                   </div>
+                  {draft.venomIds.length > 0 && (
+                    <div className="mt-4 rounded-xl border border-slate-300 bg-white p-3">
+                      <p className="mb-2 text-xs font-semibold text-slate-700">Chọn loại độc chính</p>
+                      <div className="space-y-2">
+                        {venomTypeOptions
+                          .filter(option => draft.venomIds.includes(option.id))
+                          .map((option) => {
+                            const isPrimarySelected = draft.primaryVenomTypeId === option.id;
+                            return (
+                              <label
+                                key={option.id}
+                                htmlFor={`primary-venom-type-${option.id}`}
+                                className={`flex cursor-pointer items-start gap-2 rounded-lg border px-3 py-2 ${isPrimarySelected ? 'border-teal-500 bg-teal-50' : 'border-slate-200 bg-slate-50'} hover:bg-slate-100`}
+                              >
+                                <input
+                                  id={`primary-venom-type-${option.id}`}
+                                  type="radio"
+                                  name="primaryVenomTypeId"
+                                  value={option.id}
+                                  checked={isPrimarySelected}
+                                  onChange={() => setDraft(prev => ({
+                                    ...prev,
+                                    primaryVenomTypeId: option.id,
+                                    primaryVenomType: option.value,
+                                  }))}
+                                  className="mt-1 h-4 w-4 text-teal-600"
+                                />
+                                <span className="text-sm text-slate-700">{option.label}</span>
+                              </label>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
-            {!isPrimaryVenomTypeNone && (
+            {draft.isVenomous && (
               <div>
                 <p className="mb-2 text-xs font-semibold text-slate-700">Huyết thanh kháng nọc liên kết</p>
                 <div className="space-y-2 rounded-xl border border-slate-300 bg-white p-3">
