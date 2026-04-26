@@ -55,6 +55,7 @@ const createEmptyPayload = (): SnakeSpeciesUpsertPayload => ({
   description: '',
   identificationSummary: '',
   primaryVenomType: 'None',
+  primaryVenomTypeId: null,
   identification: {
     physicalTraits: [],
     behaviors: [],
@@ -121,6 +122,7 @@ const sanitizePayload = (payload: SnakeSpeciesUpsertPayload): SnakeSpeciesUpsert
     description: sanitizeText(payload.description),
     identificationSummary: sanitizeText(payload.identificationSummary),
     primaryVenomType: payload.primaryVenomType ?? 'None',
+    primaryVenomTypeId: Number.isInteger(payload.primaryVenomTypeId) ? payload.primaryVenomTypeId : null,
     identification: {
       physicalTraits: payload.identification.physicalTraits.map(sanitizeText).filter(Boolean),
       behaviors: payload.identification.behaviors.map(sanitizeText).filter(Boolean),
@@ -170,6 +172,7 @@ const mapDetailToPayload = (detail: SnakeSpeciesDetail): SnakeSpeciesUpsertPaylo
   isActive: detail.isActive,
   venomIds: detail.venomIds ?? detail.venoms.map(item => item.id).filter(Number.isInteger),
   antivenomIds: detail.antivenomIds ?? detail.antivenoms.map(item => item.id).filter(Number.isInteger),
+  primaryVenomTypeId: detail.primaryVenomTypeId ?? null,
   alternativeNames: detail.alternativeNames ?? [],
 });
 
@@ -477,7 +480,7 @@ export default function SnakesPage() {
   const [isDeletingSnake, setIsDeletingSnake] = useState(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
 
-  const [venomTypeOptions, setVenomTypeOptions] = useState<Array<{ id: number; label: string }>>([]);
+  const [venomTypeOptions, setVenomTypeOptions] = useState<Array<{ id: number; label: string; value: string }>>([]);
   const [antivenomOptions, setAntivenomOptions] = useState<Array<{ id: number; label: string }>>([]);
 
   const [regionDialogOpen, setRegionDialogOpen] = useState(false);
@@ -596,6 +599,7 @@ export default function SnakesPage() {
       setVenomTypeOptions(venoms.map(item => ({
         id: item.id,
         label: item.scientificName ? `${item.name} (${item.scientificName})` : item.name,
+        value: item.scientificName || item.name,
       })));
 
       setAntivenomOptions(antivenoms.map(item => ({

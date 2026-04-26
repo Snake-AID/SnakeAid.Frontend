@@ -77,6 +77,7 @@ export interface SnakeSpeciesDetail extends SnakeSpeciesSummary {
   antivenoms: Array<SnakeVenomInfo | SnakeAntivenomInfo>;
   venomIds?: number[];
   antivenomIds?: number[];
+  primaryVenomTypeId?: number | null;
 }
 
 export interface SnakeSpeciesUpsertPayload {
@@ -87,6 +88,7 @@ export interface SnakeSpeciesUpsertPayload {
   description: string;
   identificationSummary: string;
   primaryVenomType: PrimaryVenomType | null;
+  primaryVenomTypeId: number | null;
   identification: SnakeSpeciesIdentification;
   symptomsByTime: SnakeSpeciesSymptomByTime[];
   firstAidGuidelineOverride: FirstAidGuidelineOverride | null;
