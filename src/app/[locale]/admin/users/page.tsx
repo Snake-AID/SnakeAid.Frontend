@@ -433,7 +433,7 @@ export default function UsersPage() {
               onClick={() => setActiveTab('certificates')}
               className={`pb-2 text-sm font-semibold transition-colors ${activeTab === 'certificates' ? 'border-b-2 border-blue-600 text-blue-700' : 'text-slate-500 hover:text-slate-800'}`}
             >
-              Duyệt chứng chỉ chuyên gia
+              Duyệt chuyên gia
             </button>
           </div>
         </header>
@@ -846,11 +846,6 @@ export default function UsersPage() {
                   </div>
 
                   <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                    <p>
-                      <span className="font-semibold">ID:</span>
-                      {' '}
-                      {selectedUserDetail.id}
-                    </p>
                     <p>
                       <span className="font-semibold">Tên đăng nhập:</span>
                       {' '}
