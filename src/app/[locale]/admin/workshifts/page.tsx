@@ -18,6 +18,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock3,
+  HelpCircle,
   Pencil,
   Plus,
   RefreshCcw,
@@ -120,6 +121,29 @@ const DAYS_PER_VIEW = 7;
 const parseDateInput = (value: string) => {
   const parsed = new Date(`${value}T00:00:00`);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const getWeekStartDate = (date: Date) => {
+  const copy = new Date(date);
+  const day = copy.getDay();
+  const diffFromMonday = (day + 6) % 7;
+  copy.setDate(copy.getDate() - diffFromMonday);
+  copy.setHours(0, 0, 0, 0);
+  return copy;
+};
+
+const isCloneSourceWeekAllowed = (sourceDate: string) => {
+  const parsed = parseDateInput(sourceDate);
+  if (!parsed) {
+    return false;
+  }
+
+  const sourceWeekStart = getWeekStartDate(parsed);
+  const currentWeekStart = getWeekStartDate(new Date());
+  const previousWeekStart = addDays(currentWeekStart, -DAYS_PER_VIEW);
+
+  return sourceWeekStart.getTime() === currentWeekStart.getTime()
+    || sourceWeekStart.getTime() === previousWeekStart.getTime();
 };
 
 const getWindowEndDate = (startDate: string) => {
@@ -370,8 +394,14 @@ export default function WorkShiftsPage() {
   const [bulkNotes, setBulkNotes] = useState('');
   const [assignmentDrafts, setAssignmentDrafts] = useState<Record<string, AssignmentDraft>>({});
   const [isAssignmentSubmitting, setIsAssignmentSubmitting] = useState(false);
+  const [isCloneSubmitting, setIsCloneSubmitting] = useState(false);
 
   const windowEndDate = useMemo(() => getWindowEndDate(windowStartDate), [windowStartDate]);
+
+  const canCloneCurrentWeek = useMemo(
+    () => isCloneSourceWeekAllowed(windowStartDate),
+    [windowStartDate],
+  );
 
   const dateColumns = useMemo(() => getDateRange(windowStartDate, windowEndDate), [windowEndDate, windowStartDate]);
 
@@ -463,6 +493,20 @@ export default function WorkShiftsPage() {
     }
   };
 
+  const buildCloneTargetRange = (sourceDate: string) => {
+    const parsed = parseDateInput(sourceDate);
+    if (!parsed) {
+      return null;
+    }
+
+    const targetStart = addDays(parsed, DAYS_PER_VIEW);
+    const targetEnd = addDays(targetStart, DAYS_PER_VIEW - 1);
+    return {
+      start: toDateInput(targetStart),
+      end: toDateInput(targetEnd),
+    };
+  };
+
   const reloadPageData = async (notify = false) => {
     setIsLoading(true);
     setPageError(null);
@@ -483,6 +527,61 @@ export default function WorkShiftsPage() {
       showToast('Không thể tải dữ liệu lịch làm việc.', { type: 'error' });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const cloneAssignmentsToNextWeek = async () => {
+    const cloneSourceDate = windowStartDate;
+    const targetRange = buildCloneTargetRange(cloneSourceDate);
+
+    if (!targetRange) {
+      const message = 'Ngày nguồn sao chép không hợp lệ.';
+      setActionError(message);
+      showToast(message, { type: 'error' });
+      return;
+    }
+
+    setActionError(null);
+    setIsCloneSubmitting(true);
+
+    try {
+      const fetchedTarget = await workShiftApi.getAssignmentsByDateRange(targetRange.start, targetRange.end);
+      const existingTarget = Array.isArray(fetchedTarget) ? fetchedTarget : [];
+
+      if (existingTarget.length > 0) {
+        // eslint-disable-next-line dot-notation
+        const confirmed = (globalThis as any)['confirm'](
+          `Tuần mục tiêu ${targetRange.start} - ${targetRange.end} đã có ${existingTarget.length} phân công. Chức năng này chỉ thêm phân công thiếu, không xóa hoặc ghi đè phân công hiện có. Bạn có muốn tiếp tục?`,
+        );
+
+        if (!confirmed) {
+          return;
+        }
+      }
+
+      const clonedAssignments = await workShiftApi.cloneAssignmentsToNextWeek(cloneSourceDate);
+      const addedCount = Array.isArray(clonedAssignments) ? clonedAssignments.length : 0;
+
+      if (addedCount === 0) {
+        const message = existingTarget.length > 0
+          ? 'Không có phân công mới nào được sao chép vì tuần mục tiêu đã có phân công.'
+          : 'Không có phân công mới nào được sao chép sang tuần tiếp theo.';
+        showToast(message, { type: 'info' });
+      } else {
+        const message = existingTarget.length > 0
+          ? `Đã sao chép ${addedCount} phân công mới sang tuần tiếp theo. Một số phân công đã tồn tại và được bỏ qua.`
+          : `Đã sao chép ${addedCount} phân công mới sang tuần tiếp theo.`;
+        showToast(message, { type: 'success' });
+      }
+
+      await reloadPageData();
+    } catch (error) {
+      console.error('Failed to clone assignments to next week', error);
+      const message = getValidationMessage(error, 'Sao chép phân công sang tuần tiếp theo thất bại.');
+      setActionError(message);
+      showToast(message, { type: 'error' });
+    } finally {
+      setIsCloneSubmitting(false);
     }
   };
 
@@ -882,7 +981,7 @@ export default function WorkShiftsPage() {
             <div>
               <h2 className="text-3xl font-bold text-slate-900">Quản lý lịch làm việc nhân viên cứu hộ</h2>
               <p className="mt-1 text-sm text-slate-500">
-                Theo dõi phân công theo ngày và ca, quản lý check-in/check-out và tối ưu nhân sự cứu hộ.
+                Theo dõi phân công theo ngày và ca, và tối ưu nhân sự cứu hộ.
               </p>
             </div>
 
@@ -928,6 +1027,19 @@ export default function WorkShiftsPage() {
               >
                 <RefreshCcw className="size-4" />
                 Làm mới
+              </button>
+              <button
+                type="button"
+                disabled={isCloneSubmitting || !canCloneCurrentWeek}
+                onClick={() => void cloneAssignmentsToNextWeek()}
+                title={canCloneCurrentWeek ? undefined : 'Chỉ cho phép sao chép tuần hiện tại hoặc tuần trước.'}
+                className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-teal-700 px-3 py-2 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <CalendarDays className="size-4" />
+                Sao chép phân công sang tuần kế tiếp
+                <span title="Sao chép các phân công từ thứ Hai đến hết tuần sang tuần kế tiếp">
+                  <HelpCircle className="size-4 text-white/80" />
+                </span>
               </button>
               <button
                 type="button"
@@ -1179,7 +1291,7 @@ export default function WorkShiftsPage() {
                 <h3 className="text-xl font-bold text-slate-900">
                   {shiftModalMode === 'create' ? 'Thêm mẫu ca' : 'Cập nhật mẫu ca'}
                 </h3>
-                <p className="text-sm text-slate-500">Thiết lập khung giờ và số rescuer cần thiết cho ca.</p>
+                <p className="text-sm text-slate-500">Thiết lập khung giờ và số cứu hộ viên cần thiết cho ca.</p>
               </div>
               <button type="button" onClick={() => setIsShiftModalOpen(false)} className="rounded-lg p-2 hover:bg-slate-100">
                 <X className="size-5" />
@@ -1230,7 +1342,7 @@ export default function WorkShiftsPage() {
               </div>
 
               <div>
-                <p className="mb-1 text-xs font-semibold text-slate-700">Số rescuer yêu cầu</p>
+                <p className="mb-1 text-xs font-semibold text-slate-700">Số cứu hộ viên yêu cầu</p>
                 <input
                   type="number"
                   min={1}

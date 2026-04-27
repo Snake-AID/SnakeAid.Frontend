@@ -365,7 +365,17 @@ const formatIncidentId = (id: string | null | undefined) => {
     return '-';
   }
 
-  return `INC-${id.slice(-6).toUpperCase()}`;
+  const cleanId = id.replace(/-/g, '');
+  return `INC-${cleanId.slice(-6).toUpperCase()}`;
+};
+
+const formatMissionId = (id: string | null | undefined) => {
+  if (!id) {
+    return '-';
+  }
+
+  const cleanId = id.replace(/-/g, '');
+  return `MIS-${cleanId.slice(-6).toUpperCase()}`;
 };
 
 const formatPersonDisplayName = (name: string | null | undefined, fallbackId: string | null | undefined) => {
@@ -746,8 +756,8 @@ export default function IncidentsPage() {
                   )}
 
                   {!incidentsLoading && incidents.map(item => (
-                    <tr key={item.id} className="odd:bg-slate-50/50">
-                      <td className="border-b border-slate-100 px-3 py-2 font-mono text-sm font-semibold tracking-[0.2em] text-slate-900" title={formatIncidentId(item.id)}>{formatIncidentId(item.id)}</td>
+                    <tr key={item.id} className="group transition-colors hover:bg-slate-50">
+                      <td className="border-b border-slate-100 px-3 py-2 font-mono text-sm font-bold tracking-[0.1em] text-indigo-700" title={formatIncidentId(item.id)}>{formatIncidentId(item.id)}</td>
                       <td className="border-b border-slate-100 px-3 py-2 text-center">
                         <span className={`${STATUS_BADGE_BASE_CLASS} ${getIncidentStatusBadgeClass(String(item.status))}`}>
                           {translateIncidentStage(String(item.status))}
@@ -965,8 +975,8 @@ export default function IncidentsPage() {
                   )}
 
                   {!missionsLoading && missions.map(item => (
-                    <tr key={item.id} className="odd:bg-slate-50/50">
-                      <td className="border-b border-slate-100 px-3 py-2 font-mono text-xs text-slate-700">{item.id}</td>
+                    <tr key={item.id} className="group transition-colors hover:bg-slate-50">
+                      <td className="border-b border-slate-100 px-3 py-2 font-mono text-sm font-bold tracking-[0.1em] text-indigo-700" title={formatMissionId(item.id)}>{formatMissionId(item.id)}</td>
                       <td className="border-b border-slate-100 px-3 py-2 text-center">
                         <span className={`${STATUS_BADGE_BASE_CLASS} ${getMissionStatusBadgeClass(item.status)}`}>
                           {getMissionStatusLabel(item.status)}
@@ -1131,11 +1141,6 @@ export default function IncidentsPage() {
                     <p className="mt-1 font-mono text-2xl font-black tracking-[0.22em] text-slate-900">
                       {formatIncidentId(selectedIncidentDetail.id)}
                     </p>
-                    <p className="mt-2 text-xs text-slate-500">
-                      Id:
-                      {' '}
-                      <span className="font-mono">{selectedIncidentDetail.id}</span>
-                    </p>
                   </div>
 
                   <div className="rounded-xl border border-sky-200 bg-sky-50/70 p-4 shadow-sm">
@@ -1185,19 +1190,9 @@ export default function IncidentsPage() {
                         {displayOrNoInfo(formatPersonDisplayName(selectedIncidentDetail.handlingOperatorName, selectedIncidentDetail.handlingOperatorId))}
                       </p>
                       <p className="rounded-lg border border-sky-100 bg-white px-3 py-2">
-                        <span className="font-semibold">Operator ID:</span>
-                        {' '}
-                        <span className="font-mono text-xs">{displayOrNoInfo(selectedIncidentDetail.handlingOperatorId)}</span>
-                      </p>
-                      <p className="rounded-lg border border-sky-100 bg-white px-3 py-2">
                         <span className="font-semibold">Cứu hộ phụ trách:</span>
                         {' '}
                         {displayOrNoInfo(formatPersonDisplayName(selectedIncidentDetail.assignedRescuer?.account?.fullName ?? selectedIncidentDetail.assignedRescuer?.fullName ?? selectedIncidentDetail.assignedRescuerName, selectedIncidentDetail.assignedRescuerId))}
-                      </p>
-                      <p className="rounded-lg border border-sky-100 bg-white px-3 py-2">
-                        <span className="font-semibold">Rescuer ID:</span>
-                        {' '}
-                        <span className="font-mono text-xs">{displayOrNoInfo(selectedIncidentDetail.assignedRescuerId)}</span>
                       </p>
                       <p className="rounded-lg border border-sky-100 bg-white px-3 py-2">
                         <span className="font-semibold">Mức độ nghiêm trọng:</span>
@@ -1243,11 +1238,6 @@ export default function IncidentsPage() {
                       </div>
                     </div>
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                      <p className="rounded-lg border border-violet-100 bg-white px-3 py-2">
-                        <span className="font-semibold">Account ID:</span>
-                        {' '}
-                        <span className="font-mono text-xs">{displayOrNoInfo(selectedIncidentDetail.user?.accountId)}</span>
-                      </p>
                       <p className="rounded-lg border border-violet-100 bg-white px-3 py-2">
                         <span className="font-semibold">Họ tên:</span>
                         {' '}
@@ -1315,11 +1305,6 @@ export default function IncidentsPage() {
                       </div>
                     </div>
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                      <p className="rounded-lg border border-cyan-100 bg-white px-3 py-2">
-                        <span className="font-semibold">Account ID:</span>
-                        {' '}
-                        <span className="font-mono text-xs">{displayOrNoInfo(selectedIncidentDetail.assignedRescuer?.accountId)}</span>
-                      </p>
                       <p className="rounded-lg border border-cyan-100 bg-white px-3 py-2">
                         <span className="font-semibold">Họ tên:</span>
                         {' '}
@@ -1414,10 +1399,6 @@ export default function IncidentsPage() {
                           <span className="font-semibold">Operator:</span>
                           {' '}
                           {displayOrNoInfo(selectedIncidentDetail.handlingOperatorName)}
-                          {' '}
-                          (
-                          <span className="font-mono text-xs">{displayOrNoInfo(selectedIncidentDetail.handlingOperatorId)}</span>
-                          )
                         </p>
                       </div>
                     </div>
@@ -1579,7 +1560,7 @@ export default function IncidentsPage() {
                               <span>
                                 Nhiệm vụ
                                 {' '}
-                                <span className="font-mono">{mission.missionId}</span>
+                                <span className="font-bold text-indigo-700">{formatMissionId(mission.missionId)}</span>
                               </span>
                               <span className={`${STATUS_BADGE_BASE_CLASS} ${getMissionStatusBadgeClass(String(mission.status))}`}>
                                 {getMissionStatusLabel(String(mission.status))}
@@ -1668,7 +1649,7 @@ export default function IncidentsPage() {
                             <p className="mb-2 text-xs text-slate-600">
                               Nhiệm vụ
                               {' '}
-                              <span className="font-mono">{group.missionId}</span>
+                              <span className="font-bold text-indigo-700">{formatMissionId(group.missionId)}</span>
                               {' '}
                               •
                               {' '}
@@ -1737,18 +1718,6 @@ export default function IncidentsPage() {
                                   {request.operatorName}
                                 </span>
                               )}
-                              {request.operatorId && (
-                                <span>
-                                  Operator ID:
-                                  {' '}
-                                  <span className="font-mono">{request.operatorId}</span>
-                                </span>
-                              )}
-                              <span>
-                                Request ID:
-                                {' '}
-                                <span className="font-mono">{request.requestId}</span>
-                              </span>
                             </div>
                             <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2">
                               <p>
@@ -1847,10 +1816,8 @@ export default function IncidentsPage() {
                         </span>
                       )}
                     </div>
-                    <p className="mt-3 text-xs text-slate-500">
-                      Mã nhiệm vụ:
-                      {' '}
-                      <span className="font-mono">{selectedMissionDetail.id}</span>
+                    <p className="mt-3 text-2xl font-black text-slate-900 tracking-wider">
+                      {formatMissionId(selectedMissionDetail.id)}
                     </p>
                   </div>
 
@@ -1860,16 +1827,13 @@ export default function IncidentsPage() {
                       <p>
                         <span className="font-semibold">Mã sự cố:</span>
                         {' '}
-                        <span className="font-mono text-xs">{selectedMissionDetail.incidentId}</span>
+                        <span className="font-bold text-indigo-700">{formatIncidentId(selectedMissionDetail.incidentId)}</span>
                       </p>
                       <p>
                         <span className="font-semibold">Cứu hộ:</span>
                         {' '}
                         <span className="font-medium text-slate-800">
-                          {selectedMissionDetail.rescuer.account?.fullName ?? selectedMissionDetail.rescuer.fullName ?? formatShortId(selectedMissionDetail.rescuerId)}
-                        </span>
-                        <span className="ml-2 font-mono text-xs text-slate-400">
-                          {formatShortId(selectedMissionDetail.rescuerId)}
+                          {selectedMissionDetail.rescuer.account?.fullName ?? selectedMissionDetail.rescuer.fullName ?? 'Chưa rõ'}
                         </span>
                       </p>
                       <p>
@@ -2038,7 +2002,7 @@ export default function IncidentsPage() {
                       <p>
                         <span className="font-semibold">Mã sự cố:</span>
                         {' '}
-                        <span className="font-mono text-xs">{selectedMissionDetail.incident.id}</span>
+                        <span className="font-bold text-indigo-700">{formatIncidentId(selectedMissionDetail.incident.id)}</span>
                       </p>
                       <p>
                         <span className="font-semibold">Trạng thái:</span>

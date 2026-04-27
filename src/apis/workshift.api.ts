@@ -45,4 +45,9 @@ export const workShiftApi = {
     api.get<ShiftAssignmentResponse[]>('/shifts/assignments', {
       params: { startDate, endDate },
     }),
+
+  cloneAssignmentsToNextWeek: (sourceDate: string) =>
+    api.post<ShiftAssignmentResponse[]>('/shifts/assignments/clone-next-week', undefined, {
+      params: { sourceDate },
+    }),
 };

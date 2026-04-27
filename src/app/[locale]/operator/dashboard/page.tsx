@@ -4,6 +4,10 @@ import type { LiveIncident } from '@/components/operator/dashboard/OperatorMap';
 import type { RescuerAbortedUiPayload } from '@/hooks/useOperatorIncidents';
 import type { IncidentCompletedPayload } from '@/types/signalr.type';
 import type { DetailSnakebiteIncidentResponse } from '@/types/snakebite-incident.type';
+import type {
+  SnakeCatchingMissionAbortedPayload,
+  SnakeCatchingMissionCompletedPayload,
+} from '@/types/snakecatching-request.type';
 import { UserCheck } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { incidentApi } from '@/apis/incident.api';
@@ -22,6 +26,7 @@ import { useOperatorRequests } from '@/hooks/useOperatorRequests';
 import { useOperatorRescuers } from '@/hooks/useOperatorRescuers';
 import { useRescuerHub } from '@/hooks/useRescuerHub';
 import { getStoredUser } from '@/utils/auth-session';
+import CatchingMissionAbortAlert from '../../../../components/operator/dashboard/CatchingMissionAbortAlert';
 
 export default function OperatorDashboardPage() {
   const { showToast } = useToast();
@@ -48,6 +53,64 @@ export default function OperatorDashboardPage() {
       rescuerId,
       operatorId: operatorId ?? null,
       reason,
+    };
+  };
+
+  const normalizeSnakeCatchingMissionAbortedPayload = (payload: unknown): SnakeCatchingMissionAbortedPayload | null => {
+    if (!payload || typeof payload !== 'object') {
+      return null;
+    }
+
+    const data = payload as Record<string, unknown>;
+    const requestId = (typeof data.requestId === 'string' ? data.requestId : data.RequestId) as string | undefined;
+    const missionId = (typeof data.missionId === 'string' ? data.missionId : data.MissionId) as string | undefined;
+    const rescuerId = (typeof data.rescuerId === 'string' ? data.rescuerId : data.RescuerId) as string | undefined;
+    const operatorUserId = (typeof data.operatorUserId === 'string' ? data.operatorUserId : data.OperatorUserId) as string | null | undefined;
+    const rescuerName = (typeof data.rescuerName === 'string' ? data.rescuerName : data.RescuerName) as string | undefined;
+    const reason = (typeof data.reason === 'string' ? data.reason : data.Reason) as string | undefined;
+    const updatedAt = (typeof data.updatedAt === 'string' ? data.updatedAt : data.UpdatedAt) as string | undefined;
+
+    if (!requestId || !missionId || !rescuerId || !updatedAt) {
+      return null;
+    }
+
+    return {
+      requestId,
+      missionId,
+      rescuerId,
+      operatorUserId: operatorUserId ?? null,
+      rescuerName,
+      reason,
+      updatedAt,
+    };
+  };
+
+  const normalizeSnakeCatchingMissionCompletedPayload = (payload: unknown): SnakeCatchingMissionCompletedPayload | null => {
+    if (!payload || typeof payload !== 'object') {
+      return null;
+    }
+
+    const data = payload as Record<string, unknown>;
+    const requestId = (typeof data.requestId === 'string' ? data.requestId : data.RequestId) as string | undefined;
+    const missionId = (typeof data.missionId === 'string' ? data.missionId : data.MissionId) as string | undefined;
+    const memberUserId = (typeof data.memberUserId === 'string' ? data.memberUserId : data.MemberUserId) as string | undefined;
+    const rescuerUserId = (typeof data.rescuerUserId === 'string' ? data.rescuerUserId : data.RescuerUserId) as string | undefined;
+    const rescuerName = (typeof data.rescuerName === 'string' ? data.rescuerName : data.RescuerName) as string | undefined;
+    const actualCost = typeof data.actualCost === 'number' ? data.actualCost : typeof data.ActualCost === 'number' ? data.ActualCost : undefined;
+    const completedAt = (typeof data.completedAt === 'string' ? data.completedAt : data.CompletedAt) as string | undefined;
+
+    if (!requestId || !missionId || !memberUserId || !rescuerUserId || !completedAt) {
+      return null;
+    }
+
+    return {
+      requestId,
+      missionId,
+      memberUserId,
+      rescuerUserId,
+      rescuerName: rescuerName ?? null,
+      actualCost: actualCost ?? null,
+      completedAt,
     };
   };
 
@@ -82,10 +145,15 @@ export default function OperatorDashboardPage() {
     confirmRequest,
     assignRequest,
     cancelRequest,
+    abortMission,
     isLoading: isRequestsLoading,
     hasError: hasRequestsError,
+    abortedRequest,
+    clearAbortedRequest,
     handleRequestCreated,
     handleRequestCancelled,
+    handleRequestAborted,
+    handleRequestCompleted,
   } = useOperatorRequests();
 
   const {
@@ -102,7 +170,7 @@ export default function OperatorDashboardPage() {
     urgentIncidentIds,
     clearUrgentIncident,
     handleIncidentCreated,
-    handleIncidentCancelled,
+    handleIncidentCancelled: applyIncidentCancelled,
     handleIncidentCompleted: applyIncidentCompleted,
     handleRescuerDispatched,
     handleRescuerAborted: applyRescuerAborted,
@@ -115,6 +183,7 @@ export default function OperatorDashboardPage() {
     loadRescuerData,
     loadOnlineRescuers,
     clearMissionLocation,
+    clearMissionLocationByIncidentId,
     handleRescuerOnlineStatus,
     handleRescuerIdleLocationUpdated,
     handleRescuerMissionLocationUpdated,
@@ -150,6 +219,79 @@ export default function OperatorDashboardPage() {
     void loadRescuerData();
   }, [currentOperatorId, setFocusedRequestId, clearMissionLocation, refreshIncidents, loadRescuerData, applyRescuerAborted]);
 
+  const handleSnakeCatchingMissionAborted = useCallback((payload: unknown) => {
+    const normalizedPayload = normalizeSnakeCatchingMissionAbortedPayload(payload);
+    if (!normalizedPayload) {
+      return;
+    }
+
+    if (normalizedPayload.operatorUserId && normalizedPayload.operatorUserId !== currentOperatorId) {
+      return;
+    }
+
+    const requestCode = `CAR-${normalizedPayload.requestId.slice(-5).toUpperCase()}`;
+    const reasonText = normalizedPayload.reason ? `: ${normalizedPayload.reason}` : '';
+
+    setFocusedIncidentId(null);
+    setFocusedRequestId(normalizedPayload.requestId);
+    setFocusTrigger(prev => prev + 1);
+
+    if (normalizedPayload.rescuerId) {
+      clearMissionLocation(normalizedPayload.rescuerId);
+    }
+
+    handleRequestAborted(normalizedPayload);
+
+    showToast(`Rescuer đã abort mission cho yêu cầu ${requestCode}${reasonText}`, { type: 'warning' });
+
+    void refreshRequests();
+    void loadRescuerData();
+  }, [currentOperatorId, setFocusedIncidentId, setFocusedRequestId, setFocusTrigger, clearMissionLocation, handleRequestAborted, showToast, refreshRequests, loadRescuerData]);
+
+  const handleSnakeCatchingMissionCompleted = useCallback((payload: unknown) => {
+    const normalizedPayload = normalizeSnakeCatchingMissionCompletedPayload(payload);
+    if (!normalizedPayload) {
+      return;
+    }
+
+    const requestCode = `CAR-${normalizedPayload.requestId.slice(-5).toUpperCase()}`;
+
+    setFocusedIncidentId(null);
+    setFocusedRequestId(normalizedPayload.requestId);
+    setFocusTrigger(prev => prev + 1);
+
+    if (normalizedPayload.rescuerUserId) {
+      clearMissionLocation(normalizedPayload.rescuerUserId);
+    }
+
+    handleRequestCompleted(normalizedPayload);
+
+    showToast(`Yêu cầu ${requestCode} đã hoàn thành`, { type: 'success' });
+
+    void refreshRequests();
+    void loadRescuerData();
+  }, [setFocusedIncidentId, setFocusedRequestId, setFocusTrigger, clearMissionLocation, handleRequestCompleted, showToast, refreshRequests, loadRescuerData]);
+
+  const handleIncidentCancelled = useCallback((payload: unknown) => {
+    const data = payload as { incidentId?: string };
+    if (!data || typeof data.incidentId !== 'string') {
+      console.error('[SignalR][OperatorDashboard] Failed to normalize IncidentCancelled payload:', payload);
+      return;
+    }
+
+    // Clear any stale mission marker for the cancelled incident.
+    clearMissionLocationByIncidentId(data.incidentId);
+
+    // Keep incident list in sync.
+    applyIncidentCancelled(payload as any);
+
+    // Reload rescuer layer to reflect the rescuer becoming available again.
+    void loadRescuerData();
+
+    // Ensure active incident list is consistent with backend source of truth.
+    void refreshIncidents();
+  }, [clearMissionLocationByIncidentId, applyIncidentCancelled, loadRescuerData, refreshIncidents]);
+
   const handleIncidentCompleted = useCallback((payload: unknown) => {
     const normalizedPayload = normalizeIncidentCompletedPayload(payload);
     if (!normalizedPayload) {
@@ -175,6 +317,8 @@ export default function OperatorDashboardPage() {
     onRescuerDispatched: handleRescuerDispatched,
     onSnakeCatchingRequestCreated: handleRequestCreated,
     onSnakeCatchingRequestCancelled: handleRequestCancelled,
+    onSnakeCatchingMissionAborted: handleSnakeCatchingMissionAborted,
+    onSnakeCatchingMissionCompleted: handleSnakeCatchingMissionCompleted,
     onRescuerOnlineStatus: handleRescuerOnlineStatus,
     onRescuerIdleLocationUpdated: handleRescuerIdleLocationUpdated,
     onRescuerMissionLocationUpdated: handleRescuerMissionLocationUpdated,
@@ -190,7 +334,8 @@ export default function OperatorDashboardPage() {
         address: r.address ?? null,
         lat: r.lat as number,
         lng: r.lng as number,
-        status: r.statusLabel ?? r.status,
+        status: r.status,
+        statusLabel: r.statusLabel ?? r.status,
       }));
   }, [requests]);
 
@@ -300,14 +445,25 @@ export default function OperatorDashboardPage() {
     }
   };
 
-  const handleCancelRequest = async (requestId: string) => {
+  const handleCancelRequest = async (requestId: string, reason: string) => {
     try {
-      await cancelRequest(requestId, 'Cancelled by operator');
+      await cancelRequest(requestId, reason);
       showToast('Yêu cầu đã được hủy.', { type: 'success' });
       await refreshRequests();
     } catch (err) {
       console.error('Failed to cancel request', err);
       showToast('Không thể hủy yêu cầu. Vui lòng thử lại.', { type: 'error' });
+    }
+  };
+
+  const handleAbortMission = async (missionId: string, reason: string) => {
+    try {
+      await abortMission(missionId, reason);
+      showToast('Nhiệm vụ đã được hủy và yêu cầu được trả về Confirmed để điều phối lại.', { type: 'warning' });
+      await refreshRequests();
+    } catch (err) {
+      console.error('Failed to abort mission', err);
+      showToast('Không thể hủy đơn nhiệm vụ. Vui lòng thử lại.', { type: 'error' });
     }
   };
 
@@ -424,6 +580,16 @@ export default function OperatorDashboardPage() {
         />
       )}
 
+      {abortedRequest && (
+        <CatchingMissionAbortAlert
+          requestId={abortedRequest.requestId}
+          rescuerName={abortedRequest.rescuerName}
+          reason={abortedRequest.reason}
+          onViewDetail={openRequestDetail}
+          onDismiss={clearAbortedRequest}
+        />
+      )}
+
       {abortedIncident && (
         <RescuerAbortAlert
           incidentId={abortedIncident.incidentId}
@@ -464,6 +630,7 @@ export default function OperatorDashboardPage() {
         onConfirm={handleConfirmRequest}
         onAssign={handleAssignRequest}
         onCancel={handleCancelRequest}
+        onAbort={handleAbortMission}
         onRefresh={refreshRequests}
       />
 

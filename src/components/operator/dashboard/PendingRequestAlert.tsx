@@ -6,6 +6,10 @@ interface PendingRequestAlertProps {
   onConfirm: (id: string) => Promise<void>;
 }
 
+const formatRequestCode = (requestId: string) => {
+  return `CAR-${requestId.slice(-6).toUpperCase()}`;
+};
+
 export default function PendingRequestAlert({
   requestId,
   focusedRequest,
@@ -13,6 +17,8 @@ export default function PendingRequestAlert({
   onHide,
   onConfirm,
 }: PendingRequestAlertProps) {
+  const requestCode = formatRequestCode(requestId);
+
   return (
     <div className="fixed bottom-4 right-4 z-9999 w-[min(100%,420px)]">
       <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xl">
@@ -21,8 +27,8 @@ export default function PendingRequestAlert({
           Yêu cầu mới đã được ghim trên bản đồ; hãy xác nhận để đưa vào luồng xử lý.
         </p>
         <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-          <p className="text-sm font-semibold text-slate-700">Request ID</p>
-          <p className="mt-1 text-sm text-slate-800">{requestId}</p>
+          <p className="text-sm font-semibold text-slate-700">Mã yêu cầu</p>
+          <p className="mt-1 text-sm text-slate-800">{requestCode}</p>
           <p className="mt-3 text-sm font-semibold text-slate-700">Vị trí</p>
           <p className="mt-1 text-sm text-slate-800">
             {focusedRequest?.lat.toFixed(5)}

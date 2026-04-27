@@ -21,6 +21,8 @@ import type {
   RescuerOnlineStatusPayload,
 } from '@/types/signalr.type';
 import type {
+  SnakeCatchingMissionAbortedPayload,
+  SnakeCatchingMissionCompletedPayload,
   SnakeCatchingRequestAssignedPayload,
   SnakeCatchingRequestCancelledPayload,
   SnakeCatchingRequestConfirmedPayload,
@@ -44,6 +46,8 @@ export interface RescuerHubEvents {
   onSnakeCatchingRequestAccepted?: (payload: SnakeCatchingRequestConfirmedPayload) => void;
   onSnakeCatchingRequestAssigned?: (payload: SnakeCatchingRequestAssignedPayload) => void;
   onSnakeCatchingRequestCancelled?: (payload: SnakeCatchingRequestCancelledPayload) => void;
+  onSnakeCatchingMissionAborted?: (payload: SnakeCatchingMissionAbortedPayload) => void;
+  onSnakeCatchingMissionCompleted?: (payload: SnakeCatchingMissionCompletedPayload) => void;
   onOperatorOnlineStatus?: (payload: OperatorOnlineStatusPayload) => void;
   onAdminLog?: (payload: AdminLogPayload) => void;
   onIncidentClaimed?: (payload: IncidentClaimedPayload) => void;
@@ -100,6 +104,20 @@ const attachHandlers = (connection: HubConnection, handlersRef: React.MutableRef
 
   connection.on('snakecatchingrequestcancelled', (payload) => {
     handlersRef.current.onSnakeCatchingRequestCancelled?.(payload);
+  });
+
+  connection.on('snakecatchingmissionaborted', (payload) => {
+    handlersRef.current.onSnakeCatchingMissionAborted?.(payload);
+  });
+  connection.on('SnakeCatchingMissionAborted', (payload) => {
+    handlersRef.current.onSnakeCatchingMissionAborted?.(payload);
+  });
+
+  connection.on('snakecatchingmissioncompleted', (payload) => {
+    handlersRef.current.onSnakeCatchingMissionCompleted?.(payload);
+  });
+  connection.on('SnakeCatchingMissionCompleted', (payload) => {
+    handlersRef.current.onSnakeCatchingMissionCompleted?.(payload);
   });
 
   connection.on('operatoronlinestatus', (payload) => {
@@ -173,6 +191,10 @@ const detachHandlers = (connection: HubConnection) => {
   connection.off('snakecatchingrequestaccepted');
   connection.off('snakecatchingrequestassigned');
   connection.off('snakecatchingrequestcancelled');
+  connection.off('snakecatchingmissionaborted');
+  connection.off('SnakeCatchingMissionAborted');
+  connection.off('snakecatchingmissioncompleted');
+  connection.off('SnakeCatchingMissionCompleted');
   connection.off('operatoronlinestatus');
   connection.off('incidentclaimed');
   connection.off('operatorcontacting');

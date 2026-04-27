@@ -1,4 +1,5 @@
 import type {
+  AdminCreateRescuerRequest,
   AdminUserDetailResponse,
   AdminUserListQuery,
   AdminUserSummaryResponse,
@@ -18,4 +19,7 @@ export const adminUserApi = {
 
   unbanUser: (userId: string) =>
     api.post<AdminUserDetailResponse>(`/admin/users/${userId}/unban`),
+
+  createRescuer: (payload: AdminCreateRescuerRequest) =>
+    api.post<AdminUserDetailResponse>('/admin/users/create-rescuer', payload),
 };

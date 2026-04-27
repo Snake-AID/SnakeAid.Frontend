@@ -54,7 +54,7 @@ const createEmptyPayload = (): SnakeSpeciesUpsertPayload => ({
   imageUrl: '',
   description: '',
   identificationSummary: '',
-  primaryVenomType: 'None',
+  primaryVenomTypeId: null,
   identification: {
     physicalTraits: [],
     behaviors: [],
@@ -120,7 +120,7 @@ const sanitizePayload = (payload: SnakeSpeciesUpsertPayload): SnakeSpeciesUpsert
     mediaId: sanitizeText(payload.mediaId),
     description: sanitizeText(payload.description),
     identificationSummary: sanitizeText(payload.identificationSummary),
-    primaryVenomType: payload.primaryVenomType ?? 'None',
+    primaryVenomTypeId: Number.isInteger(payload.primaryVenomTypeId) ? payload.primaryVenomTypeId : null,
     identification: {
       physicalTraits: payload.identification.physicalTraits.map(sanitizeText).filter(Boolean),
       behaviors: payload.identification.behaviors.map(sanitizeText).filter(Boolean),
@@ -156,7 +156,6 @@ const mapDetailToPayload = (detail: SnakeSpeciesDetail): SnakeSpeciesUpsertPaylo
   mediaId: detail.mediaId ?? '',
   description: detail.description ?? '',
   identificationSummary: detail.identificationSummary ?? '',
-  primaryVenomType: detail.primaryVenomType ?? 'None',
   identification: {
     physicalTraits: detail.identification?.physicalTraits ?? [],
     behaviors: detail.identification?.behaviors ?? [],
@@ -170,6 +169,7 @@ const mapDetailToPayload = (detail: SnakeSpeciesDetail): SnakeSpeciesUpsertPaylo
   isActive: detail.isActive,
   venomIds: detail.venomIds ?? detail.venoms.map(item => item.id).filter(Number.isInteger),
   antivenomIds: detail.antivenomIds ?? detail.antivenoms.map(item => item.id).filter(Number.isInteger),
+  primaryVenomTypeId: detail.primaryVenomTypeId ?? null,
   alternativeNames: detail.alternativeNames ?? [],
 });
 
@@ -477,7 +477,7 @@ export default function SnakesPage() {
   const [isDeletingSnake, setIsDeletingSnake] = useState(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
 
-  const [venomTypeOptions, setVenomTypeOptions] = useState<Array<{ id: number; label: string }>>([]);
+  const [venomTypeOptions, setVenomTypeOptions] = useState<Array<{ id: number; label: string; value: string }>>([]);
   const [antivenomOptions, setAntivenomOptions] = useState<Array<{ id: number; label: string }>>([]);
 
   const [regionDialogOpen, setRegionDialogOpen] = useState(false);
@@ -596,6 +596,7 @@ export default function SnakesPage() {
       setVenomTypeOptions(venoms.map(item => ({
         id: item.id,
         label: item.scientificName ? `${item.name} (${item.scientificName})` : item.name,
+        value: item.scientificName || item.name,
       })));
 
       setAntivenomOptions(antivenoms.map(item => ({
@@ -1316,12 +1317,26 @@ export default function SnakesPage() {
                           ? <p className="text-sm text-slate-500">Không có dữ liệu.</p>
                           : (
                               <div className="space-y-2">
-                                {selectedDetail.venoms.map(venom => (
-                                  <div key={`${venom.venomType}-${venom.description}`} className="rounded-lg border border-slate-200 bg-slate-50 p-2.5">
-                                    <p className="text-sm font-semibold text-slate-800">{venom.venomType}</p>
-                                    <p className="mt-1 text-sm text-slate-700">{venom.description}</p>
-                                  </div>
-                                ))}
+                                {selectedDetail.venoms.map((venom) => {
+                                  const isPrimary = selectedDetail.primaryVenomTypeId === venom.id;
+
+                                  return (
+                                    <div
+                                      key={`${venom.venomType}-${venom.description}`}
+                                      className={`rounded-lg border p-2.5 ${isPrimary ? 'border-amber-400 bg-amber-50' : 'border-slate-200 bg-slate-50'}`}
+                                    >
+                                      <div className="flex items-center justify-between gap-2">
+                                        <p className="text-sm font-semibold text-slate-800">{venom.venomType}</p>
+                                        {isPrimary && (
+                                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-700">
+                                            Độc tố chính
+                                          </span>
+                                        )}
+                                      </div>
+                                      <p className="mt-1 text-sm text-slate-700">{venom.description}</p>
+                                    </div>
+                                  );
+                                })}
                               </div>
                             )}
                       </div>

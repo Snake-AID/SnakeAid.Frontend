@@ -39,10 +39,8 @@ const translateIncidentStage = (stage: string) => {
       return 'Chờ điều phối';
     case 'Contacting':
       return 'Đang liên hệ';
-    case 'Dispatched':
-      return 'Đã điều phối';
     case 'Assigned':
-      return 'Đã nhận lệnh';
+      return 'Đã điều phối';
     case 'Finished':
       return 'Đã kết thúc';
     case 'Completed':
@@ -208,7 +206,7 @@ export function useOperatorIncidents(clearRequestFocus?: () => void): UseOperato
     const incidentCode = `INC-${removedId.slice(-6).toUpperCase()}`;
     const reasonText = payload.reason ? `: ${payload.reason}` : '';
 
-    showToast(`Ca ${incidentCode} đã hủy bởi người dùng với lí do: ${reasonText}`, { type: 'info' });
+    showToast(`Sự cố ${incidentCode} đã hủy bởi người dùng với lí do: ${reasonText}`, { type: 'info' });
 
     setIncidents((prev) => {
       const next = prev.filter(incident => incident.id !== removedId);
@@ -231,7 +229,7 @@ export function useOperatorIncidents(clearRequestFocus?: () => void): UseOperato
     }
 
     const incidentCode = `INC-${completedId.slice(-6).toUpperCase()}`;
-    showToast(`Case ${incidentCode} đã hoàn thành.`, { type: 'success' });
+    showToast(`Sự cố ${incidentCode} đã hoàn thành.`, { type: 'success' });
 
     setIncidents((prev) => {
       const next = prev.filter(incident => incident.id !== completedId);
@@ -309,7 +307,7 @@ export function useOperatorIncidents(clearRequestFocus?: () => void): UseOperato
 
     // Show toast notification
     const incidentCode = `INC-${payload.incidentId.slice(-6).toUpperCase()}`;
-    showToast(`Rescuer đã chấp nhận nhiệm vụ cho case ${incidentCode}`, { type: 'success' });
+    showToast(`Cứu hộ viên đã chấp nhận nhiệm vụ cho sự cố ${incidentCode}`, { type: 'success' });
   }, [showToast]);
 
   const handleRescuerAborted = useCallback((payload: RescuerAbortedUiPayload) => {
@@ -327,7 +325,7 @@ export function useOperatorIncidents(clearRequestFocus?: () => void): UseOperato
 
     const incidentCode = `INC-${incidentId.slice(-6).toUpperCase()}`;
     const reasonText = payload.reason ? `: ${payload.reason}` : '';
-    showToast(`Rescuer đã abort mission cho case ${incidentCode}${reasonText}`, { type: 'warning' });
+    showToast(`Cứu hộ viên đã hủy nhiệm vụ cho sự cố ${incidentCode}${reasonText}`, { type: 'warning' });
 
     // Reflect abort immediately while waiting for API refresh.
     setIncidents((prev) => {
