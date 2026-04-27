@@ -78,23 +78,42 @@ function formatDate(iso: string): string {
   });
 }
 
+function dateToLocalString(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
 function getDefaultDates(period: AnalyticsPeriod): { from: string; to: string } {
   const now = new Date();
-  const to = now.toISOString().slice(0, 10);
+
   if (period === 'day') {
-    const from = new Date(now);
-    from.setDate(from.getDate() - 29);
-    return { from: from.toISOString().slice(0, 10), to };
+    // Ngày hôm nay
+    const today = dateToLocalString(now);
+    return { from: today, to: today };
   }
+
   if (period === 'month') {
-    const from = new Date(now);
-    from.setMonth(from.getMonth() - 11);
-    from.setDate(1);
-    return { from: from.toISOString().slice(0, 10), to };
+    // Ngày 1 của tháng này
+    const from = new Date(now.getFullYear(), now.getMonth(), 1);
+    // Ngày cuối cùng của tháng này
+    const to = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    return {
+      from: dateToLocalString(from),
+      to: dateToLocalString(to),
+    };
   }
-  const from = new Date(now);
-  from.setFullYear(from.getFullYear() - 4);
-  return { from: from.toISOString().slice(0, 10), to };
+
+  // period === 'year'
+  // Ngày 1/1 của năm này
+  const from = new Date(now.getFullYear(), 0, 1);
+  // Ngày 31/12 của năm này
+  const to = new Date(now.getFullYear(), 11, 31);
+  return {
+    from: dateToLocalString(from),
+    to: dateToLocalString(to),
+  };
 }
 
 const PERIOD_LABELS: Record<AnalyticsPeriod, string> = {

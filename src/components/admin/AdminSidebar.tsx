@@ -93,6 +93,13 @@ export default function AdminSidebar({
       enabled: true,
     },
     {
+      id: 'first-aid-guidelines',
+      icon: BookOpenText,
+      label: 'Quản lý bộ sơ cứu',
+      href: '/admin/first-aid-guidelines',
+      enabled: true,
+    },
+    {
       id: 'treatment-facilities',
       icon: Building2,
       label: 'Quản lý cơ sở điều trị',
