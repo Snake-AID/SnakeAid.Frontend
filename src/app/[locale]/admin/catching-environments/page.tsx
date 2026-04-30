@@ -245,6 +245,10 @@ export default function CatchingEnvironmentsPage() {
       errors.name = 'Vui lòng nhập tên môi trường.';
     }
 
+    if (!form.description.trim()) {
+      errors.description = 'Vui lòng nhập mô tả môi trường.';
+    }
+
     if (Number.isNaN(Number(form.price)) || Number(form.price) < 0) {
       errors.price = 'Giá phải là số không âm.';
     }
@@ -598,7 +602,11 @@ export default function CatchingEnvironmentsPage() {
               </div>
 
               <div>
-                <p className="mb-1 text-xs font-semibold text-slate-700">Mô tả</p>
+                <p className="mb-1 text-xs font-semibold text-slate-700">
+                  Mô tả
+                  {' '}
+                  <span className="text-rose-600">*</span>
+                </p>
                 <textarea
                   value={form.description}
                   onChange={event => setFormField('description', event.target.value)}
