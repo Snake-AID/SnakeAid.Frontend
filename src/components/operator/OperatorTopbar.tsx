@@ -34,7 +34,7 @@ const getOperatorTitleByPath = (pathname: string): string => {
     return 'Hồ sơ điều phối viên';
   }
 
-  return 'Tổng quan';
+  return 'Bảng điều phối';
 };
 
 export default function OperatorTopbar({ title, sidebarOpen, onToggleSidebar }: OperatorTopbarProps) {

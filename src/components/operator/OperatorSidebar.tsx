@@ -1,16 +1,11 @@
 'use client';
 
-import { Activity, Bell, ChevronLeft, ClipboardList, Map, MessageSquare, User } from 'lucide-react';
+import { Activity, ChevronLeft } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 const menuItems = [
-  { id: 'dashboard', label: 'Tổng quan', href: '/operator/dashboard', icon: Activity, enabled: true },
-  { id: 'queue', label: 'Hàng chờ sự cố', href: '/operator/queue', icon: ClipboardList, enabled: true },
-  { id: 'dispatch', label: 'Bảng điều phối', href: '/operator/dispatch-board', icon: Map, enabled: true },
-  { id: 'communications', label: 'Chat', href: '/operator/communications', icon: MessageSquare, enabled: true },
-  { id: 'alerts', label: 'Tranh chấp', href: '/operator/escalations', icon: Bell, enabled: true },
-  { id: 'profile', label: 'Hồ sơ', href: '/operator/profile', icon: User, enabled: true },
+  { id: 'dashboard', label: 'Bảng điều phối', href: '/operator/dashboard', icon: Activity, enabled: true },
 ];
 
 interface OperatorSidebarProps {
