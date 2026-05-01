@@ -274,7 +274,7 @@ export default function LoginPage() {
                             'w-full rounded-xl border border-slate-300 px-4 py-3 text-slate-700 outline-none transition-all',
                             selectedColorClass,
                           )}
-                          placeholder="demo.admin@snakeaid.test"
+                          placeholder="management@gmail.com"
                           autoComplete="email"
                           required
                         />

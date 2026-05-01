@@ -29,8 +29,8 @@ export default function DispatchRescuerModal({
   const [error, setError] = useState<string | null>(null);
   const { showToast } = useToast();
 
-  const [onlyInShift, setOnlyInShift] = useState(true);
-  const [onlyOnline, setOnlyOnline] = useState(true);
+  // const [onlyInShift, setOnlyInShift] = useState(true);
+  // const [onlyOnline, setOnlyOnline] = useState(true);
   const [sortByDistance, setSortByDistance] = useState(true);
 
   const loadRescuers = async () => {
@@ -73,15 +73,16 @@ export default function DispatchRescuerModal({
   }, [isOpen, incidentId, catchingRequestId]);
 
   const filteredRescuers = useMemo(() => {
-    let list = [...rescuers];
+    // let list = [...rescuers];
 
-    if (onlyInShift) {
-      list = list.filter(item => item.isOnDutyNow || item.assignmentStatus === 'Active');
-    }
+    // if (onlyInShift) {
+    //   list = list.filter(item => item.isOnDutyNow || item.assignmentStatus === 'Active');
+    // }
 
-    if (onlyOnline) {
-      list = list.filter(item => item.isOnline);
-    }
+    // if (onlyOnline) {
+    //   list = list.filter(item => item.isOnline);
+    // }
+    const list = [...rescuers];
 
     if (sortByDistance) {
       list.sort((a, b) => {
@@ -92,7 +93,8 @@ export default function DispatchRescuerModal({
     }
 
     return list;
-  }, [onlyInShift, onlyOnline, sortByDistance, rescuers]);
+  // [onlyInShift, onlyOnline, sortByDistance, rescuers]);
+  }, [sortByDistance, rescuers]);
 
   const handleDispatch = async () => {
     if (!selectedRescuerId) {
@@ -156,34 +158,41 @@ export default function DispatchRescuerModal({
             <RefreshCw className="size-4 text-teal-700" />
             Bộ lọc đội cứu hộ
           </div>
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => setOnlyInShift(prev => !prev)}
-              className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                onlyInShift ? 'bg-teal-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              Chỉ trong ca
-            </button>
-            <button
-              type="button"
-              onClick={() => setOnlyOnline(prev => !prev)}
-              className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                onlyOnline ? 'bg-teal-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              Chỉ online
-            </button>
-            <button
-              type="button"
-              onClick={() => setSortByDistance(prev => !prev)}
-              className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                sortByDistance ? 'bg-teal-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-              }`}
-            >
-              Ưu tiên gần nhất
-            </button>
+          <div className="space-y-2">
+            <p className="text-sm text-slate-600">
+              Danh sách đã được lọc theo ca trực, online và sẵn sàng để điều phối.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {/*
+              <button
+                type="button"
+                onClick={() => setOnlyInShift(prev => !prev)}
+                className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                  onlyInShift ? 'bg-teal-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                Chỉ trong ca
+              </button>
+              <button
+                type="button"
+                onClick={() => setOnlyOnline(prev => !prev)}
+                className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                  onlyOnline ? 'bg-teal-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                Chỉ online
+              </button>
+              */}
+              <button
+                type="button"
+                onClick={() => setSortByDistance(prev => !prev)}
+                className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                  sortByDistance ? 'bg-teal-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                Ưu tiên gần nhất
+              </button>
+            </div>
           </div>
         </div>
 
@@ -198,18 +207,14 @@ export default function DispatchRescuerModal({
             : filteredRescuers.length === 0
               ? (
                   <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center">
-                    <p className="text-sm font-medium text-slate-600">Không có đội cứu hộ phù hợp bộ lọc.</p>
+                    <p className="text-sm font-medium text-slate-600">Không có đội cứu hộ phù hợp.</p>
                     <button
                       type="button"
-                      onClick={() => {
-                        setOnlyInShift(false);
-                        setOnlyOnline(false);
-                        setSortByDistance(true);
-                      }}
+                      onClick={loadRescuers}
                       className="mt-3 inline-flex items-center gap-2 rounded-lg bg-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-300"
                     >
                       <RefreshCw className="size-3.5" />
-                      Đặt lại bộ lọc
+                      Làm mới danh sách
                     </button>
                   </div>
                 )

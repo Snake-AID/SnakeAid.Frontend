@@ -325,7 +325,7 @@ export default function SnakeSpeciesUpsertModal({
   const [isSnakeMediaPickerOpen, setIsSnakeMediaPickerOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const selectedPrimaryVenomTypeOption = venomTypeOptions.find(option => option.id === draft.primaryVenomTypeId);
-  const primaryVenomTypeLabel = selectedPrimaryVenomTypeOption?.label ?? (draft.primaryVenomType === 'None' ? 'None (Không độc)' : draft.primaryVenomType ?? 'None');
+  const primaryVenomTypeLabel = selectedPrimaryVenomTypeOption?.label ?? 'None';
 
   const previewUrl = useMemo(() => {
     if (selectedImageFile) {
@@ -594,7 +594,6 @@ export default function SnakeSpeciesUpsertModal({
                   onChange={e => setDraft(prev => ({
                     ...prev,
                     isVenomous: e.target.checked,
-                    primaryVenomType: e.target.checked ? prev.primaryVenomType ?? 'None' : 'None',
                     primaryVenomTypeId: e.target.checked ? prev.primaryVenomTypeId : null,
                     venomIds: e.target.checked ? prev.venomIds : [],
                     antivenomIds: e.target.checked ? prev.antivenomIds : [],
@@ -853,14 +852,10 @@ export default function SnakeSpeciesUpsertModal({
                                     : prev.primaryVenomTypeId === option.id
                                       ? nextVenomIds[0] ?? null
                                       : prev.primaryVenomTypeId;
-                                  const nextPrimaryVenomType = nextPrimaryVenomTypeId == null
-                                    ? 'None'
-                                    : venomTypeOptions.find(v => v.id === nextPrimaryVenomTypeId)?.value ?? prev.primaryVenomType;
                                   return {
                                     ...prev,
                                     venomIds: nextVenomIds,
                                     primaryVenomTypeId: nextPrimaryVenomTypeId,
-                                    primaryVenomType: nextPrimaryVenomType,
                                   };
                                 });
                               }}
@@ -893,7 +888,6 @@ export default function SnakeSpeciesUpsertModal({
                                   onChange={() => setDraft(prev => ({
                                     ...prev,
                                     primaryVenomTypeId: option.id,
-                                    primaryVenomType: option.value,
                                   }))}
                                   className="mt-1 h-4 w-4 text-teal-600"
                                 />

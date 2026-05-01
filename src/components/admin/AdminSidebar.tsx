@@ -13,6 +13,7 @@ import {
   HandCoins,
   Images,
   LayoutDashboard,
+  MapPin,
   MessageSquare,
   Shield,
   SlidersHorizontal,
@@ -93,6 +94,13 @@ export default function AdminSidebar({
       enabled: true,
     },
     {
+      id: 'first-aid-guidelines',
+      icon: BookOpenText,
+      label: 'Quản lý bộ sơ cứu',
+      href: '/admin/first-aid-guidelines',
+      enabled: true,
+    },
+    {
       id: 'treatment-facilities',
       icon: Building2,
       label: 'Quản lý cơ sở điều trị',
@@ -111,6 +119,20 @@ export default function AdminSidebar({
       icon: SlidersHorizontal,
       label: 'Quản lý cấu hình động',
       href: '/admin/settings',
+      enabled: true,
+    },
+    {
+      id: 'symptom-configs',
+      icon: SlidersHorizontal,
+      label: 'Quản lý cấu hình triệu chứng',
+      href: '/admin/symptom-configs',
+      enabled: true,
+    },
+    {
+      id: 'catching-environments',
+      icon: MapPin,
+      label: 'Quản lý môi trường bắt rắn',
+      href: '/admin/catching-environments',
       enabled: true,
     },
     {

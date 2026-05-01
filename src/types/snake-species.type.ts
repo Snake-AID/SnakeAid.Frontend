@@ -87,7 +87,6 @@ export interface SnakeSpeciesUpsertPayload {
   imageUrl?: string | null;
   description: string;
   identificationSummary: string;
-  primaryVenomType: PrimaryVenomType | null;
   primaryVenomTypeId: number | null;
   identification: SnakeSpeciesIdentification;
   symptomsByTime: SnakeSpeciesSymptomByTime[];

@@ -1320,35 +1320,6 @@ export default function IncidentsPage() {
                         {' '}
                         {displayOrNoInfo(selectedIncidentDetail.assignedRescuer?.type == null ? null : String(selectedIncidentDetail.assignedRescuer.type))}
                       </p>
-                      <p className="rounded-lg border border-cyan-100 bg-white px-3 py-2">
-                        <span className="font-semibold">Trực tuyến:</span>
-                        {' '}
-                        {selectedIncidentDetail.assignedRescuer == null ? NO_INFO_TEXT : selectedIncidentDetail.assignedRescuer.isOnline ? 'Có' : 'Không'}
-                      </p>
-                      <p className="rounded-lg border border-cyan-100 bg-white px-3 py-2">
-                        <span className="font-semibold">Sẵn sàng:</span>
-                        {' '}
-                        {selectedIncidentDetail.assignedRescuer == null ? NO_INFO_TEXT : selectedIncidentDetail.assignedRescuer.isAvailable ? 'Có' : 'Không'}
-                      </p>
-                      <p className="rounded-lg border border-cyan-100 bg-white px-3 py-2 md:col-span-2">
-                        <span className="font-semibold">Cập nhật vị trí gần nhất:</span>
-                        {' '}
-                        {formatDateTimeOrNoInfo(selectedIncidentDetail.assignedRescuer?.lastLocationUpdate)}
-                      </p>
-                      <p className="rounded-lg border border-cyan-100 bg-white px-3 py-2">
-                        <span className="font-semibold">Tọa độ rescuer:</span>
-                        {' '}
-                        {selectedIncidentDetail.assignedRescuer?.latitude != null && selectedIncidentDetail.assignedRescuer?.longitude != null
-                          ? `${selectedIncidentDetail.assignedRescuer.latitude}, ${selectedIncidentDetail.assignedRescuer.longitude}`
-                          : NO_INFO_TEXT}
-                      </p>
-                      <p className="rounded-lg border border-cyan-100 bg-white px-3 py-2">
-                        <span className="font-semibold">Tổng/H. thành:</span>
-                        {' '}
-                        {displayOrNoInfo(selectedIncidentDetail.assignedRescuer?.totalMissions)}
-                        /
-                        {displayOrNoInfo(selectedIncidentDetail.assignedRescuer?.completedMissions)}
-                      </p>
                     </div>
                   </div>
 
@@ -1748,9 +1719,9 @@ export default function IncidentsPage() {
                     <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Thanh toán</p>
                     <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
                       <p>
-                        <span className="font-semibold">Mã đơn:</span>
+                        <span className="font-semibold">Mã giao dịch:</span>
                         {' '}
-                        {displayOrNoInfo(selectedIncidentDetail.paymentSummary?.payOsOrderCode)}
+                        {displayOrNoInfo(selectedIncidentDetail.paymentSummary?.paymentExternalTransactionId)}
                       </p>
                       <p>
                         <span className="font-semibold">Trạng thái:</span>
@@ -1771,21 +1742,6 @@ export default function IncidentsPage() {
                         <span className="font-semibold">Phương thức:</span>
                         {' '}
                         {displayOrNoInfo(selectedIncidentDetail.paymentSummary?.paymentMethod)}
-                      </p>
-                      <p>
-                        <span className="font-semibold">Mã giao dịch:</span>
-                        {' '}
-                        {displayOrNoInfo(selectedIncidentDetail.paymentSummary?.paymentExternalTransactionId)}
-                      </p>
-                      <p>
-                        <span className="font-semibold">Đã hoàn:</span>
-                        {' '}
-                        {displayOrNoInfo(selectedIncidentDetail.paymentSummary?.totalRefundedAmount != null ? `${selectedIncidentDetail.paymentSummary.totalRefundedAmount.toLocaleString('vi-VN')} VND` : null)}
-                      </p>
-                      <p>
-                        <span className="font-semibold">Hoàn gần nhất:</span>
-                        {' '}
-                        {formatDateTimeOrNoInfo(selectedIncidentDetail.paymentSummary?.latestRefundedAt)}
                       </p>
                     </div>
                   </div>
