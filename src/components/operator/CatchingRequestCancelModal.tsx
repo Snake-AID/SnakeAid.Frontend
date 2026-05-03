@@ -79,6 +79,7 @@ const REFUND_VALUES = new Set(
 export interface CatchingRequestCancelModalProps {
   isOpen: boolean;
   isLoading: boolean;
+  hasTransactions: boolean;
   /** Called with (reason, endpoint) so the parent decides which API to call */
   onClose: () => void;
   onConfirm: (reason: string, endpoint: CancelEndpoint) => Promise<void>;
@@ -87,6 +88,7 @@ export interface CatchingRequestCancelModalProps {
 export default function CatchingRequestCancelModal({
   isOpen,
   isLoading,
+  hasTransactions,
   onClose,
   onConfirm,
 }: CatchingRequestCancelModalProps) {
@@ -124,13 +126,15 @@ export default function CatchingRequestCancelModal({
     return null;
   }
 
+  // Derived state
   const isOther = selectedReason === 'Other';
-  const isRefund = REFUND_VALUES.has(selectedReason);
-  const isNoRefund = selectedReason && !isRefund && !isOther;
+  const isRefundableReason = hasTransactions && REFUND_VALUES.has(selectedReason);
+  const isManualRefundable = hasTransactions && isOther && otherEndpoint === 'operatorcancel';
+  const willRefund = isRefundableReason || isManualRefundable;
 
-  const resolvedEndpoint: CancelEndpoint = isOther
-    ? otherEndpoint
-    : (CANCEL_REASON_OPTIONS.find(o => o.value === selectedReason)?.endpoint ?? 'cancel');
+  const resolvedEndpoint: CancelEndpoint = hasTransactions
+    ? (isOther ? otherEndpoint : (isRefundableReason ? 'operatorcancel' : 'cancel'))
+    : 'cancel'; // If no transactions, we never call operatorcancel (no money to refund)
 
   const handleSubmit = async () => {
     setError(null);
@@ -169,10 +173,10 @@ export default function CatchingRequestCancelModal({
 
   return (
     <div className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/40 p-4">
-      <div className="relative w-full max-w-md rounded-2xl border border-slate-200 bg-white shadow-xl">
+      <div className="relative w-full max-w-md max-h-[90vh] flex flex-col rounded-2xl border border-slate-200 bg-white shadow-xl">
 
         {/* Header */}
-        <div className="flex items-start justify-between border-b border-slate-200 px-6 py-4">
+        <div className="flex shrink-0 items-start justify-between border-b border-slate-200 px-6 py-4">
           <div className="flex items-center gap-3">
             <AlertCircle className="size-5 text-rose-600" />
             <h2 className="text-lg font-bold text-slate-900">Hủy yêu cầu bắt rắn</h2>
@@ -187,214 +191,257 @@ export default function CatchingRequestCancelModal({
           </button>
         </div>
 
-        <div className="space-y-4 p-6">
-
-          {/* Reason list */}
-          <div className="space-y-1.5">
+        {/* Scrollable Content */}
+        <div className="flex-1 overflow-y-auto">
+          <div className="space-y-1.5 px-6 py-4">
             <p className="text-sm font-semibold text-slate-800">Chọn lý do hủy</p>
 
-            {/* Refund group header */}
-            <p className="mt-2 mb-1 text-[11px] font-bold uppercase tracking-wider text-emerald-600">
-              Hoàn phí di chuyển
-            </p>
-            {CANCEL_REASON_OPTIONS.filter(o => o.endpoint === 'operatorcancel').map(option => (
-              <label
-                key={option.value}
-                className={`flex items-center gap-3 rounded-lg border p-3 cursor-pointer transition
-                  ${selectedReason === option.value
-                ? 'border-emerald-400 bg-emerald-50'
-                : 'border-slate-200 hover:bg-slate-50'}`}
-              >
-                <input
-                  type="radio"
-                  name="cancelReason"
-                  value={option.value}
-                  checked={selectedReason === option.value}
-                  onChange={(e) => {
-                    setSelectedReason(e.target.value);
-                    setError(null);
-                  }}
-                  disabled={isSubmitting || isLoading}
-                  className="size-4 cursor-pointer accent-emerald-600"
-                />
-                <span className="text-sm text-slate-900 font-medium">{option.label}</span>
-              </label>
-            ))}
+            {/* ── Conditional Rendering Based on hasTransactions ── */}
+            {hasTransactions
+              ? (
+                  <>
+                    {/* Refund group header */}
+                    <p className="mt-2 mb-1 text-[11px] font-bold uppercase tracking-wider text-emerald-600">
+                      Hoàn phí di chuyển
+                    </p>
+                    {CANCEL_REASON_OPTIONS.filter(o => o.endpoint === 'operatorcancel').map(option => (
+                      <label
+                        key={option.value}
+                        className={`flex items-center gap-3 rounded-lg border p-3 cursor-pointer transition
+                      ${selectedReason === option.value
+                        ? 'border-emerald-400 bg-emerald-50'
+                        : 'border-slate-200 hover:bg-slate-50'}`}
+                      >
+                        <input
+                          type="radio"
+                          name="cancelReason"
+                          value={option.value}
+                          checked={selectedReason === option.value}
+                          onChange={(e) => {
+                            setSelectedReason(e.target.value);
+                            setError(null);
+                          }}
+                          disabled={isSubmitting || isLoading}
+                          className="size-4 cursor-pointer accent-emerald-600"
+                        />
+                        <span className="text-sm text-slate-900 font-medium">{option.label}</span>
+                      </label>
+                    ))}
 
-            {/* No-refund group header */}
-            <p className="mt-3 mb-1 text-[11px] font-bold uppercase tracking-wider text-rose-600">
-              Không hoàn phí di chuyển
-            </p>
-            {CANCEL_REASON_OPTIONS.filter(o => o.endpoint === 'cancel' && o.value !== 'Other').map(option => (
-              <label
-                key={option.value}
-                className={`flex items-center gap-3 rounded-lg border p-3 cursor-pointer transition
-                  ${selectedReason === option.value
-                ? 'border-rose-400 bg-rose-50'
-                : 'border-slate-200 hover:bg-slate-50'}`}
-              >
-                <input
-                  type="radio"
-                  name="cancelReason"
-                  value={option.value}
-                  checked={selectedReason === option.value}
-                  onChange={(e) => {
-                    setSelectedReason(e.target.value);
-                    setError(null);
-                  }}
-                  disabled={isSubmitting || isLoading}
-                  className="size-4 cursor-pointer accent-rose-600"
-                />
-                <span className="text-sm text-slate-900 font-medium">{option.label}</span>
-              </label>
-            ))}
+                    {/* No-refund group header */}
+                    <p className="mt-3 mb-1 text-[11px] font-bold uppercase tracking-wider text-rose-600">
+                      Không hoàn phí di chuyển
+                    </p>
+                    {CANCEL_REASON_OPTIONS.filter(o => o.endpoint === 'cancel' && o.value !== 'Other').map(option => (
+                      <label
+                        key={option.value}
+                        className={`flex items-center gap-3 rounded-lg border p-3 cursor-pointer transition
+                      ${selectedReason === option.value
+                        ? 'border-rose-400 bg-rose-50'
+                        : 'border-slate-200 hover:bg-slate-50'}`}
+                      >
+                        <input
+                          type="radio"
+                          name="cancelReason"
+                          value={option.value}
+                          checked={selectedReason === option.value}
+                          onChange={(e) => {
+                            setSelectedReason(e.target.value);
+                            setError(null);
+                          }}
+                          disabled={isSubmitting || isLoading}
+                          className="size-4 cursor-pointer accent-rose-600"
+                        />
+                        <span className="text-sm text-slate-900 font-medium">{option.label}</span>
+                      </label>
+                    ))}
 
-            {/* Other */}
-            <p className="mt-3 mb-1 text-[11px] font-bold uppercase tracking-wider text-slate-500">
-              Lý do khác
-            </p>
-            <label
-              className={`flex items-center gap-3 rounded-lg border p-3 cursor-pointer transition
-                ${selectedReason === 'Other'
-      ? 'border-slate-400 bg-slate-50'
-      : 'border-slate-200 hover:bg-slate-50'}`}
-            >
-              <input
-                type="radio"
-                name="cancelReason"
-                value="Other"
-                checked={selectedReason === 'Other'}
-                onChange={(e) => {
-                  setSelectedReason(e.target.value);
-                  setError(null);
-                }}
-                disabled={isSubmitting || isLoading}
-                className="size-4 cursor-pointer"
-              />
-              <span className="text-sm text-slate-900 font-medium">Khác</span>
-            </label>
+                    {/* Other (Manual) option */}
+                    <p className="mt-3 mb-1 text-[11px] font-bold uppercase tracking-wider text-amber-600">
+                      Khác
+                    </p>
+                    <label
+                      className={`flex items-center gap-3 rounded-lg border p-3 cursor-pointer transition
+                    ${isOther ? 'border-amber-400 bg-amber-50' : 'border-slate-200 hover:bg-slate-50'}`}
+                    >
+                      <input
+                        type="radio"
+                        name="cancelReason"
+                        value="Other"
+                        checked={isOther}
+                        onChange={(e) => {
+                          setSelectedReason(e.target.value);
+                          setError(null);
+                        }}
+                        disabled={isSubmitting || isLoading}
+                        className="size-4 cursor-pointer accent-amber-600"
+                      />
+                      <span className="text-sm text-slate-900 font-medium">Khác</span>
+                    </label>
+                  </>
+                )
+              : (
+                  <>
+                    {/* Flat list for no transactions */}
+                    {CANCEL_REASON_OPTIONS.map(option => (
+                      <label
+                        key={option.value}
+                        className={`flex items-center gap-3 rounded-lg border p-3 cursor-pointer transition
+                      ${selectedReason === option.value
+                        ? 'border-amber-400 bg-amber-50'
+                        : 'border-slate-200 hover:bg-slate-50'}`}
+                      >
+                        <input
+                          type="radio"
+                          name="cancelReason"
+                          value={option.value}
+                          checked={selectedReason === option.value}
+                          onChange={(e) => {
+                            setSelectedReason(e.target.value);
+                            setError(null);
+                          }}
+                          disabled={isSubmitting || isLoading}
+                          className="size-4 cursor-pointer accent-amber-600"
+                        />
+                        <span className="text-sm text-slate-900 font-medium">{option.label}</span>
+                      </label>
+                    ))}
+                  </>
+                )}
           </div>
 
-          {/* Refund badge */}
-          {isRefund && (
-            <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
-              <RefreshCcw className="size-4 shrink-0 text-emerald-600" />
-              <p className="text-sm font-medium text-emerald-800">
-                Đơn sẽ được hoàn lại phí di chuyển cho khách hàng.
-              </p>
-            </div>
-          )}
-
-          {/* No-refund badge */}
-          {isNoRefund && (
-            <div className="flex items-center gap-2 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3">
-              <AlertCircle className="size-4 shrink-0 text-rose-600" />
-              <p className="text-sm font-medium text-rose-800">
-                Phí di chuyển sẽ không được hoàn lại cho khách hàng.
-              </p>
-            </div>
-          )}
-
-          {/* "Other" extra fields */}
-          {isOther && (
-            <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
-              {/* Custom reason textarea */}
-              <div className="space-y-1">
-                <label htmlFor="customReasonInput" className="text-sm font-semibold text-slate-800">
-                  Chi tiết lý do
-                </label>
-                <textarea
-                  id="customReasonInput"
-                  value={customReason}
-                  onChange={(e) => {
-                    setCustomReason(e.target.value);
-                    setError(null);
-                  }}
-                  disabled={isSubmitting || isLoading}
-                  placeholder="Nhập lý do hủy yêu cầu..."
-                  maxLength={500}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder-slate-400 disabled:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  rows={3}
-                />
-                <p className="text-right text-xs text-slate-400">
-                  {customReason.length}
-                  /500
-                </p>
-              </div>
-
-              {/* Refund choice */}
-              <div className="space-y-2">
-                <p className="text-sm font-semibold text-slate-800">Chính sách hoàn tiền</p>
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setOtherEndpoint('operatorcancel')}
-                    disabled={isSubmitting || isLoading}
-                    className={`flex items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-semibold transition
-                      ${otherEndpoint === 'operatorcancel'
-              ? 'border-emerald-500 bg-emerald-500 text-white shadow'
-              : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}
-                  >
-                    <RefreshCcw className="size-4" />
-                    Hoàn tiền
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setOtherEndpoint('cancel')}
-                    disabled={isSubmitting || isLoading}
-                    className={`flex items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-semibold transition
-                      ${otherEndpoint === 'cancel'
-              ? 'border-rose-500 bg-rose-500 text-white shadow'
-              : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50'}`}
-                  >
-                    <RefreshCcwDot className="size-4" />
-                    Không hoàn tiền
-                  </button>
+          {/* Warning / Notice Banner */}
+          {hasTransactions && willRefund && (
+            <div className="border-t border-emerald-200 bg-emerald-50 px-6 py-4">
+              <div className="flex items-start gap-3">
+                <RefreshCcw className="mt-0.5 size-5 text-emerald-600" />
+                <div>
+                  <p className="text-sm font-semibold text-emerald-900">Sẽ hoàn lại phí di chuyển</p>
+                  <p className="mt-0.5 text-xs text-emerald-700">
+                    Dựa trên lý do bạn chọn, hệ thống sẽ tự động hoàn lại phí di chuyển (nếu có) vào ví của khách hàng.
+                  </p>
                 </div>
-
-                {/* Inline info for chosen refund option */}
-                {otherEndpoint === 'operatorcancel'
-                  ? (
-                      <p className="text-xs text-emerald-700">
-                        ✔ Phí di chuyển sẽ được hoàn lại cho khách hàng.
-                      </p>
-                    )
-                  : (
-                      <p className="text-xs text-rose-600">
-                        ✘ Phí di chuyển sẽ không được hoàn lại cho khách hàng.
-                      </p>
-                    )}
               </div>
+            </div>
+          )}
+
+          {hasTransactions && !willRefund && !isOther && selectedReason && (
+            <div className="border-t border-rose-200 bg-rose-50 px-6 py-4">
+              <div className="flex items-start gap-3">
+                <RefreshCcwDot className="mt-0.5 size-5 text-rose-600" />
+                <div>
+                  <p className="text-sm font-semibold text-rose-900">Không hoàn phí di chuyển</p>
+                  <p className="mt-0.5 text-xs text-rose-700">
+                    Lý do hủy này thuộc trách nhiệm khách hàng. Sẽ không có khoản hoàn tiền nào được thực hiện.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {!hasTransactions && selectedReason && (
+            <div className="border-t border-slate-200 bg-slate-50 px-6 py-4">
+              <div className="flex items-start gap-3">
+                <AlertCircle className="mt-0.5 size-5 text-slate-600" />
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">Chưa có giao dịch</p>
+                  <p className="mt-0.5 text-xs text-slate-700">
+                    Khách hàng chưa thanh toán phí di chuyển nên không có khoản hoàn tiền nào được thực hiện.
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* If "Other" is selected, show manual inputs */}
+          {isOther && (
+            <div className="animate-in fade-in slide-in-from-top-2 border-t border-slate-200 bg-slate-50 p-6 duration-200">
+              <label htmlFor="customReason" className="block text-sm font-medium text-slate-700">
+                Chi tiết lý do khác
+                <span className="ml-1 text-rose-500">*</span>
+              </label>
+              <textarea
+                id="customReason"
+                value={customReason}
+                onChange={(e) => {
+                  setCustomReason(e.target.value);
+                  setError(null);
+                }}
+                rows={3}
+                disabled={isSubmitting || isLoading}
+                placeholder="Nhập lý do cụ thể..."
+                className="mt-1.5 w-full resize-none rounded-xl border border-slate-200 bg-white p-3 text-sm outline-none transition focus:border-amber-500 focus:ring-1 focus:ring-amber-500 disabled:bg-slate-100"
+              />
+
+              {/* Only show the manual refund selector if there are transactions to refund */}
+              {hasTransactions && (
+                <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50/50 p-4">
+                  <p className="text-sm font-semibold text-slate-900">Tuỳ chọn hoàn tiền</p>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    Đối với lý do khác, hãy quyết định xem khách hàng có được hoàn lại phí di chuyển hay không.
+                  </p>
+
+                  <div className="mt-3 flex flex-col gap-2">
+                    <label className="flex cursor-pointer items-center gap-2">
+                      <input
+                        type="radio"
+                        name="otherEndpoint"
+                        value="operatorcancel"
+                        checked={otherEndpoint === 'operatorcancel'}
+                        onChange={() => setOtherEndpoint('operatorcancel')}
+                        disabled={isSubmitting || isLoading}
+                        className="size-4 accent-emerald-600"
+                      />
+                      <span className="text-sm text-slate-700">Có hoàn phí di chuyển</span>
+                    </label>
+                    <label className="flex cursor-pointer items-center gap-2">
+                      <input
+                        type="radio"
+                        name="otherEndpoint"
+                        value="cancel"
+                        checked={otherEndpoint === 'cancel'}
+                        onChange={() => setOtherEndpoint('cancel')}
+                        disabled={isSubmitting || isLoading}
+                        className="size-4 accent-rose-600"
+                      />
+                      <span className="text-sm text-slate-700">Không hoàn phí di chuyển</span>
+                    </label>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
           {/* Error */}
           {error && (
-            <div className="rounded-lg border border-rose-200 bg-rose-50 p-3">
-              <p className="text-sm text-rose-700">{error}</p>
+            <div className="px-6">
+              <div className="rounded-lg border border-rose-200 bg-rose-50 p-3">
+                <p className="text-sm text-rose-700">{error}</p>
+              </div>
             </div>
           )}
 
-          {/* Actions */}
-          <div className="flex gap-2 border-t border-slate-100 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={isSubmitting || isLoading}
-              className="flex-1 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
-            >
-              Đóng
-            </button>
-            <button
-              type="button"
-              onClick={handleSubmit}
-              disabled={isSubmitDisabled}
-              className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
-            >
-              {(isSubmitting || isLoading) ? <Loader2 className="size-4 animate-spin" /> : null}
-              Xác nhận hủy
-            </button>
-          </div>
+        </div>
+
+        {/* Sticky Actions */}
+        <div className="flex shrink-0 gap-2 border-t border-slate-100 p-6">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={isSubmitting || isLoading}
+            className="flex-1 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-900 hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition"
+          >
+            Đóng
+          </button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={isSubmitDisabled}
+            className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+          >
+            {(isSubmitting || isLoading) ? <Loader2 className="size-4 animate-spin" /> : null}
+            Xác nhận hủy
+          </button>
         </div>
       </div>
     </div>

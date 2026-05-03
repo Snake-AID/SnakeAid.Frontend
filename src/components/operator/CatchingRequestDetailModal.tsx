@@ -8,13 +8,14 @@ import type {
   SnakeCatchingRequestMediaItem,
 } from '@/types/snakecatching-request.type';
 import type { TransactionItem } from '@/types/transaction.type';
-import { AlertCircle, CheckCircle, CircleDollarSign, Loader2, MapPin, Receipt, RotateCcw, Send, User, X } from 'lucide-react';
+import { AlertCircle, CheckCircle, CircleDollarSign, Loader2, MapPin, Receipt, RotateCcw, Send, User, X, ZoomIn } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { transactionApi } from '@/apis/transaction.api';
 import { SnakeCatchingRequestStatus } from '@/types/snakecatching-request.type';
 import CatchingMissionAbortModal from './CatchingMissionAbortModal';
 import CatchingRequestCancelModal from './CatchingRequestCancelModal';
 import DispatchRescuerModal from './DispatchRescuerModal';
+import SnakeSpeciesInfoCard from './SnakeSpeciesInfoCard';
 
 const getShortRequestId = (id: string) => {
   const suffix = id.slice(-6).toUpperCase();
@@ -180,6 +181,7 @@ export default function CatchingRequestDetailModal({
   const [transactions, setTransactions] = useState<TransactionItem[]>([]);
   const [isTransactionsLoading, setIsTransactionsLoading] = useState(false);
   const [transactionError, setTransactionError] = useState<string | null>(null);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isOpen) {
@@ -199,12 +201,14 @@ export default function CatchingRequestDetailModal({
   useEffect(() => {
     let cancelled = false;
 
-    const fetchTransactions = async () => {
+    const fetchTransactions = async (isInitial = false) => {
       if (!isOpen || !requestId) {
         return;
       }
 
-      setIsTransactionsLoading(true);
+      if (isInitial) {
+        setIsTransactionsLoading(true);
+      }
       setTransactionError(null);
 
       try {
@@ -222,16 +226,23 @@ export default function CatchingRequestDetailModal({
           setTransactionError('Không thể tải lịch sử giao dịch.');
         }
       } finally {
-        if (!cancelled) {
+        if (!cancelled && isInitial) {
           setIsTransactionsLoading(false);
         }
       }
     };
 
-    void fetchTransactions();
+    // Initial fetch
+    void fetchTransactions(true);
+
+    // Poll every 5 seconds
+    const intervalId = setInterval(() => {
+      void fetchTransactions(false);
+    }, 5000);
 
     return () => {
       cancelled = true;
+      clearInterval(intervalId);
     };
   }, [isOpen, requestId]);
 
@@ -241,19 +252,28 @@ export default function CatchingRequestDetailModal({
 
   const renderMedia = () => {
     if (!request?.media || request.media.length === 0) {
-      return <p className="text-sm text-slate-500">Chưa có ảnh/medias.</p>;
+      return <p className="text-sm text-slate-500">Chưa có ảnh/bằng chứng.</p>;
     }
 
     return (
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         {request.media.map((m: SnakeCatchingRequestMediaItem) => (
-          <div
+          <button
             key={getRequestMediaKey(m)}
-            className="relative h-32 overflow-hidden rounded-xl border border-slate-200"
-            style={{ backgroundImage: `url(${m.mediaUrl})`, backgroundPosition: 'center', backgroundSize: 'cover' }}
-            role="img"
-            aria-label={m.fileName ?? 'media'}
-          />
+            type="button"
+            onClick={() => setLightboxUrl(m.mediaUrl ?? null)}
+            className="group relative aspect-[4/3] overflow-hidden rounded-xl border border-slate-200 bg-slate-100 focus:outline-none focus:ring-2 focus:ring-emerald-500"
+            aria-label={m.fileName ?? 'Xem ảnh'}
+          >
+            <img
+              src={m.mediaUrl ?? ''}
+              alt={m.fileName ?? 'evidence'}
+              className="h-full w-full object-cover transition-transform duration-200 group-hover:scale-105"
+            />
+            <div className="absolute inset-0 flex items-center justify-center bg-black/0 transition-colors group-hover:bg-black/20">
+              <ZoomIn className="size-6 text-white opacity-0 drop-shadow transition-opacity group-hover:opacity-100" />
+            </div>
+          </button>
         ))}
       </div>
     );
@@ -268,7 +288,6 @@ export default function CatchingRequestDetailModal({
     try {
       await onConfirm(request.id);
       onRefresh?.();
-      onClose();
     } catch (err) {
       console.error('Failed to confirm request', err);
     } finally {
@@ -299,7 +318,6 @@ export default function CatchingRequestDetailModal({
         await onCancel(request.id, reason);
       }
       onRefresh?.();
-      onClose();
     } catch (err) {
       console.error('Failed to cancel request', err);
     } finally {
@@ -325,7 +343,6 @@ export default function CatchingRequestDetailModal({
     try {
       await onAbort(abortMissionId, reason);
       onRefresh?.();
-      onClose();
     } catch (err) {
       console.error('Failed to abort mission', err);
     } finally {
@@ -345,7 +362,6 @@ export default function CatchingRequestDetailModal({
       await onAssign(request.id, rescuerId);
       setIsDispatchModalOpen(false);
       onRefresh?.();
-      onClose();
     } catch (err) {
       console.error('Failed to assign request', err);
     } finally {
@@ -362,15 +378,31 @@ export default function CatchingRequestDetailModal({
     }
 
     return (
-      <div className="space-y-2">
+      <div className="space-y-3">
         {details.map((d: SnakeCatchingRequestDetailItem) => (
-          <div key={getRequestDetailKey(d)} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-            <p className="text-sm font-semibold text-slate-900">{d.snakeSpeciesName}</p>
-            <p className="text-xs text-slate-500">
-              Số lượng:
-              {d.quantity ?? '?'}
-            </p>
-          </div>
+          d.snakeSpeciesId
+            ? (
+                <SnakeSpeciesInfoCard
+                  key={getRequestDetailKey(d)}
+                  speciesId={d.snakeSpeciesId}
+                  speciesName={d.snakeSpeciesName}
+                  quantity={d.quantity}
+                />
+              )
+            : (
+                /* Fallback when no species ID */
+                <div key={getRequestDetailKey(d)} className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                  <p className="text-sm font-semibold text-slate-900">
+                    {d.snakeSpeciesName ?? 'Không rõ loài'}
+                  </p>
+                  {d.quantity != null && (
+                    <span className="rounded-full border border-slate-300 bg-white px-3 py-0.5 text-sm font-bold text-slate-700">
+                      x
+                      {d.quantity}
+                    </span>
+                  )}
+                </div>
+              )
         ))}
       </div>
     );
@@ -395,7 +427,7 @@ export default function CatchingRequestDetailModal({
             {user.account?.fullName ?? user.userName ?? 'N/A'}
           </p>
           <p className="text-xs text-slate-500">
-            <span className="font-semibold">SĐT:</span>
+            <span className="font-semibold">Số Điện Thoại:</span>
             {' '}
             {user.phoneNumber ?? 'Không có số điện thoại'}
           </p>
@@ -607,13 +639,22 @@ export default function CatchingRequestDetailModal({
 
   const rescuer = request?.assignedRescuer ?? null;
   const rescuerName = rescuer?.account?.fullName ?? rescuer?.account?.email ?? 'Chưa có thông tin';
-  const rescuerPhone = rescuer?.phoneNumber ?? 'Không có SĐT';
+  const rescuerPhone = rescuer?.phoneNumber ?? 'Không có Số Điện Thoại';
   const rescuerAvatar = rescuer?.account?.avatarUrl ?? null;
+
+  // Determine which action buttons are shown so we can render a sticky footer
+  const showConfirmBtn = request?.status === SnakeCatchingRequestStatus.Pending;
+  const showCancelForPending = request?.status === SnakeCatchingRequestStatus.Pending;
+  const showDispatchBtn = request?.status === SnakeCatchingRequestStatus.Confirmed;
+  const showCancelForConfirmed = request?.status === SnakeCatchingRequestStatus.Confirmed;
+  const showCancelForAssigned = request?.status === SnakeCatchingRequestStatus.Assigned && hasPreparingMission;
+  const hasActionButtons = !!(request && (showConfirmBtn || showDispatchBtn || showCancelForConfirmed || showCancelForAssigned));
 
   return (
     <div className="fixed inset-0 z-99999 flex items-center justify-center bg-black/40 p-4">
-      <div className="relative w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl border border-slate-200 bg-white shadow-xl">
-        <div className="flex items-start justify-between border-b border-slate-200 px-5 py-4">
+      <div className="relative flex w-full max-w-3xl flex-col rounded-2xl border border-slate-200 bg-white shadow-xl" style={{ maxHeight: '90vh' }}>
+        {/* ── Sticky header ─────────────────────────────────────── */}
+        <div className="flex shrink-0 items-start justify-between border-b border-slate-200 px-5 py-4">
           <div>
             <h2 className="text-lg font-bold text-slate-900">Chi tiết yêu cầu bắt rắn</h2>
             {requestId && (
@@ -631,7 +672,8 @@ export default function CatchingRequestDetailModal({
           </button>
         </div>
 
-        <div className="p-5">
+        {/* ── Scrollable body ───────────────────────────────────── */}
+        <div className="flex-1 overflow-y-auto p-5">
           {isLoading
             ? (
                 <p className="text-sm text-slate-500">Đang tải...</p>
@@ -843,71 +885,77 @@ export default function CatchingRequestDetailModal({
                           </div>
                         )}
 
-                        {/* Action Buttons */}
-                        <div className="border-t border-slate-200 pt-4">
-                          <div className="flex flex-col gap-2">
-                            {request.status === SnakeCatchingRequestStatus.Pending && (
-                              <>
-                                <button
-                                  type="button"
-                                  onClick={handleConfirm}
-                                  disabled={isActionLoading || !onConfirm}
-                                  className="w-full inline-flex items-center justify-center gap-2 rounded-full border border-emerald-600 bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                  <CheckCircle className="size-4" />
-                                  Xác nhận yêu cầu
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={handleCancelClick}
-                                  disabled={isActionLoading || !onCancel}
-                                  className="w-full inline-flex items-center justify-center gap-2 rounded-full border border-amber-600 bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                  <AlertCircle className="size-4" />
-                                  Báo động giả
-                                </button>
-                              </>
-                            )}
-
-                            {request.status === SnakeCatchingRequestStatus.Confirmed && (
-                              <>
-                                <button
-                                  type="button"
-                                  onClick={() => setIsDispatchModalOpen(true)}
-                                  disabled={isActionLoading || !onAssign}
-                                  className="w-full inline-flex items-center justify-center gap-2 rounded-full border border-sky-600 bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                  <Send className="size-4" />
-                                  Điều phối đội cứu hộ
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={handleCancelClick}
-                                  disabled={isActionLoading || !onCancel}
-                                  className="w-full inline-flex items-center justify-center gap-2 rounded-full border border-amber-600 bg-amber-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                                >
-                                  <RotateCcw className="size-4" />
-                                  Hủy yêu cầu
-                                </button>
-                              </>
-                            )}
-
-                            {request.status === SnakeCatchingRequestStatus.Assigned && hasPreparingMission && (
-                              <button
-                                type="button"
-                                onClick={handleCancelClick}
-                                disabled={isActionLoading || !onCancel}
-                                className="w-full inline-flex items-center justify-center gap-2 rounded-full border border-rose-600 bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                              >
-                                <RotateCcw className="size-4" />
-                                Hủy yêu cầu
-                              </button>
-                            )}
-                          </div>
-                        </div>
                       </div>
                     )}
         </div>
+
+        {/* ── Sticky action footer ──────────────────────────────── */}
+        {hasActionButtons && request && !isLoading && (
+          <div className="shrink-0 border-t border-slate-200 bg-white px-5 py-3">
+            <div className="flex flex-col gap-2">
+              {showConfirmBtn && (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleConfirm}
+                    disabled={isActionLoading || !onConfirm}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-emerald-600 bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <CheckCircle className="size-4" />
+                    Xác nhận yêu cầu
+                  </button>
+                  {showCancelForPending && (
+                    <button
+                      type="button"
+                      onClick={handleCancelClick}
+                      disabled={isActionLoading || !onCancel}
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-red-600 bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <AlertCircle className="size-4" />
+                      Hủy yêu cầu
+                    </button>
+                  )}
+                </>
+              )}
+
+              {showDispatchBtn && (
+                <button
+                  type="button"
+                  onClick={() => setIsDispatchModalOpen(true)}
+                  disabled={isActionLoading || !onAssign}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-sky-600 bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Send className="size-4" />
+                  Điều phối đội cứu hộ
+                </button>
+              )}
+
+              {showCancelForConfirmed && (
+                <button
+                  type="button"
+                  onClick={handleCancelClick}
+                  disabled={isActionLoading || !onCancel}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-red-600 bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <RotateCcw className="size-4" />
+                  Hủy yêu cầu
+                </button>
+              )}
+
+              {showCancelForAssigned && (
+                <button
+                  type="button"
+                  onClick={handleCancelClick}
+                  disabled={isActionLoading || !onCancel}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-full border border-rose-600 bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <RotateCcw className="size-4" />
+                  Hủy yêu cầu
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Dispatch Rescuer Modal */}
         {isOpen && (
@@ -924,6 +972,7 @@ export default function CatchingRequestDetailModal({
           <CatchingRequestCancelModal
             isOpen={isCancelModalOpen}
             isLoading={isActionLoading}
+            hasTransactions={transactions.length > 0}
             onClose={() => setIsCancelModalOpen(false)}
             onConfirm={handleCancelConfirm}
           />
@@ -941,6 +990,30 @@ export default function CatchingRequestDetailModal({
           />
         )}
       </div>
+
+      {/* ── Lightbox: closed only via X button or ESC key ── */}
+      {lightboxUrl && (
+        <div
+          className="fixed inset-0 z-[999999] flex items-center justify-center bg-black/80 p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Xem ảnh bằng chứng"
+        >
+          <button
+            type="button"
+            onClick={() => setLightboxUrl(null)}
+            className="absolute right-4 top-4 rounded-full bg-white/10 p-2 text-white hover:bg-white/20"
+            aria-label="Đóng"
+          >
+            <X className="size-5" />
+          </button>
+          <img
+            src={lightboxUrl}
+            alt="Bằng chứng"
+            className="max-h-[90vh] max-w-full rounded-xl object-contain shadow-2xl"
+          />
+        </div>
+      )}
     </div>
   );
 }

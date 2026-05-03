@@ -33,6 +33,18 @@ export default function OperatorDashboardPage() {
   const [focusTrigger, setFocusTrigger] = useState(0);
   const currentOperatorId = getStoredUser()?.id ?? null;
 
+  const [detailIncident, setDetailIncident] = useState<DetailSnakebiteIncidentResponse | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState<string | null>(null);
+
+  const [detailRequestId, setDetailRequestId] = useState<string | null>(null);
+  const [detailRequest, setDetailRequest] = useState<any | null>(null);
+  const [detailRequestOpen, setDetailRequestOpen] = useState(false);
+  const [detailRequestLoading, setDetailRequestLoading] = useState(false);
+  const [detailRequestError, setDetailRequestError] = useState<string | null>(null);
+  const [shiftPanelOpen, setShiftPanelOpen] = useState(false);
+
   const normalizeRescuerAbortedPayload = (payload: unknown): RescuerAbortedUiPayload | null => {
     if (!payload || typeof payload !== 'object') {
       return null;
@@ -152,7 +164,7 @@ export default function OperatorDashboardPage() {
     abortedRequest,
     clearAbortedRequest,
     handleRequestCreated,
-    handleRequestCancelled,
+    handleRequestCancelled: applyRequestCancelled,
     handleRequestAborted,
     handleRequestCompleted,
   } = useOperatorRequests();
@@ -273,6 +285,32 @@ export default function OperatorDashboardPage() {
     void loadRescuerData();
   }, [setFocusedIncidentId, setFocusedRequestId, setFocusTrigger, clearMissionLocation, handleRequestCompleted, showToast, refreshRequests, loadRescuerData]);
 
+  const handleSnakeCatchingRequestCancelled = useCallback((payload: unknown) => {
+    // 1. Delegate to the original handler to update list & show toast
+    applyRequestCancelled(payload as any);
+
+    // 2. Extract ID safely (SignalR might send camelCase or PascalCase)
+    const data = payload as Record<string, unknown>;
+    const cancelledId = (typeof data.id === 'string' ? data.id : data.Id) as string | undefined;
+
+    if (!cancelledId) {
+      return;
+    }
+
+    // 3. Auto-close modal if it's currently showing this cancelled request
+    setDetailRequestId((current) => {
+      if (current === cancelledId) {
+        setTimeout(() => {
+          setDetailRequestOpen(false);
+          setDetailRequest(null);
+          setDetailRequestId(null);
+          setDetailRequestError(null);
+        }, 0);
+      }
+      return current;
+    });
+  }, [applyRequestCancelled]);
+
   const handleIncidentCancelled = useCallback((payload: unknown) => {
     const data = payload as { incidentId?: string };
     if (!data || typeof data.incidentId !== 'string') {
@@ -317,7 +355,7 @@ export default function OperatorDashboardPage() {
     onRescuerAborted: handleRescuerAborted,
     onRescuerDispatched: handleRescuerDispatched,
     onSnakeCatchingRequestCreated: handleRequestCreated,
-    onSnakeCatchingRequestCancelled: handleRequestCancelled,
+    onSnakeCatchingRequestCancelled: handleSnakeCatchingRequestCancelled,
     onSnakeCatchingMissionAborted: handleSnakeCatchingMissionAborted,
     onSnakeCatchingMissionCompleted: handleSnakeCatchingMissionCompleted,
     onRescuerOnlineStatus: handleRescuerOnlineStatus,
@@ -339,18 +377,6 @@ export default function OperatorDashboardPage() {
         statusLabel: r.statusLabel ?? r.status,
       }));
   }, [requests]);
-
-  const [detailIncident, setDetailIncident] = useState<DetailSnakebiteIncidentResponse | null>(null);
-  const [detailOpen, setDetailOpen] = useState(false);
-  const [detailLoading, setDetailLoading] = useState(false);
-  const [detailError, setDetailError] = useState<string | null>(null);
-
-  const [detailRequestId, setDetailRequestId] = useState<string | null>(null);
-  const [detailRequest, setDetailRequest] = useState<any | null>(null);
-  const [detailRequestOpen, setDetailRequestOpen] = useState(false);
-  const [detailRequestLoading, setDetailRequestLoading] = useState(false);
-  const [detailRequestError, setDetailRequestError] = useState<string | null>(null);
-  const [shiftPanelOpen, setShiftPanelOpen] = useState(false);
 
   const incidentRowRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const requestRowRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -644,7 +670,12 @@ export default function OperatorDashboardPage() {
         onCancel={handleCancelRequest}
         onOperatorCancel={handleOperatorCancelRequest}
         onAbort={handleAbortMission}
-        onRefresh={refreshRequests}
+        onRefresh={() => {
+          void refreshRequests();
+          if (detailRequestId) {
+            void openRequestDetail(detailRequestId);
+          }
+        }}
       />
 
       <OperatorMap
