@@ -1,5 +1,6 @@
 'use client';
 
+import type { CancelEndpoint } from './CatchingRequestCancelModal';
 import type {
   CreateSnakeCatchingRequestResponse,
   SnakeCatchingMissionInfo,
@@ -152,6 +153,7 @@ export interface CatchingRequestDetailModalProps {
   onConfirm?: (requestId: string) => Promise<void>;
   onAssign?: (requestId: string, rescuerId: string) => Promise<void>;
   onCancel?: (requestId: string, reason: string) => Promise<void>;
+  onOperatorCancel?: (requestId: string, reason: string) => Promise<void>;
   onAbort?: (missionId: string, reason: string) => Promise<void>;
   onRefresh?: () => void;
 }
@@ -166,6 +168,7 @@ export default function CatchingRequestDetailModal({
   onConfirm,
   onAssign,
   onCancel,
+  onOperatorCancel,
   onAbort,
   onRefresh,
 }: CatchingRequestDetailModalProps) {
@@ -277,14 +280,24 @@ export default function CatchingRequestDetailModal({
     setIsCancelModalOpen(true);
   };
 
-  const handleCancelConfirm = async (reason: string) => {
-    if (!request?.id || !onCancel) {
+  const handleCancelConfirm = async (reason: string, endpoint: CancelEndpoint) => {
+    if (!request?.id) {
       return;
     }
 
     setIsActionLoading(true);
     try {
-      await onCancel(request.id, reason);
+      if (endpoint === 'operatorcancel') {
+        if (!onOperatorCancel) {
+          return;
+        }
+        await onOperatorCancel(request.id, reason);
+      } else {
+        if (!onCancel) {
+          return;
+        }
+        await onCancel(request.id, reason);
+      }
       onRefresh?.();
       onClose();
     } catch (err) {
@@ -911,7 +924,6 @@ export default function CatchingRequestDetailModal({
           <CatchingRequestCancelModal
             isOpen={isCancelModalOpen}
             isLoading={isActionLoading}
-            requestStatus={request?.status}
             onClose={() => setIsCancelModalOpen(false)}
             onConfirm={handleCancelConfirm}
           />

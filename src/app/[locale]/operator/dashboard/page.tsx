@@ -145,6 +145,7 @@ export default function OperatorDashboardPage() {
     confirmRequest,
     assignRequest,
     cancelRequest,
+    operatorCancelRequest,
     abortMission,
     isLoading: isRequestsLoading,
     hasError: hasRequestsError,
@@ -456,6 +457,17 @@ export default function OperatorDashboardPage() {
     }
   };
 
+  const handleOperatorCancelRequest = async (requestId: string, reason: string) => {
+    try {
+      await operatorCancelRequest(requestId, reason);
+      showToast('Yêu cầu đã được hủy. Phí di chuyển sẽ được hoàn lại nếu khách đã thanh toán.', { type: 'success' });
+      await refreshRequests();
+    } catch (err) {
+      console.error('Failed to operator-cancel request', err);
+      showToast('Không thể hủy yêu cầu. Vui lòng thử lại.', { type: 'error' });
+    }
+  };
+
   const handleAbortMission = async (missionId: string, reason: string) => {
     try {
       await abortMission(missionId, reason);
@@ -630,6 +642,7 @@ export default function OperatorDashboardPage() {
         onConfirm={handleConfirmRequest}
         onAssign={handleAssignRequest}
         onCancel={handleCancelRequest}
+        onOperatorCancel={handleOperatorCancelRequest}
         onAbort={handleAbortMission}
         onRefresh={refreshRequests}
       />
