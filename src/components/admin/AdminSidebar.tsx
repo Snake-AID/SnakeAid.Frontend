@@ -131,7 +131,7 @@ export default function AdminSidebar({
     {
       id: 'catching-environments',
       icon: MapPin,
-      label: 'Quản lý môi trường bắt rắn',
+      label: 'Quản lý cấu hình môi trường',
       href: '/admin/catching-environments',
       enabled: true,
     },
