@@ -7,6 +7,7 @@ import {
   Bot,
   Building2,
   CalendarDays,
+  ChevronDown,
   ChevronLeft,
   ClipboardList,
   FlaskConical,
@@ -21,6 +22,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useState } from 'react';
 
 interface AdminSidebarProps {
   activeMenu?: string;
@@ -36,132 +38,57 @@ export default function AdminSidebar({
   const pathname = usePathname();
   const normalizedPath = pathname.replace(/^\/[a-z]{2}(?=\/)/, '');
 
-  const menuItems = [
+  const [collapsedGroups, setCollapsedGroups] = useState<string[]>([]);
+
+  const toggleGroup = (title: string) => {
+    setCollapsedGroups(prev =>
+      prev.includes(title) ? prev.filter(t => t !== title) : [...prev, title],
+    );
+  };
+
+  const menuGroups = [
     {
-      id: 'dashboard',
-      icon: LayoutDashboard,
-      label: 'Bảng điều khiển',
-      href: '/admin/dashboard',
-      enabled: true,
+      title: 'Hệ thống',
+      items: [
+        { id: 'dashboard', icon: LayoutDashboard, label: 'Bảng điều khiển', href: '/admin/dashboard', enabled: true },
+        { id: 'workshifts', icon: CalendarDays, label: 'Quản lý lịch làm việc', href: '/admin/workshifts', enabled: true },
+        { id: 'users', icon: Users, label: 'Quản lý người dùng', href: '/admin/users', enabled: true },
+        { id: 'transactions', icon: HandCoins, label: 'Quản lý giao dịch', href: '/admin/transactions', enabled: true },
+      ],
     },
     {
-      id: 'workshifts',
-      icon: CalendarDays,
-      label: 'Quản lý lịch làm việc',
-      href: '/admin/workshifts',
-      enabled: true,
+      title: 'Dịch vụ cốt lõi',
+      items: [
+        { id: 'incidents', icon: AlertTriangle, label: 'Quản lý sự cố rắn cắn', href: '/admin/incidents', enabled: true },
+        { id: 'snake-catching-requests', icon: ClipboardList, label: 'Quản lý yêu cầu bắt rắn', href: '/admin/snake-catching-requests', enabled: true },
+        { id: 'consultations', icon: MessageSquare, label: 'Quản lý phiên tư vấn', href: '/admin/consultations', enabled: true },
+      ],
     },
     {
-      id: 'users',
-      icon: Users,
-      label: 'Quản lý người dùng',
-      href: '/admin/users',
-      enabled: true,
+      title: 'Dữ liệu y tế & sinh học',
+      items: [
+        { id: 'snakes', icon: Shield, label: 'Quản lý loài rắn', href: '/admin/snakes', enabled: true },
+        { id: 'antivenoms', icon: FlaskConical, label: 'Quản lý huyết thanh', href: '/admin/antivenoms', enabled: true },
+        { id: 'first-aid-guidelines', icon: BookOpenText, label: 'Quản lý bộ sơ cứu', href: '/admin/first-aid-guidelines', enabled: true },
+        { id: 'treatment-facilities', icon: Building2, label: 'Quản lý cơ sở điều trị', href: '/admin/treatment-facilities', enabled: true },
+        { id: 'ai-recognition', icon: Bot, label: 'Quản lý ảnh báo cáo rắn', href: '/admin/ai-recognition', enabled: true },
+      ],
     },
     {
-      id: 'incidents',
-      icon: AlertTriangle,
-      label: 'Quản lý sự cố',
-      href: '/admin/incidents',
-      enabled: true,
+      title: 'Truyền thông & Học tập',
+      items: [
+        { id: 'lessons', icon: BookOpenText, label: 'Quản lý bài học', href: '/admin/lessons', enabled: true },
+        { id: 'blogs', icon: BookOpen, label: 'Quản lý bài viết', href: '/admin/blogs', enabled: true },
+        { id: 'library-media', icon: Images, label: 'Quản lý thư viện ảnh', href: '/admin/library-media', enabled: true },
+      ],
     },
     {
-      id: 'snake-catching-requests',
-      icon: ClipboardList,
-      label: 'Quản lý yêu cầu bắt rắn',
-      href: '/admin/snake-catching-requests',
-      enabled: true,
-    },
-    {
-      id: 'consultations',
-      icon: MessageSquare,
-      label: 'Quản lý phiên tư vấn',
-      href: '/admin/consultations',
-      enabled: true,
-    },
-    {
-      id: 'snakes',
-      icon: Shield,
-      label: 'Quản lý loài rắn',
-      href: '/admin/snakes',
-      enabled: true,
-    },
-    {
-      id: 'antivenoms',
-      icon: FlaskConical,
-      label: 'Quản lý huyết thanh',
-      href: '/admin/antivenoms',
-      enabled: true,
-    },
-    {
-      id: 'first-aid-guidelines',
-      icon: BookOpenText,
-      label: 'Quản lý bộ sơ cứu',
-      href: '/admin/first-aid-guidelines',
-      enabled: true,
-    },
-    {
-      id: 'treatment-facilities',
-      icon: Building2,
-      label: 'Quản lý cơ sở điều trị',
-      href: '/admin/treatment-facilities',
-      enabled: true,
-    },
-    {
-      id: 'transactions',
-      icon: HandCoins,
-      label: 'Quản lý giao dịch',
-      href: '/admin/transactions',
-      enabled: true,
-    },
-    {
-      id: 'settings',
-      icon: SlidersHorizontal,
-      label: 'Quản lý cấu hình động',
-      href: '/admin/settings',
-      enabled: true,
-    },
-    {
-      id: 'symptom-configs',
-      icon: SlidersHorizontal,
-      label: 'Quản lý cấu hình triệu chứng',
-      href: '/admin/symptom-configs',
-      enabled: true,
-    },
-    {
-      id: 'catching-environments',
-      icon: MapPin,
-      label: 'Quản lý cấu hình môi trường',
-      href: '/admin/catching-environments',
-      enabled: true,
-    },
-    {
-      id: 'ai-recognition',
-      icon: Bot,
-      label: 'Quản lý ảnh báo cáo rắn',
-      href: '/admin/ai-recognition',
-      enabled: true,
-    },
-    {
-      id: 'library-media',
-      icon: Images,
-      label: 'Quản lý thư viện ảnh',
-      href: '/admin/library-media',
-      enabled: true,
-    },
-    {
-      id: 'lessons',
-      icon: BookOpenText,
-      label: 'Quản lý bài học',
-      href: '/admin/lessons',
-      enabled: true,
-    },
-    {
-      id: 'blogs',
-      icon: BookOpen,
-      label: 'Quản lý bài viết',
-      href: '/admin/blogs',
-      enabled: true,
+      title: 'Cấu hình hệ thống',
+      items: [
+        { id: 'settings', icon: SlidersHorizontal, label: 'Quản lý cấu hình động', href: '/admin/settings', enabled: true },
+        { id: 'symptom-configs', icon: SlidersHorizontal, label: 'Quản lý cấu hình triệu chứng', href: '/admin/symptom-configs', enabled: true },
+        { id: 'catching-environments', icon: MapPin, label: 'Quản lý cấu hình môi trường', href: '/admin/catching-environments', enabled: true },
+      ],
     },
   ];
 
@@ -176,11 +103,11 @@ export default function AdminSidebar({
       )}
 
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-72 transform border-r border-blue-500/25 bg-[#213f6b] text-white shadow-lg transition-transform duration-200 ${
+        className={`fixed inset-y-0 left-0 z-50 flex w-72 flex-col transform border-r border-blue-500/25 bg-[#213f6b] text-white shadow-lg transition-transform duration-200 ${
           open ? 'translate-x-0' : '-translate-x-full'
         }`}
       >
-        <div className="flex items-center justify-between border-b border-blue-300/25 px-5 py-5">
+        <div className="flex shrink-0 items-center justify-between border-b border-blue-300/25 px-5 py-5">
           <div>
             <p className="text-xs font-semibold uppercase tracking-widest text-blue-100">SnakeAid</p>
             <h2 className="mt-1 text-xl font-bold">Cổng quản trị</h2>
@@ -188,51 +115,80 @@ export default function AdminSidebar({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-full bg-blue-900/40 p-2 text-blue-100 hover:bg-blue-900/60"
+            className="rounded-full bg-blue-900/40 p-2 text-blue-100 hover:bg-blue-900/60 lg:hidden"
             aria-label="Đóng menu"
           >
             <ChevronLeft className="size-4" />
           </button>
         </div>
 
-        <nav className="space-y-1 p-3">
-          {menuItems.map((item) => {
-            const IconComponent = item.icon;
-            const isDashboardPath = normalizedPath === '/admin' || normalizedPath === '/admin/dashboard';
-            const isActiveByPath = item.id === 'dashboard'
-              ? isDashboardPath
-              : normalizedPath === item.href || normalizedPath.startsWith(`${item.href}/`);
-            const isActiveByProp = activeMenu ? activeMenu === item.id : false;
-            const isActive = item.enabled && (isActiveByProp || isActiveByPath);
-
-            if (!item.enabled) {
-              return (
-                <div
-                  key={item.id}
-                  className="flex cursor-not-allowed items-center justify-between rounded-lg px-3 py-2.5 text-blue-100/70"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <IconComponent className="size-4.5" />
-                    <span className="text-sm font-medium">{item.label}</span>
-                  </div>
-                  <span className="rounded-full border border-blue-200/30 px-2 py-0.5 text-[10px]">Sắp có</span>
-                </div>
-              );
-            }
-
+        <nav className="flex-1 space-y-4 overflow-y-auto p-4 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-blue-400/30">
+          {menuGroups.map((group) => {
+            const isCollapsed = collapsedGroups.includes(group.title);
             return (
-              <Link
-                key={item.id}
-                href={item.href}
-                className={`flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
-                  isActive
-                    ? 'bg-white text-blue-800'
-                    : 'text-blue-100 hover:bg-blue-500/30 hover:text-white'
-                }`}
-              >
-                <IconComponent className="size-4.5" strokeWidth={2} />
-                <span>{item.label}</span>
-              </Link>
+              <div key={group.title}>
+                <button
+                  type="button"
+                  onClick={() => toggleGroup(group.title)}
+                  className="flex w-full items-center justify-between px-3 py-1.5 text-blue-300/80 hover:text-blue-100"
+                >
+                  <span className="text-xs font-semibold uppercase tracking-wider">
+                    {group.title}
+                  </span>
+                  <ChevronDown
+                    className={`size-3.5 transition-transform duration-200 ${isCollapsed ? '-rotate-90' : 'rotate-0'}`}
+                  />
+                </button>
+                <div
+                  className={`grid transition-[grid-template-rows,opacity] duration-200 ease-in-out ${isCollapsed ? 'grid-rows-[0fr] opacity-0' : 'grid-rows-[1fr] opacity-100'}`}
+                >
+                  <div className="overflow-hidden">
+                    <ul className="mt-1 space-y-1">
+                      {group.items.map((item) => {
+                        const IconComponent = item.icon;
+                        const isDashboardPath = normalizedPath === '/admin' || normalizedPath === '/admin/dashboard';
+                        const isActiveByPath = item.id === 'dashboard'
+                          ? isDashboardPath
+                          : normalizedPath === item.href || normalizedPath.startsWith(`${item.href}/`);
+                        const isActiveByProp = activeMenu ? activeMenu === item.id : false;
+                        const isActive = item.enabled && (isActiveByProp || isActiveByPath);
+
+                        if (!item.enabled) {
+                          return (
+                            <li key={item.id}>
+                              <div
+                                className="flex cursor-not-allowed items-center justify-between rounded-lg px-3 py-2.5 text-blue-100/70"
+                              >
+                                <div className="flex items-center gap-2.5">
+                                  <IconComponent className="size-4.5" />
+                                  <span className="text-sm font-medium">{item.label}</span>
+                                </div>
+                                <span className="rounded-full border border-blue-200/30 px-2 py-0.5 text-[10px]">Sắp có</span>
+                              </div>
+                            </li>
+                          );
+                        }
+
+                        return (
+                          <li key={item.id}>
+                            <Link
+                              href={item.href}
+                              className={`flex items-center gap-2.5 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors ${
+                                isActive
+                                  ? 'bg-white text-blue-800'
+                                  : 'text-blue-100 hover:bg-blue-500/30 hover:text-white'
+                              }`}
+                            >
+                              <IconComponent className="size-4.5" strokeWidth={2} />
+                              <span>{item.label}</span>
+                            </Link>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                </div>
+              </div>
             );
           })}
         </nav>
