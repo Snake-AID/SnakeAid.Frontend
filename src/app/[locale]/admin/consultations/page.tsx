@@ -94,6 +94,7 @@ const STATUS_OPTIONS: Array<{ label: string; value: string }> = [
   { label: 'Đã hủy', value: 'Cancelled' },
   { label: 'Người dùng vắng mặt', value: 'UserAbsent' },
   { label: 'Chuyên gia vắng mặt', value: 'ExpertAbsent' },
+  { label: 'Đã xử lý chuyên gia vắng mặt', value: 'ExpertAbsentHandled' },
   { label: 'Cả hai vắng mặt', value: 'AllAbsent' },
 ];
 
@@ -110,6 +111,8 @@ const getStatusConfig = (status: string | null | undefined) => {
     case 'UserAbsent':
     case 'ExpertAbsent':
       return { class: 'bg-amber-100 text-amber-700 border-amber-200', label: status === 'UserAbsent' ? 'Khách vắng' : 'Chuyên gia vắng', icon: <AlertTriangle className="size-3.5" /> };
+    case 'ExpertAbsentHandled':
+      return { class: 'bg-emerald-100 text-emerald-700 border-emerald-200', label: 'Đã xử lý vắng mặt', icon: <CheckCircle2 className="size-3.5" /> };
     case 'AllAbsent':
       return { class: 'bg-rose-100 text-rose-700 border-rose-200', label: 'Cả 2 vắng mặt', icon: <Ban className="size-3.5" /> };
     case 'Pending':
@@ -166,7 +169,10 @@ export default function ConsultationsManagementPage() {
   const [selectedItem, setSelectedItem] = useState<AdminConsultationDetailResponse | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
-  const [incidentItems, setIncidentItems] = useState<AdminConsultationItem[]>([]);
+  const [pendingAbsentItems, setPendingAbsentItems] = useState<AdminConsultationItem[]>([]);
+  const [handledAbsentItems, setHandledAbsentItems] = useState<AdminConsultationItem[]>([]);
+  const [absentLoading, setAbsentLoading] = useState(false);
+  const [absentTab, setAbsentTab] = useState<'pending' | 'handled'>('pending');
 
   const [typeFilter, setTypeFilter] = useState<AdminConsultationType | ''>('');
   const [searchKeyword, setSearchKeyword] = useState('');
@@ -219,26 +225,41 @@ export default function ConsultationsManagementPage() {
 
   useEffect(() => {
     let cancelled = false;
-    const loadIncidents = async () => {
+    const loadAbsents = async () => {
+      setAbsentLoading(true);
       try {
-        const response = await adminConsultationApi.getPaged({
-          pageNumber: 1,
-          pageSize: 8,
-          status: 'ExpertAbsent',
-        });
+        const [pendingResponse, handledResponse] = await Promise.all([
+          adminConsultationApi.getPaged({
+            pageNumber: 1,
+            pageSize: 12,
+            status: 'ExpertAbsent',
+          }),
+          adminConsultationApi.getPaged({
+            pageNumber: 1,
+            pageSize: 12,
+            status: 'ExpertAbsentHandled',
+          }),
+        ]);
         if (cancelled) {
           return;
         }
-        const withReport = (response.items ?? []).filter(item => (item.customerReport?.trim() ?? '').length > 0);
-        setIncidentItems(withReport);
+        const withReport = (items: AdminConsultationItem[]) =>
+          items.filter(item => (item.customerReport?.trim() ?? '').length > 0);
+        setPendingAbsentItems(withReport(pendingResponse.items ?? []));
+        setHandledAbsentItems(withReport(handledResponse.items ?? []));
       } catch {
         if (cancelled) {
           return;
         }
-        setIncidentItems([]);
+        setPendingAbsentItems([]);
+        setHandledAbsentItems([]);
+      } finally {
+        if (!cancelled) {
+          setAbsentLoading(false);
+        }
       }
     };
-    void loadIncidents();
+    void loadAbsents();
     return () => {
       cancelled = true;
     };
@@ -273,6 +294,31 @@ export default function ConsultationsManagementPage() {
     }
   };
 
+  const confirmAbsentHandled = async (consultationId: string) => {
+    // eslint-disable-next-line no-alert
+    const confirmed = window.confirm('Bạn có chắc đã xử lý xong báo cáo chuyên gia vắng mặt này? Hành động này sẽ đánh dấu phiên tư vấn là đã xử lý.');
+    if (!confirmed) {
+      return;
+    }
+    try {
+      const updated = await adminConsultationApi.confirmExpertAbsentHandled(consultationId);
+      setPendingAbsentItems(prev => prev.filter(item => item.consultationId !== consultationId));
+      setHandledAbsentItems((prev) => {
+        const existing = prev.find(item => item.consultationId === consultationId);
+        if (existing) {
+          return prev.map(item => item.consultationId === consultationId ? updated : item);
+        }
+        return [updated, ...prev].slice(0, 12);
+      });
+      setItems(prev => prev.map(item => item.consultationId === consultationId ? { ...item, status: updated.status } : item));
+      setSelectedItem(prev => (prev && prev.consultationId === consultationId ? { ...prev, status: updated.status } : prev));
+      showToast('Đã đánh dấu phiên tư vấn là đã xử lý.', { type: 'success' });
+    } catch (error) {
+      const message = getApiErrorMessage(error, 'Không thể xác nhận đã xử lý báo cáo này.');
+      showToast(message, { type: 'error' });
+    }
+  };
+
   return (
     <main className="h-[calc(100vh-81px)] overflow-y-auto bg-slate-50/50 p-6 lg:p-8">
       <div className="mx-auto flex max-w-7xl flex-col gap-8">
@@ -285,48 +331,93 @@ export default function ConsultationsManagementPage() {
           </div>
         </header>
 
-        {incidentItems.length > 0 && (
-          <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 shadow-sm">
-            <div className="mb-4 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-rose-100">
-                  <AlertTriangle className="size-4 text-rose-600" />
-                </div>
-                <h3 className="text-base font-bold text-slate-900">Sự cố tư vấn (Khách báo chuyên gia vắng mặt)</h3>
-              </div>
-              <span className="rounded-full bg-rose-100 px-3 py-1 text-xs font-bold text-rose-700">
-                {incidentItems.length}
-                {' '}
-                sự cố gần nhất
-              </span>
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h3 className="text-lg font-bold text-slate-900">Giải quyết vấn đề</h3>
+              <p className="text-sm text-slate-500">Theo dõi và xác nhận các báo cáo chuyên gia vắng mặt.</p>
             </div>
+            <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 p-1 text-sm">
+              {[
+                { key: 'pending', label: 'Chưa giải quyết', count: pendingAbsentItems.length },
+                { key: 'handled', label: 'Đã giải quyết', count: handledAbsentItems.length },
+              ].map(tab => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  onClick={() => setAbsentTab(tab.key as 'pending' | 'handled')}
+                  className={`inline-flex items-center gap-2 rounded-full px-4 py-1.5 font-semibold transition-colors ${
+                    absentTab === tab.key
+                      ? 'bg-indigo-600 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  {tab.label}
+                  <span className={`rounded-full px-2 py-0.5 text-xs ${absentTab === tab.key ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'}`}>
+                    {tab.count}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {incidentItems.map(item => (
-                <div key={`incident-${item.consultationId}`} className="group relative overflow-hidden rounded-xl border border-rose-100 bg-white p-4 shadow-sm transition-all hover:shadow-md">
+          {absentLoading && (
+            <div className="flex items-center justify-center gap-3 py-10 text-slate-500">
+              <Loader2 className="size-5 animate-spin text-indigo-500" />
+              <span className="text-sm font-medium">Đang tải báo cáo...</span>
+            </div>
+          )}
+
+          {!absentLoading && absentTab === 'pending' && pendingAbsentItems.length === 0 && (
+            <div className="py-10 text-center text-sm text-slate-500">
+              Không có báo cáo chuyên gia vắng mặt cần xử lý.
+            </div>
+          )}
+
+          {!absentLoading && absentTab === 'handled' && handledAbsentItems.length === 0 && (
+            <div className="py-10 text-center text-sm text-slate-500">
+              Chưa có báo cáo nào được đánh dấu đã xử lý.
+            </div>
+          )}
+
+          {!absentLoading && (
+            <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {(absentTab === 'pending' ? pendingAbsentItems : handledAbsentItems).map(item => (
+                <div key={`absent-${item.consultationId}`} className="group relative overflow-hidden rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md">
                   <div className="mb-3 flex items-center justify-between">
-                    <span className="font-bold text-rose-700">{formatShortId(item.consultationId)}</span>
+                    <span className="font-bold text-indigo-700">{formatShortId(item.consultationId)}</span>
                     <button
                       type="button"
                       onClick={() => void openDetail(item.consultationId)}
-                      className="text-xs font-semibold text-rose-600 hover:text-rose-800"
+                      className="text-xs font-semibold text-indigo-600 hover:text-indigo-800"
                     >
-                      Xem ngay &rarr;
+                      Xem chi tiết &rarr;
                     </button>
                   </div>
                   <p className="text-sm text-slate-700 line-clamp-2">{formatReportSnippet(item.customerReport)}</p>
-                  <div className="mt-3 flex items-center gap-2 text-xs text-slate-500">
-                    <Clock className="size-3.5" />
-                    <span>
-                      Gửi lúc:
-                      {formatDateTime(item.customerReportSubmittedAt)}
-                    </span>
+                  <div className="mt-3 flex items-center justify-between gap-2 text-xs text-slate-500">
+                    <div className="flex items-center gap-2">
+                      <Clock className="size-3.5" />
+                      <span>
+                        Gửi lúc:
+                        {formatDateTime(item.customerReportSubmittedAt)}
+                      </span>
+                    </div>
+                    {absentTab === 'pending' && (
+                      <button
+                        type="button"
+                        onClick={() => void confirmAbsentHandled(item.consultationId)}
+                        className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-100"
+                      >
+                        Xác nhận đã xử lý
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
             </div>
-          </div>
-        )}
+          )}
+        </section>
 
         <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center">
           <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -383,6 +474,7 @@ export default function ConsultationsManagementPage() {
                 {[10, 20, 50].map(size => (
                   <option key={size} value={size}>
                     Hiển thị
+                    {' '}
                     {size}
                     {' '}
                     dòng
