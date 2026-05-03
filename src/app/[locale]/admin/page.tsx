@@ -16,12 +16,14 @@ import {
   ArrowDown,
   ArrowUp,
   Bug,
+  Calendar,
   Download,
   RefreshCcw,
   ShieldAlert,
   TrendingUp,
   Users,
   Wallet,
+  X,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
@@ -85,42 +87,39 @@ function dateToLocalString(date: Date): string {
   return `${year}-${month}-${day}`;
 }
 
-function getDefaultDates(period: AnalyticsPeriod): { from: string; to: string } {
+// Chart params always cover the full context (for timeline charts)
+function getChartParams(
+  period: AnalyticsPeriod,
+  selectedYear: number,
+  selectedDay: string,
+): { period: AnalyticsPeriod; from: string; to: string } {
   const now = new Date();
+  const currentYear = now.getFullYear();
 
   if (period === 'day') {
-    // Ngày hôm nay
-    const today = dateToLocalString(now);
-    return { from: today, to: today };
+    // Show all days in the month that contains selectedDay
+    const d = new Date(selectedDay);
+    const from = new Date(d.getFullYear(), d.getMonth(), 1);
+    const to = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+    return { period: 'day', from: dateToLocalString(from), to: dateToLocalString(to) };
   }
 
   if (period === 'month') {
-    // Ngày 1 của tháng này
-    const from = new Date(now.getFullYear(), now.getMonth(), 1);
-    // Ngày cuối cùng của tháng này
-    const to = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    // Show all 12 months of the selected year
     return {
-      from: dateToLocalString(from),
-      to: dateToLocalString(to),
+      period: 'month',
+      from: dateToLocalString(new Date(selectedYear, 0, 1)),
+      to: dateToLocalString(new Date(selectedYear, 11, 31)),
     };
   }
 
-  // period === 'year'
-  // Ngày 1/1 của năm này
-  const from = new Date(now.getFullYear(), 0, 1);
-  // Ngày 31/12 của năm này
-  const to = new Date(now.getFullYear(), 11, 31);
+  // year mode: show last 10 years
   return {
-    from: dateToLocalString(from),
-    to: dateToLocalString(to),
+    period: 'year',
+    from: dateToLocalString(new Date(currentYear - 9, 0, 1)),
+    to: dateToLocalString(new Date(currentYear, 11, 31)),
   };
 }
-
-const PERIOD_LABELS: Record<AnalyticsPeriod, string> = {
-  day: 'Theo ngày',
-  month: 'Theo tháng',
-  year: 'Theo năm',
-};
 
 const INCIDENT_STATUS_MAP: Record<string, { label: string; cls: string }> = {
   Pending: { label: 'Chờ xử lý', cls: 'bg-amber-100 text-amber-700' },
@@ -321,25 +320,9 @@ function CountTooltip({ active, payload, label }: { active?: boolean; payload?: 
   );
 }
 
-function PeriodSelector({ value, onChange }: { value: AnalyticsPeriod; onChange: (p: AnalyticsPeriod) => void }) {
-  const periods: AnalyticsPeriod[] = ['day', 'month', 'year'];
-  return (
-    <div className="flex overflow-hidden rounded-lg border border-slate-200">
-      {periods.map((p, i) => (
-        <button
-          key={p}
-          type="button"
-          onClick={() => onChange(p)}
-          className={`px-3 py-1.5 text-xs font-semibold transition ${
-            value === p ? 'bg-blue-700 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'
-          } ${i > 0 ? 'border-l border-slate-200' : ''}`}
-        >
-          {PERIOD_LABELS[p]}
-        </button>
-      ))}
-    </div>
-  );
-}
+const NOW = new Date();
+const CURRENT_YEAR = NOW.getFullYear();
+const CURRENT_MONTH = NOW.getMonth() + 1; // 1-indexed
 
 export default function AdminDashboardPage() {
   const { showToast } = useToast();
@@ -347,22 +330,105 @@ export default function AdminDashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  // KPI state
   const [users, setUsers] = useState<UsersAnalytics | null>(null);
   const [cases, setCases] = useState<CasesAnalytics | null>(null);
   const [revenue, setRevenue] = useState<RevenueAnalytics | null>(null);
   const [commission, setCommission] = useState<CommissionAnalytics | null>(null);
   const [profit, setProfit] = useState<ProfitAnalytics | null>(null);
+  // Chart-specific state (wider range)
+  const [chartUsers, setChartUsers] = useState<UsersAnalytics | null>(null);
+  const [chartCases, setChartCases] = useState<CasesAnalytics | null>(null);
+  const [chartRevenue, setChartRevenue] = useState<RevenueAnalytics | null>(null);
+  const [chartCommission, setChartCommission] = useState<CommissionAnalytics | null>(null);
+  const [chartProfit, setChartProfit] = useState<ProfitAnalytics | null>(null);
   const [incidents, setIncidents] = useState<RecentIncidentItem[]>([]);
   const [catchingRequests, setCatchingRequests] = useState<RecentCatchingRequestItem[]>([]);
 
-  const [dateFrom, setDateFrom] = useState(() => getDefaultDates('month').from);
-  const [dateTo, setDateTo] = useState(() => getDefaultDates('month').to);
+  const [dateFrom, setDateFrom] = useState(() => {
+    const from = new Date(CURRENT_YEAR, CURRENT_MONTH - 1, 1);
+    return dateToLocalString(from);
+  });
+  const [dateTo, setDateTo] = useState(() => {
+    const to = new Date(CURRENT_YEAR, CURRENT_MONTH, 0);
+    return dateToLocalString(to);
+  });
+
+  const [selectedYear, setSelectedYear] = useState(CURRENT_YEAR);
+  const [selectedMonth, setSelectedMonth] = useState(CURRENT_MONTH);
+  const [selectedDay, setSelectedDay] = useState(() => dateToLocalString(NOW));
+
+  const [showExportModal, setShowExportModal] = useState(false);
+  const [exportOptions, setExportOptions] = useState({
+    scope: 'trend',
+    revenue: true,
+    profit: true,
+    commission: true,
+    users: true,
+    cases: true,
+  });
 
   const handlePeriodChange = (p: AnalyticsPeriod) => {
-    const defaults = getDefaultDates(p);
-    setDateFrom(defaults.from);
-    setDateTo(defaults.to);
     setPeriod(p);
+    if (p === 'day') {
+      setDateFrom(selectedDay);
+      setDateTo(selectedDay);
+    } else if (p === 'month') {
+      const from = new Date(selectedYear, selectedMonth - 1, 1);
+      const to = new Date(selectedYear, selectedMonth, 0);
+      setDateFrom(dateToLocalString(from));
+      setDateTo(dateToLocalString(to));
+    } else {
+      setDateFrom(dateToLocalString(new Date(selectedYear, 0, 1)));
+      setDateTo(dateToLocalString(new Date(selectedYear, 11, 31)));
+    }
+  };
+
+  const handleYearChange = (year: number) => {
+    setSelectedYear(year);
+    if (period === 'day') {
+      // Keep selectedDay but switch to same month in new year
+      const d = new Date(selectedDay);
+      const newDay = dateToLocalString(new Date(year, d.getMonth(), 1));
+      setSelectedDay(newDay);
+      setDateFrom(newDay);
+      setDateTo(newDay);
+      setSelectedMonth(d.getMonth() + 1);
+    } else if (period === 'month') {
+      const from = new Date(year, selectedMonth - 1, 1);
+      const to = new Date(year, selectedMonth, 0);
+      setDateFrom(dateToLocalString(from));
+      setDateTo(dateToLocalString(to));
+    } else {
+      setDateFrom(dateToLocalString(new Date(year, 0, 1)));
+      setDateTo(dateToLocalString(new Date(year, 11, 31)));
+    }
+  };
+
+  const handleMonthChange = (month: number) => {
+    setSelectedMonth(month);
+    if (period === 'day') {
+      // In day mode: reset selectedDay to 1st of chosen month (chart shows that month)
+      const newDay = dateToLocalString(new Date(selectedYear, month - 1, 1));
+      setSelectedDay(newDay);
+      setDateFrom(newDay);
+      setDateTo(newDay);
+    } else {
+      const from = new Date(selectedYear, month - 1, 1);
+      const to = new Date(selectedYear, month, 0);
+      setDateFrom(dateToLocalString(from));
+      setDateTo(dateToLocalString(to));
+    }
+  };
+
+  const handleDayChange = (day: string) => {
+    setSelectedDay(day);
+    setDateFrom(day);
+    setDateTo(day);
+    // Sync selectedMonth to the chosen day's month
+    const d = new Date(day);
+    setSelectedMonth(d.getMonth() + 1);
+    setSelectedYear(d.getFullYear());
   };
 
   const loadAll = useCallback(async (showRefresh = false) => {
@@ -372,19 +438,35 @@ export default function AdminDashboardPage() {
       setIsLoading(true);
     }
 
-    const params = { period, from: dateFrom, to: dateTo };
+    // KPI params: narrow range (today / selected month / selected year)
+    const kpiParams = { period, from: dateFrom, to: dateTo };
+    // Chart params: wide range (full month / full year / 10 years)
+    const cParams = getChartParams(period, selectedYear, selectedDay);
 
-    const results = await Promise.allSettled([
-      analyticsApi.getUsers(params),
-      analyticsApi.getCases(params),
-      analyticsApi.getRevenue(params),
-      analyticsApi.getCommission(params),
-      analyticsApi.getProfit(params),
-      analyticsApi.getRecentIncidents(),
-      analyticsApi.getRecentCatchingRequests(),
+    const [kpiResults, chartResults, miscResults] = await Promise.all([
+      Promise.allSettled([
+        analyticsApi.getUsers(kpiParams),
+        analyticsApi.getCases(kpiParams),
+        analyticsApi.getRevenue(kpiParams),
+        analyticsApi.getCommission(kpiParams),
+        analyticsApi.getProfit(kpiParams),
+      ]),
+      Promise.allSettled([
+        analyticsApi.getUsers(cParams),
+        analyticsApi.getCases(cParams),
+        analyticsApi.getRevenue(cParams),
+        analyticsApi.getCommission(cParams),
+        analyticsApi.getProfit(cParams),
+      ]),
+      Promise.allSettled([
+        analyticsApi.getRecentIncidents(),
+        analyticsApi.getRecentCatchingRequests(),
+      ]),
     ]);
 
-    const [usersRes, casesRes, revenueRes, commissionRes, profitRes, incidentsRes, catchingRes] = results;
+    const [usersRes, casesRes, revenueRes, commissionRes, profitRes] = kpiResults;
+    const [cUsersRes, cCasesRes, cRevenueRes, cCommissionRes, cProfitRes] = chartResults;
+    const [incidentsRes, catchingRes] = miscResults;
 
     if (usersRes.status === 'fulfilled') {
       setUsers(usersRes.value);
@@ -401,6 +483,23 @@ export default function AdminDashboardPage() {
     if (profitRes.status === 'fulfilled') {
       setProfit(profitRes.value);
     }
+
+    if (cUsersRes.status === 'fulfilled') {
+      setChartUsers(cUsersRes.value);
+    }
+    if (cCasesRes.status === 'fulfilled') {
+      setChartCases(cCasesRes.value);
+    }
+    if (cRevenueRes.status === 'fulfilled') {
+      setChartRevenue(cRevenueRes.value);
+    }
+    if (cCommissionRes.status === 'fulfilled') {
+      setChartCommission(cCommissionRes.value);
+    }
+    if (cProfitRes.status === 'fulfilled') {
+      setChartProfit(cProfitRes.value);
+    }
+
     if (incidentsRes.status === 'fulfilled') {
       const d = incidentsRes.value;
       setIncidents((Array.isArray(d) ? d : ((d as { items: RecentIncidentItem[] }).items ?? [])).slice(0, 8));
@@ -409,26 +508,33 @@ export default function AdminDashboardPage() {
       setCatchingRequests((Array.isArray(catchingRes.value) ? catchingRes.value : []).slice(0, 8));
     }
 
-    const failCount = results.filter(r => r.status === 'rejected').length;
-    if (failCount > 0 && failCount < results.length) {
+    const allResults = [...kpiResults, ...chartResults, ...miscResults];
+    const failCount = allResults.filter(r => r.status === 'rejected').length;
+    if (failCount > 0 && failCount < allResults.length) {
       showToast(`${failCount} nguồn dữ liệu không tải được.`, { type: 'warning' });
-    } else if (failCount === results.length) {
+    } else if (failCount === allResults.length) {
       showToast('Không thể tải dữ liệu dashboard.', { type: 'error' });
     }
 
     setIsLoading(false);
     setIsRefreshing(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [period, dateFrom, dateTo]);
+  }, [period, dateFrom, dateTo, selectedYear, selectedMonth, selectedDay]);
 
   useEffect(() => {
     void loadAll();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [period, dateFrom, dateTo]);
+  }, [loadAll]);
 
   const handleExport = () => {
-    exportToExcel(revenue, profit, commission, users, cases);
+    exportToExcel(
+      exportOptions.revenue ? (exportOptions.scope === 'trend' ? chartRevenue : revenue) : null,
+      exportOptions.profit ? (exportOptions.scope === 'trend' ? chartProfit : profit) : null,
+      exportOptions.commission ? (exportOptions.scope === 'trend' ? chartCommission : commission) : null,
+      exportOptions.users ? (exportOptions.scope === 'trend' ? chartUsers : users) : null,
+      exportOptions.cases ? (exportOptions.scope === 'trend' ? chartCases : cases) : null,
+    );
     showToast('Đã xuất file báo cáo Excel!', { type: 'success' });
+    setShowExportModal(false);
   };
 
   const userTrend = useMemo(() => {
@@ -457,58 +563,43 @@ export default function AdminDashboardPage() {
     return Math.round(((second - first) / first) * 100);
   }, [cases]);
 
+  const getDayModeSubtitle = (dayValue: string) => {
+    const todayStr = dateToLocalString(new Date());
+    if (dayValue === todayStr) {
+      return 'Hôm nay';
+    }
+    return `Ngày ${formatDate(dayValue)}`;
+  };
+
   return (
     <main className="h-[calc(100vh-81px)] overflow-y-auto bg-gray-50/50 p-6 lg:p-8">
       <div className="mx-auto flex max-w-400 flex-col gap-6">
 
         {/* ── Header ─────────────────────────────────────────────────────── */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="text-2xl font-bold text-gray-800">Bảng điều khiển</h2>
             <p className="mt-0.5 text-sm text-gray-500">
-              Dữ liệu từ
-              {' '}
-              {formatDate(dateFrom)}
-              {' '}
-              đến
-              {' '}
-              {formatDate(dateTo)}
+              {period === 'day' && `${getDayModeSubtitle(selectedDay)} · Biểu đồ Tháng ${selectedMonth}/${selectedYear}`}
+              {period === 'month' && `Tháng ${selectedMonth}/${selectedYear}`}
+              {period === 'year' && `Năm ${selectedYear}`}
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <PeriodSelector value={period} onChange={handlePeriodChange} />
-            <div className="flex items-center gap-1.5">
-              <input
-                type="date"
-                value={dateFrom}
-                max={dateTo}
-                onChange={e => setDateFrom(e.target.value)}
-                className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
-              />
-              <span className="text-xs text-slate-400">—</span>
-              <input
-                type="date"
-                value={dateTo}
-                min={dateFrom}
-                max={new Date().toISOString().slice(0, 10)}
-                onChange={e => setDateTo(e.target.value)}
-                className="rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
-              />
-            </div>
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => void loadAll(true)}
               disabled={isRefreshing}
-              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-50"
             >
               <RefreshCcw className={`size-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
               Làm mới
             </button>
             <button
               type="button"
-              onClick={handleExport}
+              onClick={() => setShowExportModal(true)}
               disabled={!revenue && !users}
-              className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+              className="flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50"
             >
               <Download className="size-3.5" />
               Xuất Excel
@@ -516,11 +607,105 @@ export default function AdminDashboardPage() {
           </div>
         </div>
 
+        {/* ── Filter bar ──────────────────────────────────────────────────── */}
+        <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
+          {/* Professional Segmented Control */}
+          <div className="relative flex items-center rounded-xl bg-slate-100 p-1 shadow-inner">
+            {/* Moving Highlight Background */}
+            <div
+              className="absolute h-[calc(100%-8px)] rounded-lg bg-white shadow-sm transition-all duration-300 ease-out"
+              style={{
+                width: 'calc(33.33% - 4px)',
+                left: period === 'day' ? '4px' : period === 'month' ? '33.33%' : '66.66%',
+              }}
+            />
+            {(['day', 'month', 'year'] as AnalyticsPeriod[]).map(p => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => handlePeriodChange(p)}
+                className={`relative z-10 flex min-w-[100px] items-center justify-center gap-2 px-3 py-2 text-xs font-bold transition-colors duration-200 ${
+                  period === p ? 'text-blue-700' : 'text-slate-500 hover:text-slate-700'
+                }`}
+              >
+                {p === 'day' && <Calendar className="size-3.5" />}
+                {p === 'month' && <Activity className="size-3.5" />}
+                {p === 'year' && <TrendingUp className="size-3.5" />}
+                {{ day: 'Theo ngày', month: 'Theo tháng', year: 'Theo năm' }[p]}
+              </button>
+            ))}
+          </div>
+
+          {/* Divider */}
+          <div className="h-6 w-px bg-slate-200" />
+
+          {/* Year selector — shown in all modes */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-medium text-slate-500">Năm</span>
+            <select
+              value={selectedYear}
+              onChange={e => handleYearChange(Number(e.target.value))}
+              className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
+            >
+              {Array.from({ length: 10 }, (_, i) => CURRENT_YEAR - i).map(y => (
+                <option key={y} value={y}>{y}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Month pills — shown in day + month modes */}
+          {period !== 'year' && (
+            <>
+              <div className="h-6 w-px bg-slate-200" />
+              <div className="flex flex-wrap gap-1">
+                {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => handleMonthChange(m)}
+                    className={`min-w-[32px] rounded-md px-2 py-1 text-xs font-semibold transition ${
+                      selectedMonth === m
+                        ? 'bg-blue-700 text-white'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    T
+                    {m}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* Day picker — only in day mode, shown AFTER month selection */}
+          {period === 'day' && (
+            <>
+              <div className="h-6 w-px bg-slate-200" />
+              <div className="flex items-center gap-2">
+                <Calendar className="size-3.5 text-slate-400" />
+                <input
+                  type="date"
+                  value={selectedDay}
+                  onChange={e => handleDayChange(e.target.value)}
+                  className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                />
+              </div>
+            </>
+          )}
+        </div>
+
         {/* ── KPI cards ───────────────────────────────────────────────────── */}
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           <StatCard
             title="Tổng người dùng"
             value={users?.totalUsers.toLocaleString() ?? '—'}
+            subtitle={
+              period === 'day'
+                ? getDayModeSubtitle(selectedDay)
+                : period === 'month'
+                  ? `Tháng ${new Date(dateFrom).getMonth() + 1}/${selectedYear}`
+                  : `Năm ${selectedYear}`
+            }
             icon={Users}
             iconBg="bg-blue-50"
             iconColor="text-blue-600"
@@ -530,7 +715,13 @@ export default function AdminDashboardPage() {
           <StatCard
             title="Tổng ca xử lý"
             value={cases?.totalCases.toLocaleString() ?? '—'}
-            subtitle={cases ? `${cases.snakebiteCases} rắn cắn · ${cases.snakeCatchingCases} bắt rắn` : undefined}
+            subtitle={
+              period === 'day'
+                ? `${cases?.snakebiteCases ?? 0} rắn cắn · ${cases?.snakeCatchingCases ?? 0} bắt rắn · ${getDayModeSubtitle(selectedDay).toLowerCase()}`
+                : cases
+                  ? `${cases.snakebiteCases} rắn cắn · ${cases.snakeCatchingCases} bắt rắn`
+                  : undefined
+            }
             icon={Activity}
             iconBg="bg-orange-50"
             iconColor="text-orange-600"
@@ -540,7 +731,13 @@ export default function AdminDashboardPage() {
           <StatCard
             title="Doanh thu"
             value={revenue ? formatVND(revenue.total) : '—'}
-            subtitle="tổng kỳ được chọn"
+            subtitle={
+              period === 'day'
+                ? getDayModeSubtitle(selectedDay)
+                : period === 'month'
+                  ? `Tháng ${new Date(dateFrom).getMonth() + 1}/${selectedYear}`
+                  : `Năm ${selectedYear}`
+            }
             icon={Wallet}
             iconBg="bg-emerald-50"
             iconColor="text-emerald-600"
@@ -549,7 +746,15 @@ export default function AdminDashboardPage() {
           <StatCard
             title="Lợi nhuận"
             value={profit ? formatVND(profit.totalProfit) : '—'}
-            subtitle={commission ? `Hoa hồng: ${formatVND(commission.totalCommission)}` : 'tổng kỳ được chọn'}
+            subtitle={
+              commission
+                ? `Hoa hồng: ${formatVND(commission.totalCommission)}`
+                : period === 'day'
+                  ? getDayModeSubtitle(selectedDay)
+                  : period === 'month'
+                    ? `Tháng ${new Date(dateFrom).getMonth() + 1}/${selectedYear}`
+                    : `Năm ${selectedYear}`
+            }
             icon={TrendingUp}
             iconBg="bg-violet-50"
             iconColor="text-violet-600"
@@ -559,12 +764,21 @@ export default function AdminDashboardPage() {
 
         {/* ── Revenue + Cases charts ──────────────────────────────────────── */}
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <ChartCard title="Doanh thu theo kỳ" subtitle="Tư vấn · Bắt rắn · Cứu hộ">
-            {isLoading || !revenue
+          <ChartCard
+            title="Doanh thu theo kỳ"
+            subtitle={
+              period === 'day'
+                ? `Các ngày trong tháng ${new Date(dateFrom).getMonth() + 1}/${selectedYear} · Tư vấn · Bắt rắn · Cứu hộ`
+                : period === 'month'
+                  ? `Các tháng trong năm ${selectedYear} · Tư vấn · Bắt rắn · Cứu hộ`
+                  : `10 năm gần đây · Tư vấn · Bắt rắn · Cứu hộ`
+            }
+          >
+            {isLoading || !chartRevenue
               ? <div className="h-64 animate-pulse rounded-xl bg-slate-100" />
               : (
                   <ResponsiveContainer width="100%" height={260}>
-                    <AreaChart data={revenue.timeline} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                    <AreaChart data={chartRevenue.timeline} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
                       <defs>
                         <linearGradient id="gc" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%" stopColor="#6366f1" stopOpacity={0.15} />
@@ -592,12 +806,21 @@ export default function AdminDashboardPage() {
                 )}
           </ChartCard>
 
-          <ChartCard title="Tổng ca xử lý theo kỳ" subtitle="Ca rắn cắn &amp; bắt rắn">
-            {isLoading || !cases
+          <ChartCard
+            title="Tổng ca xử lý theo kỳ"
+            subtitle={
+              period === 'day'
+                ? `Các ngày trong tháng ${new Date(dateFrom).getMonth() + 1}/${selectedYear}`
+                : period === 'month'
+                  ? `Các tháng trong năm ${selectedYear}`
+                  : `10 năm gần đây`
+            }
+          >
+            {isLoading || !chartCases
               ? <div className="h-64 animate-pulse rounded-xl bg-slate-100" />
               : (
                   <ResponsiveContainer width="100%" height={260}>
-                    <BarChart data={cases.timeline} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                    <BarChart data={chartCases.timeline} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                       <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                       <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
@@ -613,12 +836,21 @@ export default function AdminDashboardPage() {
 
         {/* ── Profit + Commission charts ──────────────────────────────────── */}
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <ChartCard title="Lợi nhuận theo kỳ" subtitle="Phân theo luồng nghiệp vụ">
-            {isLoading || !profit
+          <ChartCard
+            title="Lợi nhuận theo kỳ"
+            subtitle={
+              period === 'day'
+                ? `Các ngày trong tháng ${new Date(dateFrom).getMonth() + 1}/${selectedYear} · Phân theo luồng`
+                : period === 'month'
+                  ? `Các tháng trong năm ${selectedYear} · Phân theo luồng`
+                  : `10 năm gần đây · Phân theo luồng`
+            }
+          >
+            {isLoading || !chartProfit
               ? <div className="h-64 animate-pulse rounded-xl bg-slate-100" />
               : (
                   <ResponsiveContainer width="100%" height={260}>
-                    <BarChart data={profit.timeline} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                    <BarChart data={chartProfit.timeline} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                       <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                       <YAxis tickFormatter={(v: number) => formatVND(v)} tick={{ fontSize: 11 }} width={60} />
@@ -632,12 +864,21 @@ export default function AdminDashboardPage() {
                 )}
           </ChartCard>
 
-          <ChartCard title="Hoa hồng chuyên gia" subtitle="Doanh thu tư vấn − Chi Expert − Hoa hồng">
-            {isLoading || !commission
+          <ChartCard
+            title="Hoa hồng chuyên gia"
+            subtitle={
+              period === 'day'
+                ? `Các ngày trong tháng ${new Date(dateFrom).getMonth() + 1}/${selectedYear}`
+                : period === 'month'
+                  ? `Các tháng trong năm ${selectedYear}`
+                  : `10 năm gần đây`
+            }
+          >
+            {isLoading || !chartCommission
               ? <div className="h-64 animate-pulse rounded-xl bg-slate-100" />
               : (
                   <ResponsiveContainer width="100%" height={260}>
-                    <LineChart data={commission.timeline} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                    <LineChart data={chartCommission.timeline} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
                       <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                       <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                       <YAxis tickFormatter={(v: number) => formatVND(v)} tick={{ fontSize: 11 }} width={60} />
@@ -653,12 +894,21 @@ export default function AdminDashboardPage() {
         </div>
 
         {/* ── Users timeline ──────────────────────────────────────────────── */}
-        <ChartCard title="Người dùng đăng ký" subtitle="Số lượng tích lũy theo kỳ">
-          {isLoading || !users
+        <ChartCard
+          title="Người dùng đăng ký"
+          subtitle={
+            period === 'day'
+              ? `Các ngày trong tháng ${new Date(dateFrom).getMonth() + 1}/${selectedYear}`
+              : period === 'month'
+                ? `Các tháng trong năm ${selectedYear}`
+                : `10 năm gần đây`
+          }
+        >
+          {isLoading || !chartUsers
             ? <div className="h-48 animate-pulse rounded-xl bg-slate-100" />
             : (
                 <ResponsiveContainer width="100%" height={200}>
-                  <AreaChart data={users.timeline} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
+                  <AreaChart data={chartUsers.timeline} margin={{ top: 4, right: 4, left: 0, bottom: 0 }}>
                     <defs>
                       <linearGradient id="gu" x1="0" y1="0" x2="0" y2="1">
                         <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.2} />
@@ -776,6 +1026,94 @@ export default function AdminDashboardPage() {
           </div>
         </div>
       </div>
+
+      {showExportModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm transition-opacity">
+          <div className="w-full max-w-md scale-100 rounded-2xl bg-white p-6 opacity-100 shadow-xl transition-all">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-slate-900">Tùy chọn xuất Excel</h3>
+              <button
+                type="button"
+                onClick={() => setShowExportModal(false)}
+                className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+
+            <div className="space-y-5">
+              <div>
+                <p className="mb-2 text-sm font-semibold text-slate-700">Phạm vi dữ liệu</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className={`flex cursor-pointer items-center justify-center rounded-lg border p-2.5 text-sm font-medium transition-colors ${exportOptions.scope === 'kpi' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+                    <input
+                      type="radio"
+                      name="scope"
+                      value="kpi"
+                      checked={exportOptions.scope === 'kpi'}
+                      onChange={() => setExportOptions({ ...exportOptions, scope: 'kpi' })}
+                      className="sr-only"
+                    />
+                    Kỳ hiện tại
+                  </label>
+                  <label className={`flex cursor-pointer items-center justify-center rounded-lg border p-2.5 text-sm font-medium transition-colors ${exportOptions.scope === 'trend' ? 'border-blue-600 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+                    <input
+                      type="radio"
+                      name="scope"
+                      value="trend"
+                      checked={exportOptions.scope === 'trend'}
+                      onChange={() => setExportOptions({ ...exportOptions, scope: 'trend' })}
+                      className="sr-only"
+                    />
+                    Chi tiết xu hướng
+                  </label>
+                </div>
+              </div>
+
+              <div>
+                <p className="mb-2 text-sm font-semibold text-slate-700">Dữ liệu cần xuất</p>
+                <div className="space-y-2">
+                  {(['revenue', 'profit', 'commission', 'users', 'cases'] as const).map(key => (
+                    <label key={key} className="flex cursor-pointer items-center gap-3 rounded-lg border border-slate-100 bg-slate-50 p-3 transition hover:bg-slate-100">
+                      <input
+                        type="checkbox"
+                        checked={exportOptions[key]}
+                        onChange={e => setExportOptions({ ...exportOptions, [key]: e.target.checked })}
+                        className="size-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span className="text-sm font-medium text-slate-700">
+                        {key === 'revenue' && 'Doanh thu'}
+                        {key === 'profit' && 'Lợi nhuận'}
+                        {key === 'commission' && 'Hoa hồng'}
+                        {key === 'users' && 'Người dùng'}
+                        {key === 'cases' && 'Tổng ca xử lý'}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setShowExportModal(false)}
+                className="rounded-lg px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-100"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={handleExport}
+                disabled={!exportOptions.revenue && !exportOptions.profit && !exportOptions.commission && !exportOptions.users && !exportOptions.cases}
+                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-50"
+              >
+                Xuất báo cáo
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
