@@ -30,4 +30,9 @@ export const adminConsultationApi = {
 
   getDetail: (consultationId: string) =>
     api.get<AdminConsultationDetailResponse>(`/admin/consultations/${consultationId}`),
+
+  confirmExpertAbsentHandled: (consultationId: string) =>
+    api.post<AdminConsultationDetailResponse>(
+      `/admin/consultations/${consultationId}/expert-absent/confirm-handled`,
+    ),
 };

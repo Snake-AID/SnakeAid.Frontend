@@ -7,11 +7,13 @@ import type {
   AdminMissionSummaryResponse,
 } from '@/types/admin-management.type';
 import type { PaginationMeta } from '@/types/api-response';
-import { Eye, Loader2, SearchX } from 'lucide-react';
+import { Activity, Calendar, Clock, Eye, Loader2, SearchX, TrendingUp } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { ApiClientError } from '@/apis/client';
 import { incidentApi } from '@/apis/incident.api';
 import { useToast } from '@/components/ToastProvider';
+
+type QuickPeriod = 'today' | 'month' | 'year' | 'all';
 
 type IncidentTab = 'incidents' | 'missions';
 
@@ -21,6 +23,43 @@ const DEFAULT_PAGINATION: PaginationMeta = {
   current_page: 1,
   page_size: 10,
 };
+
+function dateToLocalString(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function PeriodSelector({ value, onChange }: { value: QuickPeriod; onChange: (p: QuickPeriod) => void }) {
+  return (
+    <div className="relative flex items-center rounded-xl bg-slate-100 p-1 shadow-inner">
+      <div
+        className="absolute h-[calc(100%-8px)] rounded-lg bg-white shadow-sm transition-all duration-300 ease-out"
+        style={{
+          width: 'calc(25% - 4px)',
+          left: value === 'today' ? '4px' : value === 'month' ? '25%' : value === 'year' ? '50%' : '75%',
+        }}
+      />
+      {(['today', 'month', 'year', 'all'] as QuickPeriod[]).map(p => (
+        <button
+          key={p}
+          type="button"
+          onClick={() => onChange(p)}
+          className={`relative z-10 flex min-w-[90px] items-center justify-center gap-2 px-3 py-1.5 text-xs font-bold transition-colors duration-200 ${
+            value === p ? 'text-blue-700' : 'text-slate-500 hover:text-slate-700'
+          }`}
+        >
+          {p === 'today' && <Clock className="size-3.5" />}
+          {p === 'month' && <Calendar className="size-3.5" />}
+          {p === 'year' && <TrendingUp className="size-3.5" />}
+          {p === 'all' && <Activity className="size-3.5" />}
+          {{ today: 'Hôm nay', month: 'Tháng này', year: 'Năm nay', all: 'Tất cả' }[p]}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 const toIso = (value: string) => {
   if (!value.trim()) {
@@ -440,6 +479,29 @@ export default function IncidentsPage() {
   const [incidentUntil, setIncidentUntil] = useState('');
   const [incidentsPage, setIncidentsPage] = useState(1);
   const [incidentsPageSize, setIncidentsPageSize] = useState(10);
+  const [incidentPeriod, setIncidentPeriod] = useState<QuickPeriod>('all');
+
+  const handleIncidentPeriodChange = (p: QuickPeriod) => {
+    setIncidentPeriod(p);
+    setIncidentsPage(1);
+    const now = new Date();
+    if (p === 'today') {
+      const today = dateToLocalString(now);
+      setIncidentSince(today);
+      setIncidentUntil(today);
+    } else if (p === 'month') {
+      const from = new Date(now.getFullYear(), now.getMonth(), 1);
+      const to = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      setIncidentSince(dateToLocalString(from));
+      setIncidentUntil(dateToLocalString(to));
+    } else if (p === 'year') {
+      setIncidentSince(`${now.getFullYear()}-01-01`);
+      setIncidentUntil(`${now.getFullYear()}-12-31`);
+    } else {
+      setIncidentSince('');
+      setIncidentUntil('');
+    }
+  };
 
   const [missions, setMissions] = useState<AdminMissionSummaryResponse[]>([]);
   const [missionsMeta, setMissionsMeta] = useState<PaginationMeta>(DEFAULT_PAGINATION);
@@ -450,6 +512,29 @@ export default function IncidentsPage() {
   const [missionUntil, setMissionUntil] = useState('');
   const [missionsPage, setMissionsPage] = useState(1);
   const [missionsPageSize, setMissionsPageSize] = useState(10);
+  const [missionPeriod, setMissionPeriod] = useState<QuickPeriod>('all');
+
+  const handleMissionPeriodChange = (p: QuickPeriod) => {
+    setMissionPeriod(p);
+    setMissionsPage(1);
+    const now = new Date();
+    if (p === 'today') {
+      const today = dateToLocalString(now);
+      setMissionSince(today);
+      setMissionUntil(today);
+    } else if (p === 'month') {
+      const from = new Date(now.getFullYear(), now.getMonth(), 1);
+      const to = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+      setMissionSince(dateToLocalString(from));
+      setMissionUntil(dateToLocalString(to));
+    } else if (p === 'year') {
+      setMissionSince(`${now.getFullYear()}-01-01`);
+      setMissionUntil(`${now.getFullYear()}-12-31`);
+    } else {
+      setMissionSince('');
+      setMissionUntil('');
+    }
+  };
 
   const [selectedIncidentDetail, setSelectedIncidentDetail] = useState<AdminDetailSnakebiteIncidentResponse | null>(null);
   const [selectedMissionDetail, setSelectedMissionDetail] = useState<AdminMissionDetailResponse | null>(null);
@@ -650,64 +735,68 @@ export default function IncidentsPage() {
         </header>
 
         {activeTab === 'incidents' && (
-          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-5">
-              <div>
-                <p className="mb-1 text-xs font-semibold text-slate-700">Trạng thái</p>
-                <select
-                  value={incidentStatus}
-                  onChange={(event) => {
-                    setIncidentStatus(event.target.value);
-                    setIncidentsPage(1);
-                  }}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-600"
-                >
-                  {INCIDENT_STATUS_OPTIONS.map(option => (
-                    <option key={option.value || 'all'} value={option.value}>{option.label}</option>
-                  ))}
-                </select>
-              </div>
+          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+              <PeriodSelector value={incidentPeriod} onChange={handleIncidentPeriodChange} />
+              <div className="h-8 w-px bg-slate-200 lg:block hidden" />
+              <div className="flex flex-1 flex-wrap items-end gap-3">
+                <div className="min-w-[160px] flex-1">
+                  <p className="mb-1 text-xs font-semibold text-slate-500">Trạng thái</p>
+                  <select
+                    value={incidentStatus}
+                    onChange={(event) => {
+                      setIncidentStatus(event.target.value);
+                      setIncidentsPage(1);
+                    }}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+                  >
+                    {INCIDENT_STATUS_OPTIONS.map(option => (
+                      <option key={option.value || 'all'} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </div>
 
-              <div>
-                <p className="mb-1 text-xs font-semibold text-slate-700">Từ ngày</p>
-                <input
-                  type="date"
-                  value={incidentSince}
-                  onChange={(event) => {
-                    setIncidentSince(event.target.value);
-                    setIncidentsPage(1);
-                  }}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-600"
-                />
-              </div>
+                <div className="w-full sm:w-auto">
+                  <p className="mb-1 text-xs font-semibold text-slate-500">Từ ngày</p>
+                  <input
+                    type="date"
+                    value={incidentSince}
+                    onChange={(event) => {
+                      setIncidentSince(event.target.value);
+                      setIncidentsPage(1);
+                    }}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+                  />
+                </div>
 
-              <div>
-                <p className="mb-1 text-xs font-semibold text-slate-700">Đến ngày</p>
-                <input
-                  type="date"
-                  value={incidentUntil}
-                  onChange={(event) => {
-                    setIncidentUntil(event.target.value);
-                    setIncidentsPage(1);
-                  }}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-600"
-                />
-              </div>
+                <div className="w-full sm:w-auto">
+                  <p className="mb-1 text-xs font-semibold text-slate-500">Đến ngày</p>
+                  <input
+                    type="date"
+                    value={incidentUntil}
+                    onChange={(event) => {
+                      setIncidentUntil(event.target.value);
+                      setIncidentsPage(1);
+                    }}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+                  />
+                </div>
 
-              <div>
-                <p className="mb-1 text-xs font-semibold text-slate-700">Số dòng / trang</p>
-                <select
-                  value={incidentsPageSize}
-                  onChange={(event) => {
-                    setIncidentsPageSize(Number(event.target.value));
-                    setIncidentsPage(1);
-                  }}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-600"
-                >
-                  {[10, 20, 50].map(size => (
-                    <option key={size} value={size}>{size}</option>
-                  ))}
-                </select>
+                <div className="w-[100px]">
+                  <p className="mb-1 text-xs font-semibold text-slate-500">Dòng/trang</p>
+                  <select
+                    value={incidentsPageSize}
+                    onChange={(event) => {
+                      setIncidentsPageSize(Number(event.target.value));
+                      setIncidentsPage(1);
+                    }}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+                  >
+                    {[10, 20, 50].map(size => (
+                      <option key={size} value={size}>{size}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
             </div>
 
@@ -867,64 +956,68 @@ export default function IncidentsPage() {
         )}
 
         {activeTab === 'missions' && (
-          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-            <div className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-5">
-              <div>
-                <p className="mb-1 text-xs font-semibold text-slate-700">Trạng thái</p>
-                <select
-                  value={missionStatus}
-                  onChange={(event) => {
-                    setMissionStatus(event.target.value);
-                    setMissionsPage(1);
-                  }}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-600"
-                >
-                  {MISSION_STATUS_OPTIONS.map(option => (
-                    <option key={option.value || 'all'} value={option.value}>{option.label}</option>
-                  ))}
-                </select>
-              </div>
+          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+              <PeriodSelector value={missionPeriod} onChange={handleMissionPeriodChange} />
+              <div className="h-8 w-px bg-slate-200 lg:block hidden" />
+              <div className="flex flex-1 flex-wrap items-end gap-3">
+                <div className="min-w-[160px] flex-1">
+                  <p className="mb-1 text-xs font-semibold text-slate-500">Trạng thái</p>
+                  <select
+                    value={missionStatus}
+                    onChange={(event) => {
+                      setMissionStatus(event.target.value);
+                      setMissionsPage(1);
+                    }}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+                  >
+                    {MISSION_STATUS_OPTIONS.map(option => (
+                      <option key={option.value || 'all'} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </div>
 
-              <div>
-                <p className="mb-1 text-xs font-semibold text-slate-700">Từ ngày</p>
-                <input
-                  type="date"
-                  value={missionSince}
-                  onChange={(event) => {
-                    setMissionSince(event.target.value);
-                    setMissionsPage(1);
-                  }}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-600"
-                />
-              </div>
+                <div className="w-full sm:w-auto">
+                  <p className="mb-1 text-xs font-semibold text-slate-500">Từ ngày</p>
+                  <input
+                    type="date"
+                    value={missionSince}
+                    onChange={(event) => {
+                      setMissionSince(event.target.value);
+                      setMissionsPage(1);
+                    }}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+                  />
+                </div>
 
-              <div>
-                <p className="mb-1 text-xs font-semibold text-slate-700">Đến ngày</p>
-                <input
-                  type="date"
-                  value={missionUntil}
-                  onChange={(event) => {
-                    setMissionUntil(event.target.value);
-                    setMissionsPage(1);
-                  }}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-600"
-                />
-              </div>
+                <div className="w-full sm:w-auto">
+                  <p className="mb-1 text-xs font-semibold text-slate-500">Đến ngày</p>
+                  <input
+                    type="date"
+                    value={missionUntil}
+                    onChange={(event) => {
+                      setMissionUntil(event.target.value);
+                      setMissionsPage(1);
+                    }}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+                  />
+                </div>
 
-              <div>
-                <p className="mb-1 text-xs font-semibold text-slate-700">Số dòng / trang</p>
-                <select
-                  value={missionsPageSize}
-                  onChange={(event) => {
-                    setMissionsPageSize(Number(event.target.value));
-                    setMissionsPage(1);
-                  }}
-                  className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-600"
-                >
-                  {[10, 20, 50].map(size => (
-                    <option key={size} value={size}>{size}</option>
-                  ))}
-                </select>
+                <div className="w-[100px]">
+                  <p className="mb-1 text-xs font-semibold text-slate-500">Dòng/trang</p>
+                  <select
+                    value={missionsPageSize}
+                    onChange={(event) => {
+                      setMissionsPageSize(Number(event.target.value));
+                      setMissionsPage(1);
+                    }}
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-blue-600 focus:ring-1 focus:ring-blue-600"
+                  >
+                    {[10, 20, 50].map(size => (
+                      <option key={size} value={size}>{size}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
             </div>
 

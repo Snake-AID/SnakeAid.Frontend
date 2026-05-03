@@ -31,6 +31,9 @@ export const snakeCatchingRequestApi = {
   cancelRequest: (requestId: string, payload: CancelSnakeCatchingRequestPayload) =>
     api.patch<DetailSnakeCatchingRequestResponse>(`/snakecatching/requests/cancel/${requestId}`, payload),
 
+  operatorCancelRequest: (requestId: string, payload: CancelSnakeCatchingRequestPayload) =>
+    api.patch<DetailSnakeCatchingRequestResponse>(`/snakecatching/requests/operatorcancel/${requestId}`, payload),
+
   abortMission: (missionId: string, payload: { reason: string }) =>
     api.patch<DetailSnakeCatchingRequestResponse>(`/snakecatching/missions/${missionId}/abort`, payload),
 };

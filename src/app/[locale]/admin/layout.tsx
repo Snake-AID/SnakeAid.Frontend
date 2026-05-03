@@ -1,13 +1,23 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import AdminSidebar from '@/components/admin/AdminSidebar';
 import AdminTopbar from '@/components/admin/AdminTopbar';
 import RoleRouteGuard from '@/components/auth/RoleRouteGuard';
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isSidebarVisible, setIsSidebarVisible] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isSidebarVisible, setIsSidebarVisible] = useState(true);
+
+  useEffect(() => {
+    const initSidebar = () => {
+      if (window.innerWidth < 1024) {
+        setIsSidebarOpen(false);
+        setIsSidebarVisible(false);
+      }
+    };
+    initSidebar();
+  }, []);
 
   const openSidebar = () => {
     setIsSidebarVisible(true);

@@ -368,7 +368,7 @@ export default function CatchingEnvironmentsPage() {
         <header className="rounded-2xl border border-slate-200 bg-white px-6 py-5 shadow-sm">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div>
-              <h2 className="text-3xl font-bold text-slate-900">Quản lý môi trường bắt rắn</h2>
+              <h2 className="text-3xl font-bold text-slate-900">Quản lý cấu hình môi trường</h2>
               <p className="mt-1 text-sm text-slate-500">
                 Quản trị danh sách môi trường và giá dịch vụ bắt rắn.
               </p>
