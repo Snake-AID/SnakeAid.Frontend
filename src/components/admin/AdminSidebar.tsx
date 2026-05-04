@@ -30,6 +30,13 @@ interface AdminSidebarProps {
   onClose: () => void;
 }
 
+const ADMIN_DEFAULT_COLLAPSED_GROUPS = [
+  'Dịch vụ cốt lõi',
+  'Dữ liệu y tế & sinh học',
+  'Truyền thông & Học tập',
+  'Cấu hình hệ thống',
+];
+
 export default function AdminSidebar({
   activeMenu,
   open,
@@ -38,7 +45,7 @@ export default function AdminSidebar({
   const pathname = usePathname();
   const normalizedPath = pathname.replace(/^\/[a-z]{2}(?=\/)/, '');
 
-  const [collapsedGroups, setCollapsedGroups] = useState<string[]>([]);
+  const [collapsedGroups, setCollapsedGroups] = useState<string[]>(ADMIN_DEFAULT_COLLAPSED_GROUPS);
 
   const toggleGroup = (title: string) => {
     setCollapsedGroups(prev =>

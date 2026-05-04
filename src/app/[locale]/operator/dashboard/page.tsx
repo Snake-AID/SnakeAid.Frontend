@@ -650,7 +650,12 @@ export default function OperatorDashboardPage() {
         onVerify={handleVerify}
         onFalseAlarm={handleFalseAlarm}
         onDispatch={handleDispatch}
-        onRefresh={refreshIncidents}
+        onRefresh={() => {
+          void refreshIncidents();
+          if (detailIncident?.id) {
+            void openIncidentDetail(detailIncident.id);
+          }
+        }}
       />
 
       <CatchingRequestDetailModal
