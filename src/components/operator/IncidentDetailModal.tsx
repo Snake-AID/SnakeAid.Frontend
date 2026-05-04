@@ -123,9 +123,8 @@ export default function IncidentDetailModal({
     setIsActionLoading(true);
     try {
       await onVerify(incident.id);
-      onRefresh?.();
-      onClose();
       showToast('Đã xác nhận case.', { type: 'success' });
+      onRefresh?.();
     } catch (err) {
       console.error('Failed to verify incident', err);
       showToast('Xác nhận thất bại. Vui lòng thử lại.', { type: 'error' });
@@ -142,9 +141,8 @@ export default function IncidentDetailModal({
     setIsActionLoading(true);
     try {
       await onFalseAlarm(incident.id);
-      onRefresh?.();
-      onClose();
       showToast('Đã đánh dấu báo động giả.', { type: 'success' });
+      onRefresh?.();
     } catch (err) {
       console.error('Failed to mark false alarm', err);
       showToast('Đánh dấu báo động giả thất bại. Vui lòng thử lại.', { type: 'error' });
@@ -164,9 +162,8 @@ export default function IncidentDetailModal({
 
     try {
       await onDispatch(incident.id, rescuerId);
-      onRefresh?.();
-      onClose();
       showToast('Đã điều phối đội cứu hộ.', { type: 'success' });
+      onRefresh?.();
     } catch (err) {
       console.error('Failed to dispatch rescuer', err);
       showToast('Điều phối thất bại. Vui lòng thử lại.', { type: 'error' });
@@ -554,7 +551,7 @@ export default function IncidentDetailModal({
                                             {incident.assignedRescuer?.account?.fullName ?? 'Rescuer'}
                                           </p>
                                           <p className="text-xs text-slate-500">
-                                            {incident.assignedRescuer?.phoneNumber ?? 'Không có SĐT'}
+                                            {incident.assignedRescuer?.phoneNumber ?? 'Không có số điện thoại '}
                                           </p>
                                           <div className="mt-2 flex flex-wrap items-center gap-2">
                                             <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${getMissionStatusColor(incident.activeMission.status)}`}>
@@ -663,7 +660,7 @@ export default function IncidentDetailModal({
                                 {incident.user.account.fullName ?? incident.user.userName}
                               </p>
                               <p className="text-sm text-slate-500">
-                                <span className="font-semibold">SĐT:</span>
+                                <span className="font-semibold">Só điện thoại:</span>
                                 {' '}
                                 {incident.user.phoneNumber ?? 'Không có số điện thoại'}
                               </p>
@@ -812,7 +809,9 @@ export default function IncidentDetailModal({
                                                   ? 'Đã chấp nhận'
                                                   : request.status === 'Declined'
                                                     ? 'Đã từ chối'
-                                                    : request.status}
+                                                    : request.status === 'Cancelled'
+                                                      ? 'Đã hủy'
+                                                      : request.status}
                                             </span>
                                           </div>
 
@@ -831,9 +830,13 @@ export default function IncidentDetailModal({
                                             )}
                                             {request.declineReason && (
                                               <p className="rounded bg-rose-50 px-2 py-1 text-rose-700">
-                                                Lý do từ chối:
+                                                Lý do:
                                                 {' '}
-                                                {request.declineReason}
+                                                {request.declineReason === 'CANCELLED_BY_OPERATOR'
+                                                  ? 'Điều phối viên đã hủy'
+                                                  : request.declineReason === 'CANCELLED_BY_RESCUER'
+                                                    ? 'Cứu hộ đã hủy'
+                                                    : request.declineReason}
                                               </p>
                                             )}
                                           </div>

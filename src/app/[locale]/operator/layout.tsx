@@ -8,8 +8,8 @@ import OperatorSidebar from '@/components/operator/OperatorSidebar';
 import OperatorTopbar from '@/components/operator/OperatorTopbar';
 
 export default function OperatorLayout({ children }: { children: React.ReactNode }) {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [isSidebarVisible, setIsSidebarVisible] = useState(true);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isSidebarVisible, setIsSidebarVisible] = useState(false);
 
   useEffect(() => {
     const initLayout = () => {
