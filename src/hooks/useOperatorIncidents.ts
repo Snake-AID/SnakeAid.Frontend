@@ -2,9 +2,11 @@
 
 import type { OperatorIncidentSummaryResponse } from '@/types/operator.type';
 import type {
+  DispatchRequestedPayload,
   IncidentCancelledPayload,
   IncidentCompletedPayload,
   NewIncidentCreatedPayload,
+  RescuerDeclinedPayload,
   RescuerDispatchedPayload,
 } from '@/types/signalr.type';
 import type { CreateIncidentResponse } from '@/types/snakebite-incident.type';
@@ -78,7 +80,9 @@ export interface UseOperatorIncidentsResult {
   handleIncidentCreated: (payload: NewIncidentCreatedPayload) => void;
   handleIncidentCancelled: (payload: IncidentCancelledPayload) => void;
   handleIncidentCompleted: (payload: IncidentCompletedPayload) => void;
+  handleDispatchRequested: (payload: DispatchRequestedPayload) => void;
   handleRescuerDispatched: (payload: RescuerDispatchedPayload) => void;
+  handleRescuerDeclined: (payload: RescuerDeclinedPayload) => void;
   handleRescuerAborted: (payload: RescuerAbortedUiPayload) => void;
 }
 
@@ -255,6 +259,18 @@ export function useOperatorIncidents(clearRequestFocus?: () => void): UseOperato
     });
   }, [showToast]);
 
+  const handleDispatchRequested = useCallback((payload: DispatchRequestedPayload) => {
+    setIncidents((prev) => {
+      const next = prev.map(incident => (
+        incident.id === payload.incidentId
+          ? { ...incident, stage: 'Contacting', stageLabel: translateIncidentStage('Contacting') }
+          : incident
+      ));
+      incidentsRef.current = next;
+      return next;
+    });
+  }, []);
+
   const confirmIncident = useCallback(async (incidentId: string) => {
     try {
       const response = await incidentApi.confirmIncident(incidentId);
@@ -310,6 +326,28 @@ export function useOperatorIncidents(clearRequestFocus?: () => void): UseOperato
     showToast(`Cứu hộ viên đã chấp nhận nhiệm vụ cho sự cố ${incidentCode}`, { type: 'success' });
   }, [showToast]);
 
+  const handleRescuerDeclined = useCallback((payload: RescuerDeclinedPayload) => {
+    const incidentId = payload.incidentId;
+    if (!incidentId) {
+      return;
+    }
+
+    setIncidents((prev) => {
+      const next = prev.map(incident => (
+        incident.id === incidentId
+          ? {
+              ...incident,
+              stage: 'Verified',
+              stageLabel: translateIncidentStage('Verified'),
+              needsRedispatch: true,
+            }
+          : incident
+      ));
+      incidentsRef.current = next;
+      return next;
+    });
+  }, []);
+
   const handleRescuerAborted = useCallback((payload: RescuerAbortedUiPayload) => {
     const incidentId = payload.incidentId;
     if (!incidentId) {
@@ -364,9 +402,11 @@ export function useOperatorIncidents(clearRequestFocus?: () => void): UseOperato
     handleIncidentCreated: addIncidentFromSignalR,
     handleIncidentCancelled: removeIncidentFromSignalR,
     handleIncidentCompleted: completeIncidentFromSignalR,
+    handleDispatchRequested,
     handleRescuerDispatched,
+    handleRescuerDeclined,
     handleRescuerAborted,
-  }), [incidents, focusedIncidentId, lastCreatedIncidentId, clearLastCreatedIncidentId, abortedIncident, clearAbortedIncident, confirmIncident, dispatchIncident, refreshIncidents, hasError, isLoading, urgentIncidentIds, clearUrgentIncident, addIncidentFromSignalR, removeIncidentFromSignalR, completeIncidentFromSignalR, handleRescuerDispatched, handleRescuerAborted]);
+  }), [incidents, focusedIncidentId, lastCreatedIncidentId, clearLastCreatedIncidentId, abortedIncident, clearAbortedIncident, confirmIncident, dispatchIncident, refreshIncidents, hasError, isLoading, urgentIncidentIds, clearUrgentIncident, addIncidentFromSignalR, removeIncidentFromSignalR, completeIncidentFromSignalR, handleDispatchRequested, handleRescuerDispatched, handleRescuerDeclined, handleRescuerAborted]);
 
   return value;
 }

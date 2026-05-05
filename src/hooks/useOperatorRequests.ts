@@ -4,6 +4,7 @@ import type { OperatorSnakeCatchingRequestSummaryResponse } from '@/types/operat
 import type {
   SnakeCatchingMissionAbortedPayload,
   SnakeCatchingMissionCompletedPayload,
+  SnakeCatchingRequestAssignedPayload,
   SnakeCatchingRequestCancelledPayload,
   SnakeCatchingRequestCreatedPayload,
 } from '@/types/snakecatching-request.type';
@@ -69,6 +70,7 @@ export interface UseOperatorRequestsResult {
   clearAbortedRequest: () => void;
   handleRequestCreated: (payload: SnakeCatchingRequestCreatedPayload) => void;
   handleRequestCancelled: (payload: SnakeCatchingRequestCancelledPayload) => void;
+  handleRequestAssigned: (payload: SnakeCatchingRequestAssignedPayload) => void;
   handleRequestAborted: (payload: SnakeCatchingMissionAbortedPayload) => void;
   handleRequestCompleted: (payload: SnakeCatchingMissionCompletedPayload) => void;
 }
@@ -178,6 +180,27 @@ export function useOperatorRequests(): UseOperatorRequestsResult {
     showToast(`Người dùng đã hủy yêu cầu bắt rắn ${requestCode}${reason}`, { type: 'info' });
   }, [showToast]);
 
+  const handleRequestAssigned = useCallback((payload: SnakeCatchingRequestAssignedPayload) => {
+    const assignedRescuerId = payload.assignedRescuerId ?? payload.AssignedRescuerId ?? null;
+    const status = payload.status ?? 'Assigned';
+
+    setRequests((prev) => {
+      const next = prev.map(request => (
+        request.id === payload.id
+          ? {
+              ...request,
+              status,
+              statusLabel: translateRequestStatus(status),
+              assignedRescuerId,
+              needsRedispatch: false,
+            }
+          : request
+      ));
+      requestsRef.current = next;
+      return next;
+    });
+  }, []);
+
   const handleRequestAborted = useCallback((payload: SnakeCatchingMissionAbortedPayload) => {
     setAbortedRequest({
       requestId: payload.requestId,
@@ -260,6 +283,7 @@ export function useOperatorRequests(): UseOperatorRequestsResult {
     clearAbortedRequest,
     handleRequestCreated: handleCreated,
     handleRequestCancelled: handleCancelled,
+    handleRequestAssigned,
     handleRequestAborted,
     handleRequestCompleted,
   }), [
@@ -278,6 +302,7 @@ export function useOperatorRequests(): UseOperatorRequestsResult {
     clearAbortedRequest,
     handleCreated,
     handleCancelled,
+    handleRequestAssigned,
     handleRequestAborted,
     handleRequestCompleted,
   ]);
