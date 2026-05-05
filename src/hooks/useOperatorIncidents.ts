@@ -70,7 +70,7 @@ export interface UseOperatorIncidentsResult {
   setAbortedIncident: (incident: { incidentId: string; reason?: string } | null) => void;
   clearAbortedIncident: () => void;
   confirmIncident: (incidentId: string) => Promise<void>;
-  dispatchIncident: (incidentId: string, rescuerId: string) => Promise<void>;
+  dispatchIncident: (incidentId: string, rescuerId: string, requestPayload?: { allowOffDuty: boolean; operatorNote: string }) => Promise<void>;
   refreshIncidents: () => Promise<void>;
   hasError: boolean;
   isLoading: boolean;
@@ -281,9 +281,9 @@ export function useOperatorIncidents(clearRequestFocus?: () => void): UseOperato
     }
   }, []);
 
-  const dispatchIncident = useCallback(async (incidentId: string, rescuerId: string) => {
+  const dispatchIncident = useCallback(async (incidentId: string, rescuerId: string, requestPayload?: { allowOffDuty: boolean; operatorNote: string }) => {
     try {
-      const response = await incidentApi.dispatchIncident(incidentId, { rescuerId });
+      const response = await incidentApi.dispatchIncident(incidentId, { rescuerId, ...requestPayload });
       upsertIncidentByResponse(response);
     } catch (err) {
       console.error('Failed to dispatch incident', err);

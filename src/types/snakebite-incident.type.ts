@@ -163,6 +163,8 @@ export interface CreateIncidentResponse {
 
 export interface DispatchIncidentRequest {
   rescuerId: string;
+  allowOffDuty?: boolean;
+  operatorNote?: string;
 }
 
 export interface MarkFalseAlarmRequest {

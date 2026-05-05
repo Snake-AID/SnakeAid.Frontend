@@ -1297,6 +1297,11 @@ export default function IncidentsPage() {
                         {' '}
                         {displayOrNoInfo(selectedIncidentDetail.cancellationReason)}
                       </p>
+                      <p className="rounded-lg border border-sky-100 bg-white px-3 py-2 md:col-span-2">
+                        <span className="font-semibold">Ghi chú của điều phối viên:</span>
+                        {' '}
+                        {displayOrNoInfo(selectedIncidentDetail.operatorNotes)}
+                      </p>
                     </div>
                   </div>
 
@@ -1629,15 +1634,20 @@ export default function IncidentsPage() {
                               <span className={`${STATUS_BADGE_BASE_CLASS} ${getMissionStatusBadgeClass(String(mission.status))}`}>
                                 {getMissionStatusLabel(String(mission.status))}
                               </span>
-                              <span className="text-slate-500">
+                              {/* <span className="text-slate-500">
                                 {formatPersonDisplayName(mission.rescuerName, mission.rescuerId)}
-                              </span>
+                              </span> */}
                             </div>
                             <div className="mb-3 grid grid-cols-1 gap-2 text-xs text-slate-600 md:grid-cols-2">
                               <p>
-                                <span className="font-semibold">Rescuer phone:</span>
+                                <span className="font-semibold">Cứu hộ viên:</span>
                                 {' '}
-                                {displayOrNoInfo(mission.rescuerPhone)}
+                                {displayOrNoInfo(mission.rescuerName)}
+                              </p>
+                              <p>
+                                <span className="font-semibold">SĐT cứu hộ viên:</span>
+                                {' '}
+                                {formatPersonDisplayName(mission.rescuerPhone, mission.rescuerId)}
                               </p>
                               <p>
                                 <span className="font-semibold">Tạo lúc:</span>
@@ -1765,8 +1775,8 @@ export default function IncidentsPage() {
                               <span className={`${STATUS_BADGE_BASE_CLASS} ${getDispatchStatusBadgeClass(request.status)}`}>
                                 {getDispatchStatusLabel(request.status)}
                               </span>
-                              <span>
-                                Cứu hộ:
+                              {/* <span>
+                                Cứu hộ viên:
                                 {' '}
                                 {formatPersonDisplayName(request.rescuerName, request.rescuerId)}
                               </span>
@@ -1777,13 +1787,23 @@ export default function IncidentsPage() {
                               </span>
                               {request.operatorName && (
                                 <span>
-                                  Operator:
+                                  Điều phối viên:
                                   {' '}
                                   {request.operatorName}
                                 </span>
-                              )}
+                              )} */}
                             </div>
                             <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-2">
+                              <p>
+                                <span className="font-semibold">Cứu hộ viên:</span>
+                                {' '}
+                                {formatPersonDisplayName(request.rescuerName, request.rescuerId)}
+                              </p>
+                              <p>
+                                <span className="font-semibold">Điều phối viên:</span>
+                                {' '}
+                                {formatPersonDisplayName(request.operatorName, request.operatorId)}
+                              </p>
                               <p>
                                 <span className="font-semibold">Gửi lúc:</span>
                                 {' '}
@@ -1812,7 +1832,7 @@ export default function IncidentsPage() {
                     <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Thanh toán</p>
                     <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
                       <p>
-                        <span className="font-semibold">Mã giao dịch:</span>
+                        <span className="font-semibold">Mã:</span>
                         {' '}
                         {displayOrNoInfo(selectedIncidentDetail.paymentSummary?.paymentExternalTransactionId)}
                       </p>

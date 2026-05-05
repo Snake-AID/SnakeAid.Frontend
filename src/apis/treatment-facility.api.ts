@@ -38,4 +38,9 @@ export const treatmentFacilityApi = {
     withFallback(path => api.put<TreatmentFacilityResponse>(`${path}/${id}`, data)),
 
   deleteTreatmentFacility: (id: number | string) => withFallback(path => api.delete<void>(`${path}/${id}`)),
+
+  findNearestHospitals: (latitude: number, longitude: number) =>
+    api.get<TreatmentFacilityResponse[]>('/treatment-facilities/find-hospital', {
+      params: { latitude, longitude },
+    }),
 };
