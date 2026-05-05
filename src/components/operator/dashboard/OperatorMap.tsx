@@ -285,9 +285,9 @@ export default function OperatorMap({
                   </div>
                 )}
                 <div>
-                  Nhiệm vụ đang thực hiện:
+                  {/* Nhiệm vụ đang thực hiện:
                   {' '}
-                  {rescuer.activeMissions}
+                  {rescuer.activeMissions} */}
                 </div>
               </div>
             </Popup>

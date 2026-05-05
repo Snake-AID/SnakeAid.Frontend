@@ -101,6 +101,9 @@ const attachHandlers = (connection: HubConnection, handlersRef: React.MutableRef
   connection.on('snakecatchingrequestassigned', (payload) => {
     handlersRef.current.onSnakeCatchingRequestAssigned?.(payload);
   });
+  connection.on('SnakeCatchingRequestAssigned', (payload) => {
+    handlersRef.current.onSnakeCatchingRequestAssigned?.(payload);
+  });
 
   connection.on('snakecatchingrequestcancelled', (payload) => {
     handlersRef.current.onSnakeCatchingRequestCancelled?.(payload);
@@ -190,6 +193,7 @@ const detachHandlers = (connection: HubConnection) => {
   connection.off('snakecatchingrequestcreated');
   connection.off('snakecatchingrequestaccepted');
   connection.off('snakecatchingrequestassigned');
+  connection.off('SnakeCatchingRequestAssigned');
   connection.off('snakecatchingrequestcancelled');
   connection.off('snakecatchingmissionaborted');
   connection.off('SnakeCatchingMissionAborted');

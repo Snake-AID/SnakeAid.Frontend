@@ -37,8 +37,13 @@ const getDisplayLocation = (_id: string, address?: string | null) => {
   return 'Không có địa chỉ';
 };
 
-const getOnlineBadgeClasses = (isOnline: boolean) =>
-  isOnline ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600';
+const getOnlineBadgeClasses = (isOnline: boolean) => (
+  isOnline ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'
+);
+
+const getAvailableBadgeClasses = (isAvailable: boolean | null) => (
+  isAvailable ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+);
 
 export default function OperatorInfoPanels({
   incidents,
@@ -175,22 +180,27 @@ export default function OperatorInfoPanels({
               )
             : (
                 <div className="space-y-3 max-h-[26vh] overflow-y-auto pr-1">
-                  {liveRescuers.map(rescuer => (
-                    <div key={rescuer.id} className="rounded-xl border border-slate-200 p-3">
-                      <p className="font-semibold text-slate-800">{rescuer.name}</p>
-                      <p className="text-xs text-slate-500">
-                        {rescuerRegistry[rescuer.id]?.phoneNumber ?? 'Chưa có SĐT'}
-                      </p>
-                      <p className="text-sm text-slate-500">
-                        <span
-                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${getOnlineBadgeClasses(rescuer.status === 'available' || rescuer.status === 'busy')}`}
-                        >
-                          {rescuer.status === 'available' ? 'Sẵn sàng' : rescuer.status === 'busy' ? 'Bận' : 'Offline'}
-                        </span>
-                        {rescuerRegistry[rescuer.id]?.totalMissions != null ? ` • Nhiệm vụ: ${rescuerRegistry[rescuer.id]?.totalMissions}` : ''}
-                      </p>
-                    </div>
-                  ))}
+                  {liveRescuers.map((rescuer) => {
+                    const isOnline = rescuer.status !== 'offline';
+                    const isAvailable = rescuer.status === 'available' ? true : rescuer.status === 'busy' ? false : null;
+
+                    return (
+                      <div key={rescuer.id} className="rounded-xl border border-slate-200 p-3">
+                        <p className="font-semibold text-slate-800">{rescuer.name}</p>
+                        <p className="text-xs text-slate-500">
+                          {rescuerRegistry[rescuer.id]?.phoneNumber ?? 'Chưa có SĐT'}
+                        </p>
+                        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                          <span className={`inline-flex rounded-full px-2 py-0.5 font-semibold ${getOnlineBadgeClasses(isOnline)}`}>
+                            {isOnline ? 'Trực tuyến' : 'Ngoại tuyến'}
+                          </span>
+                          <span className={`inline-flex rounded-full px-2 py-0.5 font-semibold ${getAvailableBadgeClasses(isAvailable)}`}>
+                            {isAvailable ? 'Sẵn sàng' : 'Bận'}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
         </div>
