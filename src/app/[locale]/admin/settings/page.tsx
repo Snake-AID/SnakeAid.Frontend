@@ -125,8 +125,99 @@ const getFieldValidationErrors = (error: unknown): SettingFormErrors => {
   return errors;
 };
 
+// JSON renderer node component (top-level to satisfy lint rules)
+interface JsonRenderNodeProps {
+  nodeKey?: string;
+  value: any;
+  path: string;
+  collapsed: Record<string, boolean>;
+  toggle: (p: string) => void;
+}
+
+function JsonRenderNode(props: JsonRenderNodeProps) {
+  const { nodeKey, value, path, collapsed, toggle } = props;
+  const isObject = value && typeof value === 'object' && !Array.isArray(value);
+  const isArray = Array.isArray(value);
+
+  if (!isObject && !isArray) {
+    if (nodeKey !== undefined) {
+      return (
+        <div className="ml-4 mt-1 whitespace-pre-wrap text-sm text-slate-700">
+          <span className="font-medium text-slate-800">
+            {nodeKey}
+            :
+          </span>
+          {' '}
+          <span className="text-slate-700">{String(value)}</span>
+        </div>
+      );
+    }
+
+    return (
+      <div className="ml-4 mt-1 whitespace-pre-wrap text-sm text-slate-700">
+        <span className="text-slate-700">{String(value)}</span>
+      </div>
+    );
+  }
+
+  const children = isArray ? value : Object.entries(value ?? {});
+  const collapsedHere = !!collapsed[path];
+
+  return (
+    <div className="mt-2">
+      <button
+        type="button"
+        onClick={() => toggle(path)}
+        className="flex items-center gap-2"
+      >
+        <div className={`w-4 h-4 shrink-0 rounded-sm border border-slate-200 flex items-center justify-center bg-white text-xs ${collapsedHere ? 'rotate-0' : 'rotate-90'}`}>
+          ▶
+        </div>
+        {nodeKey && <div className="text-sm font-medium text-slate-800">{nodeKey}</div>}
+        <div className="text-xs text-slate-500">{isArray ? `[${value.length}]` : `{...}`}</div>
+      </button>
+
+      {!collapsedHere && (
+        <div className="ml-6 mt-2 space-y-1">
+          {isArray
+            ? (value as any[]).map((v, i) => {
+                const childPath = `${path}.${i}`;
+                return (
+                  <div key={childPath}>
+                    <JsonRenderNode value={v} path={childPath} collapsed={collapsed} toggle={toggle} />
+                  </div>
+                );
+              })
+            : (children as [string, any][]).map(([k, v]) => (
+                <div key={k}>
+                  <JsonRenderNode nodeKey={k} value={v} path={`${path}.${k}`} collapsed={collapsed} toggle={toggle} />
+                </div>
+              ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Simple JSON viewer with collapsible nodes to improve readability for term-like config values
+function JsonViewer({ data }: { data: unknown }) {
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+
+  const toggle = (path: string) => {
+    setCollapsed(prev => ({ ...prev, [path]: !prev[path] }));
+  };
+
+  return (
+    <div className="w-full rounded-md border border-slate-200 bg-white p-3 text-sm text-slate-700">
+      <JsonRenderNode value={data} path="$root" collapsed={collapsed} toggle={toggle} />
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const { showToast } = useToast();
+
+  const [showJsonPreviewInModal, setShowJsonPreviewInModal] = useState(false);
 
   const [settings, setSettings] = useState<SystemSetting[]>([]);
   const [listLoading, setListLoading] = useState(true);
@@ -157,7 +248,18 @@ export default function SettingsPage() {
 
   const filteredSettings = useMemo(() => {
     const keyword = searchTerm.trim().toLowerCase();
-    const sorted = [...settings].sort((a, b) => a.settingKey.localeCompare(b.settingKey));
+    // Sort keys alphabetically but place JSON valueType items at the end
+    const sorted = [...settings].sort((a, b) => {
+      if (a.valueType === 'Json' && b.valueType !== 'Json') {
+        return 1;
+      }
+
+      if (b.valueType === 'Json' && a.valueType !== 'Json') {
+        return -1;
+      }
+
+      return a.settingKey.localeCompare(b.settingKey);
+    });
 
     if (!keyword) {
       return sorted;
@@ -259,6 +361,7 @@ export default function SettingsPage() {
     setForm(EMPTY_FORM);
     setFormErrors({});
     setModalError(null);
+    setShowJsonPreviewInModal(false);
   };
 
   const openEditModal = async () => {
@@ -274,6 +377,7 @@ export default function SettingsPage() {
       const detail = selectedDetail ?? await systemSettingApi.getByKey(selectedKey);
       setForm(mapSettingToForm(detail));
       setModalMode('edit');
+      setShowJsonPreviewInModal(false);
     } catch (error) {
       console.error('Failed to prepare edit mode', error);
       const message = getApiErrorMessage(error, 'Không thể tải dữ liệu để chỉnh sửa.');
@@ -289,6 +393,7 @@ export default function SettingsPage() {
     setModalMode(null);
     setFormErrors({});
     setModalError(null);
+    setShowJsonPreviewInModal(false);
   };
 
   const validateForm = (): {
@@ -694,9 +799,21 @@ export default function SettingsPage() {
                     <h4 className="text-sm font-bold text-slate-800">Giá trị</h4>
                     {selectedDetail.valueType === 'Json'
                       ? (
-                          <pre className="mt-2 max-h-90 overflow-auto rounded-lg border border-slate-200 bg-white p-3 text-sm leading-6 text-slate-600">
-                            {formatValueForDetail(selectedDetail.valueType, selectedDetail.value)}
-                          </pre>
+                          <div className="mt-2">
+                            {/* Try render structured JSON viewer; fallback to pre if parse fails */}
+                            {(() => {
+                              try {
+                                const parsed = JSON.parse(selectedDetail.value);
+                                return <JsonViewer data={parsed} />;
+                              } catch {
+                                return (
+                                  <pre className="mt-2 max-h-90 overflow-auto rounded-lg border border-slate-200 bg-white p-3 text-sm leading-6 text-slate-600">
+                                    {formatValueForDetail(selectedDetail.valueType, selectedDetail.value)}
+                                  </pre>
+                                );
+                              }
+                            })()}
+                          </div>
                         )
                       : <p className="mt-1 text-sm leading-6 text-slate-600">{formatValueForDetail(selectedDetail.valueType, selectedDetail.value)}</p>}
                   </div>
@@ -803,13 +920,22 @@ export default function SettingsPage() {
                 <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
                   <p className="text-xs font-semibold text-slate-700">Giá trị</p>
                   {form.valueType === 'Json' && (
-                    <button
-                      type="button"
-                      onClick={formatJsonValue}
-                      className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-100"
-                    >
-                      Định dạng JSON
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={formatJsonValue}
+                        className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-100"
+                      >
+                        Định dạng JSON
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setShowJsonPreviewInModal(prev => !prev)}
+                        className="rounded-md border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-100"
+                      >
+                        {showJsonPreviewInModal ? 'Ẩn cấu trúc' : 'Xem cấu trúc'}
+                      </button>
+                    </div>
                   )}
                 </div>
 
@@ -838,6 +964,20 @@ export default function SettingsPage() {
                       />
                     )}
                 {formErrors.value && <p className="mt-1 text-xs text-rose-600">{formErrors.value}</p>}
+                {form.valueType === 'Json' && showJsonPreviewInModal && (
+                  <div className="mt-3">
+                    {(() => {
+                      try {
+                        const parsed = JSON.parse(form.value || '{}');
+                        return <JsonViewer data={parsed} />;
+                      } catch {
+                        return (
+                          <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">JSON không hợp lệ, không thể hiển thị cấu trúc.</div>
+                        );
+                      }
+                    })()}
+                  </div>
+                )}
               </div>
             </div>
 
