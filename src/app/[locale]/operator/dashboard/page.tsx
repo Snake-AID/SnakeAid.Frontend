@@ -583,6 +583,7 @@ export default function OperatorDashboardPage() {
       await assignRequest(requestId, rescuerId);
       showToast('Đã điều phối cứu hộ.', { type: 'success' });
       await refreshRequests();
+      await loadOnlineRescuers();
     } catch (err) {
       console.error('Failed to assign request', err);
       showToast('Không thể điều phối. Vui lòng thử lại.', { type: 'error' });
