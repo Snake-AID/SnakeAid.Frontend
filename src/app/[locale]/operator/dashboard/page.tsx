@@ -2,11 +2,12 @@
 
 import type { LiveIncident } from '@/components/operator/dashboard/OperatorMap';
 import type { RescuerAbortedUiPayload } from '@/hooks/useOperatorIncidents';
-import type { IncidentCompletedPayload } from '@/types/signalr.type';
+import type { DispatchRequestedPayload, IncidentCompletedPayload, RescuerDeclinedPayload } from '@/types/signalr.type';
 import type { DetailSnakebiteIncidentResponse } from '@/types/snakebite-incident.type';
 import type {
   SnakeCatchingMissionAbortedPayload,
   SnakeCatchingMissionCompletedPayload,
+  SnakeCatchingRequestAssignedPayload,
 } from '@/types/snakecatching-request.type';
 import { UserCheck } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -135,6 +136,79 @@ export default function OperatorDashboardPage() {
     };
   };
 
+  const normalizeDispatchRequestedPayload = (payload: unknown): DispatchRequestedPayload | null => {
+    if (!payload || typeof payload !== 'object') {
+      return null;
+    }
+
+    const data = payload as Record<string, unknown>;
+    const incidentId = (typeof data.incidentId === 'string' ? data.incidentId : data.IncidentId) as string | undefined;
+    const rescuerId = (typeof data.rescuerId === 'string' ? data.rescuerId : data.RescuerId) as string | undefined;
+    const operatorId = (typeof data.operatorId === 'string' ? data.operatorId : data.OperatorId) as string | undefined;
+    const isAvailable = (typeof data.isAvailable === 'boolean' ? data.isAvailable : data.IsAvailable) as boolean | undefined;
+    const requestedAt = (typeof data.requestedAt === 'string' ? data.requestedAt : data.RequestedAt) as string | undefined;
+
+    if (!incidentId || !rescuerId || !operatorId || !requestedAt) {
+      return null;
+    }
+
+    return {
+      incidentId,
+      rescuerId,
+      operatorId,
+      isAvailable: isAvailable ?? false,
+      requestedAt,
+    };
+  };
+
+  const normalizeRescuerDeclinedPayload = (payload: unknown): RescuerDeclinedPayload | null => {
+    if (!payload || typeof payload !== 'object') {
+      return null;
+    }
+
+    const data = payload as Record<string, unknown>;
+    const incidentId = (typeof data.incidentId === 'string' ? data.incidentId : data.IncidentId) as string | undefined;
+    const rescuerId = (typeof data.rescuerId === 'string' ? data.rescuerId : data.RescuerId) as string | undefined;
+    const reason = (typeof data.reason === 'string' ? data.reason : data.Reason) as string | undefined;
+    const declinedAt = (typeof data.declinedAt === 'string' ? data.declinedAt : data.DeclinedAt) as string | undefined;
+
+    if (!incidentId || !rescuerId || !declinedAt) {
+      return null;
+    }
+
+    return {
+      incidentId,
+      rescuerId,
+      reason,
+      declinedAt,
+    };
+  };
+
+  const normalizeSnakeCatchingRequestAssignedPayload = (
+    payload: unknown,
+  ): SnakeCatchingRequestAssignedPayload | null => {
+    if (!payload || typeof payload !== 'object') {
+      return null;
+    }
+
+    const data = payload as Record<string, unknown>;
+    const id = (typeof data.id === 'string' ? data.id : data.Id) as string | undefined;
+    const status = (typeof data.status === 'string' ? data.status : data.Status) as SnakeCatchingRequestAssignedPayload['status'] | undefined;
+    const assignedRescuerId = (typeof data.assignedRescuerId === 'string' ? data.assignedRescuerId : data.AssignedRescuerId) as string | undefined;
+    const isAvailable = (typeof data.isAvailable === 'boolean' ? data.isAvailable : data.IsAvailable) as boolean | undefined;
+
+    if (!id || !status) {
+      return null;
+    }
+
+    return {
+      id,
+      status,
+      assignedRescuerId,
+      isAvailable: isAvailable ?? null,
+    } as SnakeCatchingRequestAssignedPayload;
+  };
+
   const {
     requests,
     focusedRequestId,
@@ -152,6 +226,7 @@ export default function OperatorDashboardPage() {
     clearAbortedRequest,
     handleRequestCreated,
     handleRequestCancelled,
+    handleRequestAssigned,
     handleRequestAborted,
     handleRequestCompleted,
   } = useOperatorRequests();
@@ -184,6 +259,7 @@ export default function OperatorDashboardPage() {
     loadOnlineRescuers,
     clearMissionLocation,
     clearMissionLocationByIncidentId,
+    updateRescuerAvailability,
     handleRescuerOnlineStatus,
     handleRescuerIdleLocationUpdated,
     handleRescuerMissionLocationUpdated,
@@ -218,6 +294,44 @@ export default function OperatorDashboardPage() {
     // Reload rescuer data to get updated status
     void loadRescuerData();
   }, [currentOperatorId, setFocusedRequestId, clearMissionLocation, refreshIncidents, loadRescuerData, applyRescuerAborted]);
+
+  const handleDispatchRequested = useCallback((payload: unknown) => {
+    const normalizedPayload = normalizeDispatchRequestedPayload(payload);
+    if (!normalizedPayload) {
+      return;
+    }
+
+    updateRescuerAvailability(normalizedPayload.rescuerId, normalizedPayload.isAvailable);
+    void refreshIncidents();
+  }, [updateRescuerAvailability, refreshIncidents]);
+
+  const handleSnakeCatchingRequestAssigned = useCallback((payload: unknown) => {
+    const normalizedPayload = normalizeSnakeCatchingRequestAssignedPayload(payload);
+    if (!normalizedPayload) {
+      return;
+    }
+
+    handleRequestAssigned(normalizedPayload);
+
+    const assignedRescuerId = normalizedPayload.assignedRescuerId ?? null;
+    if (assignedRescuerId) {
+      updateRescuerAvailability(assignedRescuerId, normalizedPayload.isAvailable ?? false);
+    }
+  }, [handleRequestAssigned, updateRescuerAvailability]);
+
+  const handleRescuerDeclined = useCallback((payload: unknown) => {
+    const normalizedPayload = normalizeRescuerDeclinedPayload(payload);
+    if (!normalizedPayload) {
+      return;
+    }
+
+    updateRescuerAvailability(normalizedPayload.rescuerId!, true);
+    void refreshIncidents();
+
+    const incidentCode = `INC-${normalizedPayload.incidentId?.slice(-6).toUpperCase()}`;
+    const reasonText = normalizedPayload.reason ? `: ${normalizedPayload.reason}` : '';
+    showToast(`Cứu hộ viên đã từ chối nhiệm vụ cho sự cố ${incidentCode}${reasonText}`, { type: 'warning' });
+  }, [updateRescuerAvailability, refreshIncidents, showToast]);
 
   const handleSnakeCatchingMissionAborted = useCallback((payload: unknown) => {
     const normalizedPayload = normalizeSnakeCatchingMissionAbortedPayload(payload);
@@ -313,10 +427,13 @@ export default function OperatorDashboardPage() {
   useRescuerHub({
     onNewIncidentCreated: handleIncidentCreated,
     onIncidentCancelled: handleIncidentCancelled,
+    onDispatchRequested: handleDispatchRequested,
     onRescuerAborted: handleRescuerAborted,
+    onRescuerDeclined: handleRescuerDeclined,
     onRescuerDispatched: handleRescuerDispatched,
     onSnakeCatchingRequestCreated: handleRequestCreated,
     onSnakeCatchingRequestCancelled: handleRequestCancelled,
+    onSnakeCatchingRequestAssigned: handleSnakeCatchingRequestAssigned,
     onSnakeCatchingMissionAborted: handleSnakeCatchingMissionAborted,
     onSnakeCatchingMissionCompleted: handleSnakeCatchingMissionCompleted,
     onRescuerOnlineStatus: handleRescuerOnlineStatus,

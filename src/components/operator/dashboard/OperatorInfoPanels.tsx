@@ -37,8 +37,17 @@ const getDisplayLocation = (_id: string, address?: string | null) => {
   return 'Không có địa chỉ';
 };
 
-const getOnlineBadgeClasses = (isOnline: boolean) =>
-  isOnline ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600';
+const getOnlineBadgeClasses = (status: LiveRescuer['status']) => {
+  if (status === 'available') {
+    return 'bg-emerald-100 text-emerald-800';
+  }
+
+  if (status === 'busy') {
+    return 'bg-amber-100 text-amber-800';
+  }
+
+  return 'bg-slate-100 text-slate-600';
+};
 
 export default function OperatorInfoPanels({
   incidents,
@@ -183,11 +192,10 @@ export default function OperatorInfoPanels({
                       </p>
                       <p className="text-sm text-slate-500">
                         <span
-                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${getOnlineBadgeClasses(rescuer.status === 'available' || rescuer.status === 'busy')}`}
+                          className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${getOnlineBadgeClasses(rescuer.status)}`}
                         >
                           {rescuer.status === 'available' ? 'Sẵn sàng' : rescuer.status === 'busy' ? 'Bận' : 'Offline'}
                         </span>
-                        {rescuerRegistry[rescuer.id]?.totalMissions != null ? ` • Nhiệm vụ: ${rescuerRegistry[rescuer.id]?.totalMissions}` : ''}
                       </p>
                     </div>
                   ))}
