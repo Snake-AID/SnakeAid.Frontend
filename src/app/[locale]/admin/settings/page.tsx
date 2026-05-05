@@ -309,8 +309,8 @@ export default function SettingsPage() {
 
     if (!normalizedValue) {
       errors.value = 'Giá trị là bắt buộc.';
-    } else if (normalizedValue.length > 2000) {
-      errors.value = 'Giá trị không được vượt quá 2000 ký tự.';
+    } else if (normalizedValue.length > 10000) {
+      errors.value = 'Giá trị không được vượt quá 10000 ký tự.';
     }
 
     if (normalizedDescription.length > 500) {

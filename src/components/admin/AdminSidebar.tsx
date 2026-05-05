@@ -10,7 +10,6 @@ import {
   ChevronDown,
   ChevronLeft,
   ClipboardList,
-  FileText,
   FlaskConical,
   HandCoins,
   Images,
@@ -96,7 +95,6 @@ export default function AdminSidebar({
         { id: 'settings', icon: SlidersHorizontal, label: 'Quản lý cấu hình động', href: '/admin/settings', enabled: true },
         { id: 'symptom-configs', icon: SlidersHorizontal, label: 'Quản lý cấu hình triệu chứng', href: '/admin/symptom-configs', enabled: true },
         { id: 'catching-environments', icon: MapPin, label: 'Quản lý cấu hình môi trường', href: '/admin/catching-environments', enabled: true },
-        { id: 'policies', icon: FileText, label: 'Quản lý điều khoản', href: '/admin/policies', enabled: true },
       ],
     },
   ];
