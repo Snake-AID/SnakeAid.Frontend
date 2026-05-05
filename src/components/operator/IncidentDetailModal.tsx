@@ -514,9 +514,9 @@ export default function IncidentDetailModal({
                                   Nhiệm vụ đang thực thi
                                 </p>
                               </div>
-                              <span className="rounded-full bg-purple-600 px-2 py-0.5 text-[10px] font-bold text-white">
+                              {/* <span className="rounded-full bg-purple-600 px-2 py-0.5 text-[10px] font-bold text-white">
                                 LIVE
-                              </span>
+                              </span> */}
                             </div>
 
                             {!incident.activeMission
@@ -525,8 +525,7 @@ export default function IncidentDetailModal({
                                     <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-purple-100">
                                       <Clock className="h-5 w-5 text-purple-600 animate-pulse" />
                                     </div>
-                                    <p className="text-sm font-medium text-purple-700">Đang chờ rescuer chấp nhận nhiệm vụ...</p>
-                                    <p className="mt-1 text-xs text-purple-500">Mission sẽ được tạo khi rescuer xác nhận</p>
+                                    <p className="text-sm font-medium text-purple-700">Chưa có nhiệm vụ</p>
                                   </div>
                                 )
                               : (
@@ -617,7 +616,7 @@ export default function IncidentDetailModal({
                                     </div>
 
                                     {/* Mission Stats */}
-                                    {(incident.activeMission.estimatedCost || incident.activeMission.actualCost) && (
+                                    {/* {(incident.activeMission.estimatedCost || incident.activeMission.actualCost) && (
                                       <div className="grid grid-cols-2 gap-2">
                                         {incident.activeMission.estimatedCost && (
                                           <div className="rounded-lg border border-purple-200 bg-white p-2">
@@ -640,7 +639,7 @@ export default function IncidentDetailModal({
                                           </div>
                                         )}
                                       </div>
-                                    )}
+                                    )} */}
                                   </div>
                                 )}
                           </div>
