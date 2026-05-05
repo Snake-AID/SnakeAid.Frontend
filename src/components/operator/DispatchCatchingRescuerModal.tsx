@@ -1,87 +1,55 @@
 'use client';
 
-import type { OffDutyRescuerItemResponse, OnDutyRescuerItemResponse } from '@/types/operator.type';
-import { Ambulance, Building2, Check, MapPin, Navigation, RefreshCw, UserRound, X } from 'lucide-react';
+import type { OnDutyRescuerItemResponse } from '@/types/operator.type';
+import { Ambulance, Check, MapPin, Navigation, RefreshCw, UserRound, X } from 'lucide-react';
 
 import { useEffect, useMemo, useState } from 'react';
 import { operatorApi } from '@/apis/operator.api';
 import { useToast } from '@/components/ToastProvider';
 
-export interface DispatchRescuerModalProps {
-  incidentId?: string;
+export interface DispatchCatchingRescuerModalProps {
   catchingRequestId?: string;
   isOpen: boolean;
   onClose: () => void;
-  onDispatch: (rescuerId: string, requestPayload?: { allowOffDuty: boolean; operatorNote: string }) => Promise<void>;
-  onOpenHospitalModal?: () => void;
+  onDispatch: (rescuerId: string) => Promise<void>;
 }
 
-export default function DispatchRescuerModal({
-  incidentId,
+export default function DispatchCatchingRescuerModal({
   catchingRequestId,
   isOpen,
   onClose,
   onDispatch,
-  onOpenHospitalModal,
-}: DispatchRescuerModalProps) {
-  const [rescuers, setRescuers] = useState<OnDutyRescuerItemResponse[] | OffDutyRescuerItemResponse[]>([]);
+}: DispatchCatchingRescuerModalProps) {
+  const [rescuers, setRescuers] = useState<OnDutyRescuerItemResponse[]>([]);
   const [selectedRescuerId, setSelectedRescuerId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isDispatching, setIsDispatching] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { showToast } = useToast();
 
-  const [activePool, setActivePool] = useState<'onDuty' | 'offDuty'>('onDuty');
-
-  // const [onlyInShift, setOnlyInShift] = useState(true);
-  // const [onlyOnline, setOnlyOnline] = useState(true);
   const [sortByDistance, setSortByDistance] = useState(true);
 
-  const loadRescuers = async (pool = activePool) => {
+  const loadRescuers = async () => {
     setIsLoading(true);
     setError(null);
     try {
-      if (pool === 'onDuty') {
-        const params: {
-          date?: string;
-          incidentId?: string;
-          catchingRequestId?: string;
-          onlyAvailable: boolean;
-          maxDistanceKm?: number;
-        } = {
-          onlyAvailable: true,
-        };
+      const params: {
+        date?: string;
+        catchingRequestId?: string;
+        onlyAvailable: boolean;
+        maxDistanceKm?: number;
+      } = {
+        onlyAvailable: true,
+      };
 
-        if (incidentId) {
-          params.incidentId = incidentId;
-        }
-
-        if (catchingRequestId) {
-          params.catchingRequestId = catchingRequestId;
-        }
-
-        const response = await operatorApi.getOnDutyRescuers(params);
-        setRescuers(response.rescuers);
-      } else {
-        const params: {
-          incidentId?: string;
-          catchingRequestId?: string;
-          maxDistanceKm?: number;
-        } = {};
-
-        if (incidentId) {
-          params.incidentId = incidentId;
-        }
-
-        if (catchingRequestId) {
-          params.catchingRequestId = catchingRequestId;
-        }
-
-        const response = await operatorApi.getOffDutyRescuers(params);
-        setRescuers(response.rescuers);
+      if (catchingRequestId) {
+        params.catchingRequestId = catchingRequestId;
       }
+
+      const response = await operatorApi.getOnDutyRescuers(params);
+      setRescuers(response.rescuers);
     } catch (err) {
-      console.error('Failed to load rescuers', err);
+      console.error('Failed to load on-duty rescuers', err);
       setError('Không thể tải danh sách đội cứu hộ. Vui lòng thử lại.');
     } finally {
       setIsLoading(false);
@@ -90,28 +58,12 @@ export default function DispatchRescuerModal({
 
   useEffect(() => {
     if (isOpen) {
-      loadRescuers(activePool);
+      loadRescuers();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, incidentId, catchingRequestId, activePool]);
-
-  const handlePoolChange = (pool: 'onDuty' | 'offDuty') => {
-    setSelectedRescuerId(null);
-    setActivePool(pool);
-  };
-
-  const isOnDutyRescuer = (rescuer: OnDutyRescuerItemResponse | OffDutyRescuerItemResponse): rescuer is OnDutyRescuerItemResponse => 'shiftName' in rescuer;
+  }, [isOpen, catchingRequestId]);
 
   const filteredRescuers = useMemo(() => {
-    // let list = [...rescuers];
-
-    // if (onlyInShift) {
-    //   list = list.filter(item => item.isOnDutyNow || item.assignmentStatus === 'Active');
-    // }
-
-    // if (onlyOnline) {
-    //   list = list.filter(item => item.isOnline);
-    // }
     const list = [...rescuers];
 
     if (sortByDistance) {
@@ -123,29 +75,16 @@ export default function DispatchRescuerModal({
     }
 
     return list;
-  // [onlyInShift, onlyOnline, sortByDistance, rescuers]);
   }, [sortByDistance, rescuers]);
-
-  const selectedRescuer = selectedRescuerId ? filteredRescuers.find(rescuer => rescuer.rescuerId === selectedRescuerId) : undefined;
-  const offDutyRequestNote = selectedRescuer && !isOnDutyRescuer(selectedRescuer)
-    ? `Điều phối cứu hộ viên: ${selectedRescuer.fullName} ngoài ca trực vào lúc ${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Ho_Chi_Minh' })}`
-    : undefined;
 
   const handleDispatch = async () => {
     if (!selectedRescuerId) {
       return;
     }
 
-    const requestPayload = offDutyRequestNote
-      ? {
-          allowOffDuty: true,
-          operatorNote: offDutyRequestNote,
-        }
-      : undefined;
-
     setIsDispatching(true);
     try {
-      await onDispatch(selectedRescuerId, requestPayload);
+      await onDispatch(selectedRescuerId);
       onClose();
       showToast('Điều phối đội cứu hộ thành công.', { type: 'success' });
     } catch (err) {
@@ -202,40 +141,9 @@ export default function DispatchRescuerModal({
           </div>
           <div className="space-y-2">
             <p className="text-sm text-slate-600">
-              {activePool === 'onDuty'
-                ? 'Danh sách đã lọc theo ca trực, online và sẵn sàng.'
-                : 'Danh sách cứu hộ viên online, sẵn sàng và ngoài ca trực.'}
+              Danh sách đã lọc theo ca trực, online và sẵn sàng.
             </p>
-            {activePool === 'offDuty' && (
-              <button
-                type="button"
-                onClick={() => handlePoolChange('onDuty')}
-                className="text-xs font-semibold text-teal-700 hover:underline"
-              >
-                Quay lại danh sách trong ca
-              </button>
-            )}
             <div className="flex flex-wrap gap-2">
-              {/*
-              <button
-                type="button"
-                onClick={() => setOnlyInShift(prev => !prev)}
-                className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                  onlyInShift ? 'bg-teal-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                Chỉ trong ca
-              </button>
-              <button
-                type="button"
-                onClick={() => setOnlyOnline(prev => !prev)}
-                className={`rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                  onlyOnline ? 'bg-teal-700 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                }`}
-              >
-                Chỉ online
-              </button>
-              */}
               <button
                 type="button"
                 onClick={() => setSortByDistance(prev => !prev)}
@@ -261,35 +169,14 @@ export default function DispatchRescuerModal({
               ? (
                   <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-6 py-10 text-center">
                     <p className="text-sm font-medium text-slate-600">Không có đội cứu hộ phù hợp.</p>
-                    <div className="mt-3 flex flex-col items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => loadRescuers()}
-                        className="inline-flex items-center gap-2 rounded-lg bg-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-300"
-                      >
-                        <RefreshCw className="size-3.5" />
-                        Làm mới danh sách
-                      </button>
-                      {activePool === 'onDuty' && (
-                        <button
-                          type="button"
-                          onClick={() => handlePoolChange('offDuty')}
-                          className="text-[11px] font-semibold text-amber-600 hover:underline"
-                        >
-                          Xem đội cứu hộ ngoài ca
-                        </button>
-                      )}
-                      {activePool === 'offDuty' && onOpenHospitalModal && (
-                        <button
-                          type="button"
-                          onClick={onOpenHospitalModal}
-                          className="inline-flex items-center gap-2 rounded-lg bg-orange-100 px-3 py-2 text-xs font-semibold text-orange-700 hover:bg-orange-200"
-                        >
-                          <Building2 className="size-3.5" />
-                          Chuyển tuyến bệnh viện
-                        </button>
-                      )}
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => loadRescuers()}
+                      className="mt-3 inline-flex items-center gap-2 rounded-lg bg-slate-200 px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-300"
+                    >
+                      <RefreshCw className="size-3.5" />
+                      Làm mới danh sách
+                    </button>
                   </div>
                 )
               : (
@@ -345,7 +232,7 @@ export default function DispatchRescuerModal({
                               <UserRound className="size-4 text-teal-700" />
                               Ca:
                               {' '}
-                              {isOnDutyRescuer(rescuer) ? rescuer.shiftName : 'Ngoài ca'}
+                              {rescuer.shiftName}
                             </span>
                           </div>
 
@@ -360,13 +247,6 @@ export default function DispatchRescuerModal({
                     })}
                   </div>
                 )}
-          {offDutyRequestNote && (
-            <div className="border-t border-amber-100 bg-amber-50 px-6 py-3 text-sm text-amber-900">
-              <span className="font-semibold">Nội dung yêu cầu:</span>
-              {' '}
-              {offDutyRequestNote}
-            </div>
-          )}
         </div>
 
         {/* Footer actions */}
