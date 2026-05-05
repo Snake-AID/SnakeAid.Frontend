@@ -92,9 +92,8 @@ const STATUS_OPTIONS: Array<{ label: string; value: string }> = [
   { label: 'Đang diễn ra', value: 'Ongoing' },
   { label: 'Hoàn thành', value: 'Completed' },
   { label: 'Đã hủy', value: 'Cancelled' },
-  { label: 'Người dùng vắng mặt', value: 'UserAbsent' },
   { label: 'Chuyên gia vắng mặt', value: 'ExpertAbsent' },
-  { label: 'Cả hai vắng mặt', value: 'AllAbsent' },
+  { label: 'Đã xử lý vắng mặt chuyên gia', value: 'ExpertAbsentHandled' },
 ];
 
 const getStatusConfig = (status: string | null | undefined) => {
@@ -108,8 +107,11 @@ const getStatusConfig = (status: string | null | undefined) => {
     case 'Cancelled':
       return { class: 'bg-slate-200 text-slate-700 border-slate-300', label: 'Đã hủy', icon: <X className="size-3.5" /> };
     case 'UserAbsent':
+      return { class: 'bg-amber-100 text-amber-700 border-amber-200', label: 'Khách vắng', icon: <AlertTriangle className="size-3.5" /> };
     case 'ExpertAbsent':
-      return { class: 'bg-amber-100 text-amber-700 border-amber-200', label: status === 'UserAbsent' ? 'Khách vắng' : 'Chuyên gia vắng', icon: <AlertTriangle className="size-3.5" /> };
+      return { class: 'bg-amber-100 text-amber-700 border-amber-200', label: 'Chuyên gia vắng mặt', icon: <AlertTriangle className="size-3.5" /> };
+    case 'ExpertAbsentHandled':
+      return { class: 'bg-emerald-100 text-emerald-700 border-emerald-200', label: 'Đã xử lý vắng mặt chuyên gia', icon: <CheckCircle2 className="size-3.5" /> };
     case 'AllAbsent':
       return { class: 'bg-rose-100 text-rose-700 border-rose-200', label: 'Cả 2 vắng mặt', icon: <Ban className="size-3.5" /> };
     case 'Pending':
@@ -126,6 +128,8 @@ const getStatusConfig = (status: string | null | undefined) => {
       return { class: 'bg-slate-200 text-slate-600 border-slate-300', label: 'Đã hết hạn', icon: <Clock className="size-3.5" /> };
     case 'NoExpertAvailable':
       return { class: 'bg-rose-100 text-rose-700 border-rose-200', label: 'Không có chuyên gia', icon: <AlertCircle className="size-3.5" /> };
+    case 'Refunded':
+      return { class: 'bg-emerald-100 text-emerald-700 border-emerald-200', label: 'Đã hoàn tiền', icon: <CheckCircle2 className="size-3.5" /> };
     default:
       return { class: 'bg-slate-100 text-slate-700 border-slate-200', label: status ?? '-', icon: <AlertCircle className="size-3.5" /> };
   }
@@ -166,7 +170,8 @@ export default function ConsultationsManagementPage() {
   const [selectedItem, setSelectedItem] = useState<AdminConsultationDetailResponse | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
-  const [incidentItems, setIncidentItems] = useState<AdminConsultationItem[]>([]);
+  const [pendingAbsentItems, setPendingAbsentItems] = useState<AdminConsultationItem[]>([]);
+  const [absentLoading, setAbsentLoading] = useState(false);
 
   const [typeFilter, setTypeFilter] = useState<AdminConsultationType | ''>('');
   const [searchKeyword, setSearchKeyword] = useState('');
@@ -219,26 +224,32 @@ export default function ConsultationsManagementPage() {
 
   useEffect(() => {
     let cancelled = false;
-    const loadIncidents = async () => {
+    const loadAbsents = async () => {
+      setAbsentLoading(true);
       try {
-        const response = await adminConsultationApi.getPaged({
+        const pendingResponse = await adminConsultationApi.getPaged({
           pageNumber: 1,
-          pageSize: 8,
+          pageSize: 12,
           status: 'ExpertAbsent',
         });
         if (cancelled) {
           return;
         }
-        const withReport = (response.items ?? []).filter(item => (item.customerReport?.trim() ?? '').length > 0);
-        setIncidentItems(withReport);
+        const withReport = (items: AdminConsultationItem[]) =>
+          items.filter(item => (item.customerReport?.trim() ?? '').length > 0);
+        setPendingAbsentItems(withReport(pendingResponse.items ?? []));
       } catch {
         if (cancelled) {
           return;
         }
-        setIncidentItems([]);
+        setPendingAbsentItems([]);
+      } finally {
+        if (!cancelled) {
+          setAbsentLoading(false);
+        }
       }
     };
-    void loadIncidents();
+    void loadAbsents();
     return () => {
       cancelled = true;
     };
@@ -273,6 +284,24 @@ export default function ConsultationsManagementPage() {
     }
   };
 
+  const confirmAbsentHandled = async (consultationId: string) => {
+    // eslint-disable-next-line no-alert
+    const confirmed = window.confirm('Bạn có chắc đã xử lý xong báo cáo chuyên gia vắng mặt này? Hành động này sẽ đánh dấu phiên tư vấn là đã xử lý.');
+    if (!confirmed) {
+      return;
+    }
+    try {
+      const updated = await adminConsultationApi.confirmExpertAbsentHandled(consultationId);
+      setPendingAbsentItems(prev => prev.filter(item => item.consultationId !== consultationId));
+      setItems(prev => prev.map(item => item.consultationId === consultationId ? { ...item, status: updated.status } : item));
+      setSelectedItem(prev => (prev && prev.consultationId === consultationId ? updated : prev));
+      showToast('Đã đánh dấu phiên tư vấn là đã xử lý.', { type: 'success' });
+    } catch (error) {
+      const message = getApiErrorMessage(error, 'Không thể xác nhận đã xử lý báo cáo này.');
+      showToast(message, { type: 'error' });
+    }
+  };
+
   return (
     <main className="h-[calc(100vh-81px)] overflow-y-auto bg-slate-50/50 p-6 lg:p-8">
       <div className="mx-auto flex max-w-7xl flex-col gap-8">
@@ -285,47 +314,54 @@ export default function ConsultationsManagementPage() {
           </div>
         </header>
 
-        {incidentItems.length > 0 && (
-          <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 shadow-sm">
-            <div className="mb-4 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-rose-100">
-                  <AlertTriangle className="size-4 text-rose-600" />
-                </div>
-                <h3 className="text-base font-bold text-slate-900">Sự cố tư vấn (Khách báo chuyên gia vắng mặt)</h3>
+        {!absentLoading && pendingAbsentItems.length > 0 && (
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">Giải quyết vấn đề</h3>
+                <p className="text-sm text-slate-500">Các báo cáo chuyên gia vắng mặt cần xử lý.</p>
               </div>
-              <span className="rounded-full bg-rose-100 px-3 py-1 text-xs font-bold text-rose-700">
-                {incidentItems.length}
+              <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+                {pendingAbsentItems.length}
                 {' '}
-                sự cố gần nhất
+                cần giải quyết
               </span>
             </div>
 
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {incidentItems.map(item => (
-                <div key={`incident-${item.consultationId}`} className="group relative overflow-hidden rounded-xl border border-rose-100 bg-white p-4 shadow-sm transition-all hover:shadow-md">
+            <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {pendingAbsentItems.map(item => (
+                <div key={`absent-${item.consultationId}`} className="group relative overflow-hidden rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md">
                   <div className="mb-3 flex items-center justify-between">
-                    <span className="font-bold text-rose-700">{formatShortId(item.consultationId)}</span>
+                    <span className="font-bold text-indigo-700">{formatShortId(item.consultationId)}</span>
                     <button
                       type="button"
                       onClick={() => void openDetail(item.consultationId)}
-                      className="text-xs font-semibold text-rose-600 hover:text-rose-800"
+                      className="text-xs font-semibold text-indigo-600 hover:text-indigo-800"
                     >
-                      Xem ngay &rarr;
+                      Xem chi tiết &rarr;
                     </button>
                   </div>
                   <p className="text-sm text-slate-700 line-clamp-2">{formatReportSnippet(item.customerReport)}</p>
-                  <div className="mt-3 flex items-center gap-2 text-xs text-slate-500">
-                    <Clock className="size-3.5" />
-                    <span>
-                      Gửi lúc:
-                      {formatDateTime(item.customerReportSubmittedAt)}
-                    </span>
+                  <div className="mt-3 flex items-center justify-between gap-2 text-xs text-slate-500">
+                    <div className="flex items-center gap-2">
+                      <Clock className="size-3.5" />
+                      <span>
+                        Gửi lúc:
+                        {formatDateTime(item.customerReportSubmittedAt)}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => void confirmAbsentHandled(item.consultationId)}
+                      className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-100"
+                    >
+                      Xác nhận đã xử lý
+                    </button>
                   </div>
                 </div>
               ))}
             </div>
-          </div>
+          </section>
         )}
 
         <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center">
@@ -383,6 +419,7 @@ export default function ConsultationsManagementPage() {
                 {[10, 20, 50].map(size => (
                   <option key={size} value={size}>
                     Hiển thị
+                    {' '}
                     {size}
                     {' '}
                     dòng
@@ -580,16 +617,28 @@ export default function ConsultationsManagementPage() {
                     )}
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedItem(null);
-                    setDetailError(null);
-                  }}
-                  className="rounded-full p-2 text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition-colors"
-                >
-                  <X className="size-5" />
-                </button>
+                <div className="flex items-center gap-2">
+                  {selectedItem?.status === 'ExpertAbsent' && (
+                    <button
+                      type="button"
+                      onClick={() => void confirmAbsentHandled(selectedItem.consultationId)}
+                      className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-1.5 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-100"
+                    >
+                      <CheckCircle2 className="size-4" />
+                      Xác nhận đã xử lý
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedItem(null);
+                      setDetailError(null);
+                    }}
+                    className="rounded-full p-2 text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition-colors"
+                  >
+                    <X className="size-5" />
+                  </button>
+                </div>
               </div>
 
               {/* Modal Content */}

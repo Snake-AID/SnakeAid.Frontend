@@ -2,7 +2,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import RoleRouteGuard from '@/components/auth/RoleRouteGuard';
 import OperatorSidebar from '@/components/operator/OperatorSidebar';
 import OperatorTopbar from '@/components/operator/OperatorTopbar';
@@ -10,6 +10,16 @@ import OperatorTopbar from '@/components/operator/OperatorTopbar';
 export default function OperatorLayout({ children }: { children: React.ReactNode }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSidebarVisible, setIsSidebarVisible] = useState(false);
+
+  useEffect(() => {
+    const initLayout = () => {
+      if (window.innerWidth < 1024) {
+        setIsSidebarOpen(false);
+        setIsSidebarVisible(false);
+      }
+    };
+    initLayout();
+  }, []);
 
   const openSidebar = () => {
     setIsSidebarVisible(true);

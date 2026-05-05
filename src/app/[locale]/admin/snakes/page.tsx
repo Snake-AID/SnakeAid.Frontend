@@ -17,8 +17,10 @@ import {
   AlertTriangle,
   BadgeCheck,
   Edit3,
+  Loader2,
   Plus,
   RefreshCcw,
+  SearchX,
   ShieldAlert,
   ShieldCheck,
   Trash2,
@@ -457,6 +459,10 @@ interface ActiveRegionDialog {
 export default function SnakesPage() {
   const { showToast } = useToast();
   const [species, setSpecies] = useState<SnakeSpeciesSummary[]>([]);
+  const [nameFilter, setNameFilter] = useState('');
+  const [riskLevelFilter, setRiskLevelFilter] = useState('');
+  const [pageSize, setPageSize] = useState(10);
+  const [pageNumber, setPageNumber] = useState(1);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [selectedDetail, setSelectedDetail] = useState<SnakeSpeciesDetail | null>(null);
   const [regions, setRegions] = useState<GeographicRegionResponse[]>([]);
@@ -495,6 +501,68 @@ export default function SnakesPage() {
     () => mappings.length,
     [mappings],
   );
+
+  const trimmedNameFilter = useMemo(() => nameFilter.trim().toLowerCase(), [nameFilter]);
+  const parsedRiskLevelFilter = useMemo(() => {
+    const value = riskLevelFilter.trim();
+    if (!value) {
+      return null;
+    }
+
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }, [riskLevelFilter]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setPageNumber(1);
+    }, 350);
+
+    return () => window.clearTimeout(timer);
+  }, [trimmedNameFilter, riskLevelFilter]);
+
+  const filteredSpecies = useMemo(() => {
+    return species.filter((item) => {
+      if (trimmedNameFilter) {
+        const haystack = `${item.commonName} ${item.scientificName}`.toLowerCase();
+        if (!haystack.includes(trimmedNameFilter)) {
+          return false;
+        }
+      }
+
+      if (parsedRiskLevelFilter != null && item.riskLevel !== parsedRiskLevelFilter) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [parsedRiskLevelFilter, species, trimmedNameFilter]);
+
+  const totalItems = filteredSpecies.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+  const currentPage = Math.min(pageNumber, totalPages);
+  const pagedSpecies = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredSpecies.slice(start, start + pageSize);
+  }, [currentPage, filteredSpecies, pageSize]);
+
+  useEffect(() => {
+    if (pageNumber > totalPages) {
+      setPageNumber(totalPages);
+    }
+  }, [pageNumber, totalPages]);
+
+  useEffect(() => {
+    if (selectedId == null) {
+      return;
+    }
+
+    if (!filteredSpecies.some(item => item.id === selectedId)) {
+      setSelectedId(null);
+      setSelectedDetail(null);
+      setMappings([]);
+    }
+  }, [filteredSpecies, selectedId]);
 
   const mappingByRegionId = useMemo(
     () => mappings.reduce<Record<number, RegionSnakeMappingResponse>>((acc, item) => {
@@ -835,6 +903,44 @@ export default function SnakesPage() {
               </button>
             </div>
           </div>
+          <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-3">
+            <div>
+              <p className="mb-1 text-xs font-semibold text-slate-700">Tìm theo tên</p>
+              <input
+                value={nameFilter}
+                onChange={e => setNameFilter(e.target.value)}
+                placeholder="Tên thường gọi hoặc khoa học"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-rose-600"
+              />
+            </div>
+            <div>
+              <p className="mb-1 text-xs font-semibold text-slate-700">Độ nguy hiểm</p>
+              <input
+                type="number"
+                min={0}
+                step="0.1"
+                value={riskLevelFilter}
+                onChange={e => setRiskLevelFilter(e.target.value)}
+                placeholder="Ví dụ: 7"
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-rose-600"
+              />
+            </div>
+            <div>
+              <p className="mb-1 text-xs font-semibold text-slate-700">Số dòng / trang</p>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value));
+                  setPageNumber(1);
+                }}
+                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-rose-600"
+              >
+                {[10, 20, 50].map(size => (
+                  <option key={size} value={size}>{size}</option>
+                ))}
+              </select>
+            </div>
+          </div>
           {actionError && (
             <div className="mt-3 rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
               {actionError}
@@ -848,7 +954,7 @@ export default function SnakesPage() {
               <div className="mb-3 flex items-center justify-between">
                 <h3 className="text-base font-bold text-slate-900">Danh sách loài rắn</h3>
                 <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
-                  {species.length}
+                  {totalItems}
                   {' '}
                   loài
                 </span>
@@ -856,7 +962,10 @@ export default function SnakesPage() {
 
               {isListLoading && (
                 <div className="flex h-40 items-center justify-center text-sm text-slate-500">
-                  Đang tải dữ liệu...
+                  <div className="inline-flex items-center gap-2">
+                    <Loader2 className="size-4 animate-spin" />
+                    Đang tải dữ liệu...
+                  </div>
                 </div>
               )}
 
@@ -866,9 +975,18 @@ export default function SnakesPage() {
                 </div>
               )}
 
-              {!isListLoading && !listError && (
+              {!isListLoading && !listError && pagedSpecies.length === 0 && (
+                <div className="flex h-40 items-center justify-center text-sm text-slate-500">
+                  <div className="inline-flex items-center gap-2">
+                    <SearchX className="size-4" />
+                    Không có loài rắn phù hợp.
+                  </div>
+                </div>
+              )}
+
+              {!isListLoading && !listError && pagedSpecies.length > 0 && (
                 <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
-                  {species.map((item) => {
+                  {pagedSpecies.map((item) => {
                     const isActive = item.id === selectedId;
 
                     return (
@@ -920,6 +1038,48 @@ export default function SnakesPage() {
                       </button>
                     );
                   })}
+                </div>
+              )}
+
+              {!isListLoading && !listError && (
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
+                  <p>
+                    Tổng
+                    {' '}
+                    <span className="font-semibold text-slate-800">{totalItems}</span>
+                    {' '}
+                    loài
+                  </p>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={currentPage <= 1 || isListLoading}
+                      onClick={() => setPageNumber(prev => Math.max(1, prev - 1))}
+                      className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      Trước
+                    </button>
+
+                    <span className="rounded-lg bg-slate-100 px-3 py-1.5 text-sm font-semibold text-slate-700">
+                      Trang
+                      {' '}
+                      {currentPage}
+                      {' '}
+                      /
+                      {' '}
+                      {totalPages}
+                    </span>
+
+                    <button
+                      type="button"
+                      disabled={currentPage >= totalPages || isListLoading}
+                      onClick={() => setPageNumber(prev => prev + 1)}
+                      className="rounded-lg border border-slate-200 px-3 py-1.5 text-sm font-semibold text-slate-700 hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      Sau
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
