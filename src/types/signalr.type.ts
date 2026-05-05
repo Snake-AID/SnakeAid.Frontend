@@ -25,11 +25,11 @@ export interface RescuerAcceptedPayload {
 }
 
 export interface RescuerDeclinedPayload {
+  incidentId?: string;
   requestId?: string;
   rescuerId?: string;
   reason?: string;
   declinedAt?: string; // ISO date string
-  [key: string]: unknown;
 }
 
 export interface NewIncidentCreatedPayload {
@@ -72,6 +72,7 @@ export interface DispatchRequestedPayload {
   incidentId: string;
   rescuerId: string;
   operatorId: string;
+  isAvailable: boolean;
   requestedAt: string;
 }
 
