@@ -92,10 +92,8 @@ const STATUS_OPTIONS: Array<{ label: string; value: string }> = [
   { label: 'Đang diễn ra', value: 'Ongoing' },
   { label: 'Hoàn thành', value: 'Completed' },
   { label: 'Đã hủy', value: 'Cancelled' },
-  { label: 'Người dùng vắng mặt', value: 'UserAbsent' },
   { label: 'Chuyên gia vắng mặt', value: 'ExpertAbsent' },
-  { label: 'Đã xử lý chuyên gia vắng mặt', value: 'ExpertAbsentHandled' },
-  { label: 'Cả hai vắng mặt', value: 'AllAbsent' },
+  { label: 'Đã xử lý vắng mặt chuyên gia', value: 'ExpertAbsentHandled' },
 ];
 
 const getStatusConfig = (status: string | null | undefined) => {
@@ -109,10 +107,11 @@ const getStatusConfig = (status: string | null | undefined) => {
     case 'Cancelled':
       return { class: 'bg-slate-200 text-slate-700 border-slate-300', label: 'Đã hủy', icon: <X className="size-3.5" /> };
     case 'UserAbsent':
+      return { class: 'bg-amber-100 text-amber-700 border-amber-200', label: 'Khách vắng', icon: <AlertTriangle className="size-3.5" /> };
     case 'ExpertAbsent':
-      return { class: 'bg-amber-100 text-amber-700 border-amber-200', label: status === 'UserAbsent' ? 'Khách vắng' : 'Chuyên gia vắng', icon: <AlertTriangle className="size-3.5" /> };
+      return { class: 'bg-amber-100 text-amber-700 border-amber-200', label: 'Chuyên gia vắng mặt', icon: <AlertTriangle className="size-3.5" /> };
     case 'ExpertAbsentHandled':
-      return { class: 'bg-emerald-100 text-emerald-700 border-emerald-200', label: 'Đã xử lý vắng mặt', icon: <CheckCircle2 className="size-3.5" /> };
+      return { class: 'bg-emerald-100 text-emerald-700 border-emerald-200', label: 'Đã xử lý vắng mặt chuyên gia', icon: <CheckCircle2 className="size-3.5" /> };
     case 'AllAbsent':
       return { class: 'bg-rose-100 text-rose-700 border-rose-200', label: 'Cả 2 vắng mặt', icon: <Ban className="size-3.5" /> };
     case 'Pending':
@@ -129,6 +128,8 @@ const getStatusConfig = (status: string | null | undefined) => {
       return { class: 'bg-slate-200 text-slate-600 border-slate-300', label: 'Đã hết hạn', icon: <Clock className="size-3.5" /> };
     case 'NoExpertAvailable':
       return { class: 'bg-rose-100 text-rose-700 border-rose-200', label: 'Không có chuyên gia', icon: <AlertCircle className="size-3.5" /> };
+    case 'Refunded':
+      return { class: 'bg-emerald-100 text-emerald-700 border-emerald-200', label: 'Đã hoàn tiền', icon: <CheckCircle2 className="size-3.5" /> };
     default:
       return { class: 'bg-slate-100 text-slate-700 border-slate-200', label: status ?? '-', icon: <AlertCircle className="size-3.5" /> };
   }
@@ -170,9 +171,7 @@ export default function ConsultationsManagementPage() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState<string | null>(null);
   const [pendingAbsentItems, setPendingAbsentItems] = useState<AdminConsultationItem[]>([]);
-  const [handledAbsentItems, setHandledAbsentItems] = useState<AdminConsultationItem[]>([]);
   const [absentLoading, setAbsentLoading] = useState(false);
-  const [absentTab, setAbsentTab] = useState<'pending' | 'handled'>('pending');
 
   const [typeFilter, setTypeFilter] = useState<AdminConsultationType | ''>('');
   const [searchKeyword, setSearchKeyword] = useState('');
@@ -228,31 +227,22 @@ export default function ConsultationsManagementPage() {
     const loadAbsents = async () => {
       setAbsentLoading(true);
       try {
-        const [pendingResponse, handledResponse] = await Promise.all([
-          adminConsultationApi.getPaged({
-            pageNumber: 1,
-            pageSize: 12,
-            status: 'ExpertAbsent',
-          }),
-          adminConsultationApi.getPaged({
-            pageNumber: 1,
-            pageSize: 12,
-            status: 'ExpertAbsentHandled',
-          }),
-        ]);
+        const pendingResponse = await adminConsultationApi.getPaged({
+          pageNumber: 1,
+          pageSize: 12,
+          status: 'ExpertAbsent',
+        });
         if (cancelled) {
           return;
         }
         const withReport = (items: AdminConsultationItem[]) =>
           items.filter(item => (item.customerReport?.trim() ?? '').length > 0);
         setPendingAbsentItems(withReport(pendingResponse.items ?? []));
-        setHandledAbsentItems(withReport(handledResponse.items ?? []));
       } catch {
         if (cancelled) {
           return;
         }
         setPendingAbsentItems([]);
-        setHandledAbsentItems([]);
       } finally {
         if (!cancelled) {
           setAbsentLoading(false);
@@ -303,15 +293,8 @@ export default function ConsultationsManagementPage() {
     try {
       const updated = await adminConsultationApi.confirmExpertAbsentHandled(consultationId);
       setPendingAbsentItems(prev => prev.filter(item => item.consultationId !== consultationId));
-      setHandledAbsentItems((prev) => {
-        const existing = prev.find(item => item.consultationId === consultationId);
-        if (existing) {
-          return prev.map(item => item.consultationId === consultationId ? updated : item);
-        }
-        return [updated, ...prev].slice(0, 12);
-      });
       setItems(prev => prev.map(item => item.consultationId === consultationId ? { ...item, status: updated.status } : item));
-      setSelectedItem(prev => (prev && prev.consultationId === consultationId ? { ...prev, status: updated.status } : prev));
+      setSelectedItem(prev => (prev && prev.consultationId === consultationId ? updated : prev));
       showToast('Đã đánh dấu phiên tư vấn là đã xử lý.', { type: 'success' });
     } catch (error) {
       const message = getApiErrorMessage(error, 'Không thể xác nhận đã xử lý báo cáo này.');
@@ -331,58 +314,22 @@ export default function ConsultationsManagementPage() {
           </div>
         </header>
 
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h3 className="text-lg font-bold text-slate-900">Giải quyết vấn đề</h3>
-              <p className="text-sm text-slate-500">Theo dõi và xác nhận các báo cáo chuyên gia vắng mặt.</p>
+        {!absentLoading && pendingAbsentItems.length > 0 && (
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">Giải quyết vấn đề</h3>
+                <p className="text-sm text-slate-500">Các báo cáo chuyên gia vắng mặt cần xử lý.</p>
+              </div>
+              <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+                {pendingAbsentItems.length}
+                {' '}
+                cần giải quyết
+              </span>
             </div>
-            <div className="inline-flex rounded-full border border-slate-200 bg-slate-50 p-1 text-sm">
-              {[
-                { key: 'pending', label: 'Chưa giải quyết', count: pendingAbsentItems.length },
-                { key: 'handled', label: 'Đã giải quyết', count: handledAbsentItems.length },
-              ].map(tab => (
-                <button
-                  key={tab.key}
-                  type="button"
-                  onClick={() => setAbsentTab(tab.key as 'pending' | 'handled')}
-                  className={`inline-flex items-center gap-2 rounded-full px-4 py-1.5 font-semibold transition-colors ${
-                    absentTab === tab.key
-                      ? 'bg-indigo-600 text-white shadow-sm'
-                      : 'text-slate-600 hover:text-slate-900'
-                  }`}
-                >
-                  {tab.label}
-                  <span className={`rounded-full px-2 py-0.5 text-xs ${absentTab === tab.key ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-700'}`}>
-                    {tab.count}
-                  </span>
-                </button>
-              ))}
-            </div>
-          </div>
 
-          {absentLoading && (
-            <div className="flex items-center justify-center gap-3 py-10 text-slate-500">
-              <Loader2 className="size-5 animate-spin text-indigo-500" />
-              <span className="text-sm font-medium">Đang tải báo cáo...</span>
-            </div>
-          )}
-
-          {!absentLoading && absentTab === 'pending' && pendingAbsentItems.length === 0 && (
-            <div className="py-10 text-center text-sm text-slate-500">
-              Không có báo cáo chuyên gia vắng mặt cần xử lý.
-            </div>
-          )}
-
-          {!absentLoading && absentTab === 'handled' && handledAbsentItems.length === 0 && (
-            <div className="py-10 text-center text-sm text-slate-500">
-              Chưa có báo cáo nào được đánh dấu đã xử lý.
-            </div>
-          )}
-
-          {!absentLoading && (
             <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {(absentTab === 'pending' ? pendingAbsentItems : handledAbsentItems).map(item => (
+              {pendingAbsentItems.map(item => (
                 <div key={`absent-${item.consultationId}`} className="group relative overflow-hidden rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-all hover:shadow-md">
                   <div className="mb-3 flex items-center justify-between">
                     <span className="font-bold text-indigo-700">{formatShortId(item.consultationId)}</span>
@@ -403,21 +350,19 @@ export default function ConsultationsManagementPage() {
                         {formatDateTime(item.customerReportSubmittedAt)}
                       </span>
                     </div>
-                    {absentTab === 'pending' && (
-                      <button
-                        type="button"
-                        onClick={() => void confirmAbsentHandled(item.consultationId)}
-                        className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-100"
-                      >
-                        Xác nhận đã xử lý
-                      </button>
-                    )}
+                    <button
+                      type="button"
+                      onClick={() => void confirmAbsentHandled(item.consultationId)}
+                      className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-100"
+                    >
+                      Xác nhận đã xử lý
+                    </button>
                   </div>
                 </div>
               ))}
             </div>
-          )}
-        </section>
+          </section>
+        )}
 
         <div className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:flex-row sm:items-center">
           <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -672,16 +617,28 @@ export default function ConsultationsManagementPage() {
                     )}
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedItem(null);
-                    setDetailError(null);
-                  }}
-                  className="rounded-full p-2 text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition-colors"
-                >
-                  <X className="size-5" />
-                </button>
+                <div className="flex items-center gap-2">
+                  {selectedItem?.status === 'ExpertAbsent' && (
+                    <button
+                      type="button"
+                      onClick={() => void confirmAbsentHandled(selectedItem.consultationId)}
+                      className="inline-flex items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-4 py-1.5 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-100"
+                    >
+                      <CheckCircle2 className="size-4" />
+                      Xác nhận đã xử lý
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedItem(null);
+                      setDetailError(null);
+                    }}
+                    className="rounded-full p-2 text-slate-400 hover:bg-slate-200 hover:text-slate-700 transition-colors"
+                  >
+                    <X className="size-5" />
+                  </button>
+                </div>
               </div>
 
               {/* Modal Content */}

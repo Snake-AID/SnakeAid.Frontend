@@ -136,9 +136,13 @@ export interface SnakeCatchingRequestAssignedPayload {
   id: string;
   status: SnakeCatchingRequestStatus;
   assignedAt?: string | null;
-  assignedRescuerId: string;
-  AssignedRescuerName: string;
-  AssignedRescuerPhone: string;
+  assignedRescuerId?: string | null;
+  assignedRescuerName?: string | null;
+  assignedRescuerPhone?: string | null;
+  AssignedRescuerName?: string;
+  AssignedRescuerPhone?: string;
+  AssignedRescuerId?: string;
+  isAvailable?: boolean | null;
 }
 
 export interface SnakeCatchingRequestCancelledPayload {

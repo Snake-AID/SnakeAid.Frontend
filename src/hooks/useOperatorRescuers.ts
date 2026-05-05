@@ -343,6 +343,44 @@ export function useOperatorRescuers() {
     });
   }, []);
 
+  const updateRescuerAvailability = useCallback((rescuerId: string, isAvailable: boolean) => {
+    const isInOnlineList = onlineRescuers.some(r => r.accountId === rescuerId);
+
+    if (isInOnlineList) {
+      setOnlineRescuers((prev) => {
+        const index = prev.findIndex(r => r.accountId === rescuerId);
+        if (index < 0) {
+          return prev;
+        }
+
+        const next = [...prev];
+        next[index] = {
+          ...next[index]!,
+          isAvailable,
+        };
+        return next;
+      });
+    }
+
+    setOnDutySnapshot((prev) => {
+      const index = prev.findIndex(r => r.rescuerId === rescuerId);
+      if (index < 0) {
+        return prev;
+      }
+
+      const next = [...prev];
+      next[index] = {
+        ...next[index]!,
+        isAvailable,
+      };
+      return next;
+    });
+
+    if (!isInOnlineList) {
+      void loadOnlineRescuers();
+    }
+  }, [onlineRescuers, loadOnlineRescuers]);
+
   return {
     rescuerRegistry,
     liveRescuers,
@@ -351,6 +389,7 @@ export function useOperatorRescuers() {
     loadOnlineRescuers,
     clearMissionLocation,
     clearMissionLocationByIncidentId,
+    updateRescuerAvailability,
     handleRescuerOnlineStatus,
     handleRescuerIdleLocationUpdated,
     handleRescuerMissionLocationUpdated,
