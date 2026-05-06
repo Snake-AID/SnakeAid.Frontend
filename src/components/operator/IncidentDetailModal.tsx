@@ -686,7 +686,7 @@ export default function IncidentDetailModal({
                                 {incident.user.account.fullName ?? incident.user.userName}
                               </p>
                               <p className="text-sm text-slate-500">
-                                <span className="font-semibold">Só điện thoại:</span>
+                                <span className="font-semibold">Số điện thoại:</span>
                                 {' '}
                                 {incident.user.phoneNumber ?? 'Không có số điện thoại'}
                               </p>
