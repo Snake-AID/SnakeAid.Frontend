@@ -87,4 +87,14 @@ export const incidentApi = {
       throw error;
     }
   },
+
+  handoverToHospital: (
+    incidentId: string,
+    payload: {
+      hospitalName: string;
+      hospitalPhone?: string;
+      note?: string;
+    },
+  ) =>
+    api.post<CreateIncidentResponse>(`/incidents/${incidentId}/handover-hospital`, payload),
 };
