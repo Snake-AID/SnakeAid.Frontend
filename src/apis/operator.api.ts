@@ -1,5 +1,6 @@
 import type {
   BriefRescuerProfileResponse,
+  OffDutyRescuerSnapshotResponse,
   OnDutyRescuerSnapshotResponse,
   ShiftAssignmentResponse,
 } from '@/types/operator.type';
@@ -14,6 +15,12 @@ export const operatorApi = {
     onlyAvailable?: boolean;
     maxDistanceKm?: number;
   }) => api.get<OnDutyRescuerSnapshotResponse>('/monitoring/on-duty', { params }),
+
+  getOffDutyRescuers: (params?: {
+    incidentId?: string;
+    catchingRequestId?: string;
+    maxDistanceKm?: number;
+  }) => api.get<OffDutyRescuerSnapshotResponse>('/monitoring/off-duty', { params }),
 
   getOnlineRescuers: () => api.get<BriefRescuerProfileResponse[]>('/monitoring/online-rescuers'),
 

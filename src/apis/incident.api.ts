@@ -95,4 +95,14 @@ export const incidentApi = {
    */
   operatorAbortMission: (missionId: string, payload: { cancellationReason: string }) =>
     api.patch<void>(`/rescue-missions/${missionId}/operator-abort`, payload),
+
+  handoverToHospital: (
+    incidentId: string,
+    payload: {
+      hospitalName: string;
+      hospitalPhone?: string;
+      note?: string;
+    },
+  ) =>
+    api.post<CreateIncidentResponse>(`/incidents/${incidentId}/handover-hospital`, payload),
 };

@@ -31,6 +31,12 @@ export interface OnDutyRescuerSnapshotResponse {
   rescuers: OnDutyRescuerItemResponse[];
 }
 
+export interface OffDutyRescuerSnapshotResponse {
+  contextId: string | null;
+  snapshotAt: string;
+  rescuers: OffDutyRescuerItemResponse[];
+}
+
 export interface OnDutyRescuerItemResponse {
   rescuerId: string;
   fullName: string;
@@ -45,6 +51,18 @@ export interface OnDutyRescuerItemResponse {
   shiftStartTime: string;
   shiftEndTime: string;
   shiftDate: Date;
+  latitude: number | null;
+  longitude: number | null;
+  lastLocationUpdate: string | null;
+  distanceKm: number | null;
+}
+
+export interface OffDutyRescuerItemResponse {
+  rescuerId: string;
+  fullName: string;
+  phoneNumber: string | null;
+  isOnline: boolean;
+  isAvailable: boolean;
   latitude: number | null;
   longitude: number | null;
   lastLocationUpdate: string | null;

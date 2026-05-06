@@ -1,12 +1,13 @@
 'use client';
 
 import type { DetailSnakebiteIncidentResponse, DispatchRequestItem } from '@/types/snakebite-incident.type';
-import { AlertCircle, CheckCircle, Clock, MapPin, Send, User, X } from 'lucide-react';
+import { AlertCircle, Building2, CheckCircle, Clock, MapPin, Send, User, X } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { incidentApi } from '@/apis/incident.api';
 import { useToast } from '@/components/ToastProvider';
 import { PrimaryVenomType, SnakebiteIncidentStatus } from '@/types/snakebite-incident.type';
 import DispatchRescuerModal from './DispatchRescuerModal';
+import HospitalHandoverModal from './HospitalHandoverModal';
 import IncidentMissionAbortModal from './IncidentMissionAbortModal';
 
 export interface IncidentDetailModalProps {
@@ -17,7 +18,7 @@ export interface IncidentDetailModalProps {
   onClose: () => void;
   onVerify?: (incidentId: string) => Promise<void>;
   onFalseAlarm?: (incidentId: string) => Promise<void>;
-  onDispatch?: (incidentId: string, rescuerId: string) => Promise<void>;
+  onDispatch?: (incidentId: string, rescuerId: string, requestPayload?: { allowOffDuty: boolean; operatorNote: string }) => Promise<void>;
   onRefresh?: () => void;
 }
 
@@ -39,6 +40,7 @@ export default function IncidentDetailModal({
 }: IncidentDetailModalProps) {
   const [isDispatchModalOpen, setIsDispatchModalOpen] = useState(false);
   const [isAbortModalOpen, setIsAbortModalOpen] = useState(false);
+  const [isHospitalHandoverOpen, setIsHospitalHandoverOpen] = useState(false);
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [dispatchRequests, setDispatchRequests] = useState<DispatchRequestItem[]>([]);
   const [isDispatchRequestsLoading, setIsDispatchRequestsLoading] = useState(false);
@@ -157,18 +159,17 @@ export default function IncidentDetailModal({
     setIsDispatchModalOpen(true);
   };
 
-  const handleDispatch = async (rescuerId: string) => {
+  const handleDispatch = async (rescuerId: string, requestPayload?: { allowOffDuty: boolean; operatorNote: string }) => {
     if (!incident?.id || !onDispatch) {
       return;
     }
 
     try {
-      await onDispatch(incident.id, rescuerId);
-      showToast('Đã điều phối đội cứu hộ.', { type: 'success' });
+      await onDispatch(incident.id, rescuerId, requestPayload);
       onRefresh?.();
     } catch (err) {
       console.error('Failed to dispatch rescuer', err);
-      showToast('Điều phối thất bại. Vui lòng thử lại.', { type: 'error' });
+      throw err;
     } finally {
       await loadDispatchRequests();
     }
@@ -735,15 +736,25 @@ export default function IncidentDetailModal({
                             )}
 
                             {incident.status === SnakebiteIncidentStatus.Verified && (
-                              <button
-                                type="button"
-                                onClick={handleDispatchClick}
-                                disabled={!onDispatch}
-                                className="w-full inline-flex items-center justify-center gap-2 rounded-full border border-sky-600 bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                              >
-                                <Send className="size-4" />
-                                Điều phối đội cứu hộ
-                              </button>
+                              <div className="space-y-2">
+                                <button
+                                  type="button"
+                                  onClick={handleDispatchClick}
+                                  disabled={!onDispatch}
+                                  className="w-full inline-flex items-center justify-center gap-2 rounded-full border border-sky-600 bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                >
+                                  <Send className="size-4" />
+                                  Điều phối đội cứu hộ
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setIsHospitalHandoverOpen(true)}
+                                  className="w-full inline-flex items-center justify-center gap-2 rounded-full border border-orange-600 bg-orange-600 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700"
+                                >
+                                  <Building2 className="size-4" />
+                                  Tìm bệnh viện gần nhất
+                                </button>
+                              </div>
                             )}
                           </div>
                         </div>
@@ -890,6 +901,10 @@ export default function IncidentDetailModal({
           isOpen={isDispatchModalOpen}
           onClose={() => setIsDispatchModalOpen(false)}
           onDispatch={handleDispatch}
+          onOpenHospitalModal={() => {
+            setIsDispatchModalOpen(false);
+            setIsHospitalHandoverOpen(true);
+          }}
         />
 
         {/* Mission Abort Modal */}
@@ -899,6 +914,20 @@ export default function IncidentDetailModal({
           onClose={() => setIsAbortModalOpen(false)}
           onConfirm={handleAbortMission}
         />
+
+        {/* Hospital Handover Modal */}
+        {incident && (
+          <HospitalHandoverModal
+            incidentId={incident.id}
+            latitude={incident.locationCoordinates.latitude}
+            longitude={incident.locationCoordinates.longitude}
+            isOpen={isHospitalHandoverOpen}
+            onClose={() => setIsHospitalHandoverOpen(false)}
+            onSuccess={() => {
+              onRefresh?.();
+            }}
+          />
+        )}
       </div>
     </div>
   );

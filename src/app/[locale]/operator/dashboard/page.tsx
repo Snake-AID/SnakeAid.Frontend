@@ -547,7 +547,7 @@ export default function OperatorDashboardPage() {
   const handleFalseAlarm = async (incidentId: string) => {
     try {
       await incidentApi.markFalseAlarm(incidentId, {
-        reason: 'Operator marked as false alarm',
+        reason: 'Điều phối viên không thể liên lạc được với người báo.',
       });
       showToast('Case đã được đánh dấu là báo động giả.', { type: 'success' });
       refreshIncidents();
@@ -557,13 +557,13 @@ export default function OperatorDashboardPage() {
     }
   };
 
-  const handleDispatch = async (incidentId: string, rescuerId: string) => {
+  const handleDispatch = async (incidentId: string, rescuerId: string, requestPayload?: { allowOffDuty: boolean; operatorNote: string }) => {
     try {
-      await dispatchIncident(incidentId, rescuerId);
+      await dispatchIncident(incidentId, rescuerId, requestPayload);
       showToast('Case đã được điều phối.', { type: 'success' });
     } catch (err) {
       console.error('Failed to dispatch incident', err);
-      showToast('Không thể điều phối case. Vui lòng thử lại.', { type: 'error' });
+      throw err;
     }
   };
 

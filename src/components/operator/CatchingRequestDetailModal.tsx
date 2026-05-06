@@ -14,7 +14,7 @@ import { transactionApi } from '@/apis/transaction.api';
 import { SnakeCatchingRequestStatus } from '@/types/snakecatching-request.type';
 import CatchingMissionAbortModal from './CatchingMissionAbortModal';
 import CatchingRequestCancelModal from './CatchingRequestCancelModal';
-import DispatchRescuerModal from './DispatchRescuerModal';
+import DispatchCatchingRescuerModal from './DispatchCatchingRescuerModal';
 import SnakeSpeciesInfoCard from './SnakeSpeciesInfoCard';
 
 const getShortRequestId = (id: string) => {
@@ -959,7 +959,7 @@ export default function CatchingRequestDetailModal({
 
         {/* Dispatch Rescuer Modal */}
         {isOpen && (
-          <DispatchRescuerModal
+          <DispatchCatchingRescuerModal
             catchingRequestId={request?.id ?? requestId ?? ''}
             isOpen={isDispatchModalOpen}
             onClose={() => setIsDispatchModalOpen(false)}
