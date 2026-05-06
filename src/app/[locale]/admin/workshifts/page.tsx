@@ -245,6 +245,19 @@ const getAssignmentCellDate = (assignment: ShiftAssignmentResponse) => {
   return toDateInput(new Date());
 };
 
+const isDateInPast = (dateString: string): boolean => {
+  const parsed = parseDateInput(dateString);
+  if (!parsed) {
+    return false;
+  }
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  parsed.setHours(0, 0, 0, 0);
+
+  return parsed.getTime() < today.getTime();
+};
+
 const getValidationMessage = (error: unknown, fallback: string) => {
   if (!(error instanceof ApiClientError)) {
     return fallback;
@@ -443,6 +456,14 @@ export default function WorkShiftsPage() {
 
     return assignmentByCell[`${selectedCell.shiftId}__${selectedCell.date}`] ?? [];
   }, [assignmentByCell, selectedCell]);
+
+  const isSelectedDateInPast = useMemo(() => {
+    if (!selectedCell) {
+      return false;
+    }
+
+    return isDateInPast(selectedCell.date);
+  }, [selectedCell]);
 
   const availableRescuersForSelectedCell = useMemo(() => {
     const assignedIds = new Set(selectedCellAssignments.map(item => item.rescuerId));
@@ -1234,9 +1255,9 @@ export default function WorkShiftsPage() {
                                 <div key={item.id} className="rounded border border-slate-200 bg-white p-2">
                                   <p className="line-clamp-1 text-xs font-semibold text-slate-800">{getRescuerName(item)}</p>
                                   <div className="mt-1 flex items-center justify-between gap-2">
-                                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${STATUS_BADGE_CLASS[normalizeStatus(item.status)]}`}>
+                                    {/* <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${STATUS_BADGE_CLASS[normalizeStatus(item.status)]}`}>
                                       {STATUS_LABEL[normalizeStatus(item.status)]}
-                                    </span>
+                                    </span> */}
                                     <span className="text-[10px] text-slate-500">{getAssignmentTimeLabel(item)}</span>
                                   </div>
                                 </div>
@@ -1436,6 +1457,12 @@ export default function WorkShiftsPage() {
               {' cứu hộ viên'}
             </div>
 
+            {isSelectedDateInPast && (
+              <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-700">
+                Ngày này đã qua, bạn không thể thêm hoặc xóa phân công. Chỉ có thể xem thông tin.
+              </div>
+            )}
+
             <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
               <div className="rounded-xl border border-slate-200 p-4">
                 <h4 className="mb-3 flex items-center gap-2 text-sm font-bold text-slate-900">
@@ -1444,9 +1471,10 @@ export default function WorkShiftsPage() {
                 </h4>
                 <div className="space-y-2">
                   <select
+                    disabled={isSelectedDateInPast}
                     value={singleRescuerId}
                     onChange={event => setSingleRescuerId(event.target.value)}
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:bg-slate-100 disabled:opacity-60"
                   >
                     <option value="">Chọn cứu hộ viên</option>
                     {availableRescuersForSelectedCell.map(rescuer => (
@@ -1456,15 +1484,17 @@ export default function WorkShiftsPage() {
                     ))}
                   </select>
                   <input
+                    disabled={isSelectedDateInPast}
                     value={singleNotes}
                     onChange={event => setSingleNotes(event.target.value)}
                     placeholder="Ghi chú"
-                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                    className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:bg-slate-100 disabled:opacity-60"
                   />
                   <button
                     type="button"
-                    disabled={isAssignmentSubmitting || !singleRescuerId || !selectedShift.isActive}
+                    disabled={isAssignmentSubmitting || !singleRescuerId || !selectedShift.isActive || isSelectedDateInPast}
                     onClick={() => void assignOneRescuer()}
+                    title={isSelectedDateInPast ? 'Không thể thêm phân công cho ngày trong quá khứ' : undefined}
                     className="inline-flex items-center gap-2 rounded-lg bg-teal-700 px-3 py-2 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <Plus className="size-4" />
@@ -1485,8 +1515,9 @@ export default function WorkShiftsPage() {
                   )}
 
                   {availableRescuersForSelectedCell.map(rescuer => (
-                    <label key={rescuer.accountId} className="flex items-center gap-2 rounded bg-white px-2 py-1.5 text-sm text-slate-700">
+                    <label key={rescuer.accountId} className="flex items-center gap-2 rounded bg-white px-2 py-1.5 text-sm text-slate-700 disabled:cursor-not-allowed">
                       <input
+                        disabled={isSelectedDateInPast}
                         type="checkbox"
                         checked={bulkRescuerIds.includes(rescuer.accountId)}
                         onChange={(event) => {
@@ -1504,16 +1535,18 @@ export default function WorkShiftsPage() {
                 </div>
 
                 <input
+                  disabled={isSelectedDateInPast}
                   value={bulkNotes}
                   onChange={event => setBulkNotes(event.target.value)}
                   placeholder="Ghi chú bulk assign"
-                  className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
+                  className="mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm disabled:cursor-not-allowed disabled:bg-slate-100 disabled:opacity-60"
                 />
 
                 <button
                   type="button"
-                  disabled={isAssignmentSubmitting || bulkRescuerIds.length === 0 || !selectedShift.isActive}
+                  disabled={isAssignmentSubmitting || bulkRescuerIds.length === 0 || !selectedShift.isActive || isSelectedDateInPast}
                   onClick={() => void assignBulkRescuers()}
+                  title={isSelectedDateInPast ? 'Không thể thêm phân công cho ngày trong quá khứ' : undefined}
                   className="mt-2 inline-flex items-center gap-2 rounded-lg bg-teal-700 px-3 py-2 text-sm font-semibold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <Plus className="size-4" />
@@ -1579,9 +1612,10 @@ export default function WorkShiftsPage() {
                       {draft && (
                         <div className="grid grid-cols-1 gap-2 md:grid-cols-4">
                           <select
+                            disabled={isSelectedDateInPast}
                             value={draft.rescuerId}
                             onChange={event => updateAssignmentDraft(assignment.id, 'rescuerId', event.target.value)}
-                            className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
+                            className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm disabled:cursor-not-allowed disabled:bg-slate-100 disabled:opacity-60"
                           >
                             {rescuers.map(rescuer => (
                               <option key={rescuer.accountId} value={rescuer.accountId}>
@@ -1591,16 +1625,18 @@ export default function WorkShiftsPage() {
                           </select>
 
                           <input
+                            disabled={isSelectedDateInPast}
                             type="date"
                             value={draft.date}
                             onChange={event => updateAssignmentDraft(assignment.id, 'date', event.target.value)}
-                            className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
+                            className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm disabled:cursor-not-allowed disabled:bg-slate-100 disabled:opacity-60"
                           />
 
                           <select
+                            disabled={isSelectedDateInPast}
                             value={draft.status}
                             onChange={event => updateAssignmentDraft(assignment.id, 'status', event.target.value as ShiftAssignmentStatus)}
-                            className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
+                            className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm disabled:cursor-not-allowed disabled:bg-slate-100 disabled:opacity-60"
                           >
                             {SHIFT_STATUS_OPTIONS.map(status => (
                               <option key={status} value={status}>
@@ -1610,10 +1646,11 @@ export default function WorkShiftsPage() {
                           </select>
 
                           <input
+                            disabled={isSelectedDateInPast}
                             value={draft.notes}
                             onChange={event => updateAssignmentDraft(assignment.id, 'notes', event.target.value)}
                             placeholder="Ghi chú"
-                            className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm"
+                            className="rounded-lg border border-slate-300 px-2 py-1.5 text-sm disabled:cursor-not-allowed disabled:bg-slate-100 disabled:opacity-60"
                           />
                         </div>
                       )}
@@ -1661,8 +1698,9 @@ export default function WorkShiftsPage() {
 
                         <button
                           type="button"
-                          disabled={isAssignmentSubmitting}
+                          disabled={isAssignmentSubmitting || isSelectedDateInPast}
                           onClick={() => void deleteAssignment(assignment.id)}
+                          title={isSelectedDateInPast ? 'Không thể xóa phân công cho ngày trong quá khứ' : undefined}
                           className="inline-flex items-center gap-1 rounded-lg border border-rose-200 bg-rose-50 px-2 py-1 text-xs font-semibold text-rose-700 hover:bg-rose-100 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           <Trash2 className="size-3.5" />
