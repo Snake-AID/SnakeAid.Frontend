@@ -7,6 +7,7 @@ import { incidentApi } from '@/apis/incident.api';
 import { useToast } from '@/components/ToastProvider';
 import { PrimaryVenomType, SnakebiteIncidentStatus } from '@/types/snakebite-incident.type';
 import DispatchRescuerModal from './DispatchRescuerModal';
+import IncidentMissionAbortModal from './IncidentMissionAbortModal';
 
 export interface IncidentDetailModalProps {
   incident: DetailSnakebiteIncidentResponse | null;
@@ -37,6 +38,7 @@ export default function IncidentDetailModal({
   onRefresh,
 }: IncidentDetailModalProps) {
   const [isDispatchModalOpen, setIsDispatchModalOpen] = useState(false);
+  const [isAbortModalOpen, setIsAbortModalOpen] = useState(false);
   const [isActionLoading, setIsActionLoading] = useState(false);
   const [dispatchRequests, setDispatchRequests] = useState<DispatchRequestItem[]>([]);
   const [isDispatchRequestsLoading, setIsDispatchRequestsLoading] = useState(false);
@@ -180,6 +182,21 @@ export default function IncidentDetailModal({
     } catch (err) {
       console.error('Failed to cancel dispatch request', err);
       showToast('Hủy yêu cầu dispatch thất bại. Vui lòng thử lại.', { type: 'error' });
+    }
+  };
+
+  const handleAbortMission = async (reason: string) => {
+    if (!incident?.activeMission?.id) {
+      return;
+    }
+    try {
+      await incidentApi.operatorAbortMission(incident.activeMission.id, { cancellationReason: reason });
+      showToast('Đã hủy nhiệm vụ thành công. Incident đã về trạng thái Chờ điều phối.', { type: 'success' });
+      onRefresh?.();
+    } catch (err) {
+      console.error('Failed to abort mission', err);
+      showToast('Hủy nhiệm vụ thất bại. Vui lòng thử lại.', { type: 'error' });
+      throw err;
     }
   };
 
@@ -565,6 +582,15 @@ export default function IncidentDetailModal({
                                                 đ
                                               </span>
                                             )}
+                                            {(incident.activeMission.status === 'Preparing' || incident.activeMission.status === 'EnRoute') && (
+                                              <button
+                                                type="button"
+                                                onClick={() => setIsAbortModalOpen(true)}
+                                                className="ml-auto rounded-full border border-rose-300 bg-rose-50 px-2 py-0.5 text-[10px] font-bold text-rose-600 hover:bg-rose-100 transition-colors"
+                                              >
+                                                HỦY NHIỆM VỤ
+                                              </button>
+                                            )}
                                           </div>
                                         </div>
                                       </div>
@@ -864,6 +890,14 @@ export default function IncidentDetailModal({
           isOpen={isDispatchModalOpen}
           onClose={() => setIsDispatchModalOpen(false)}
           onDispatch={handleDispatch}
+        />
+
+        {/* Mission Abort Modal */}
+        <IncidentMissionAbortModal
+          isOpen={isAbortModalOpen}
+          isLoading={isActionLoading}
+          onClose={() => setIsAbortModalOpen(false)}
+          onConfirm={handleAbortMission}
         />
       </div>
     </div>
