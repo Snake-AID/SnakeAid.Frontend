@@ -88,6 +88,14 @@ export const incidentApi = {
     }
   },
 
+  /**
+   * Operator forcefully aborts an active rescue mission (Preparing or EnRoute).
+   * PATCH /api/rescue-missions/{missionId}/operator-abort
+   * Backend sẽ: set Mission -> MissionAborted, Incident -> Verified, clear AssignedRescuerId.
+   */
+  operatorAbortMission: (missionId: string, payload: { cancellationReason: string }) =>
+    api.patch<void>(`/rescue-missions/${missionId}/operator-abort`, payload),
+
   handoverToHospital: (
     incidentId: string,
     payload: {
